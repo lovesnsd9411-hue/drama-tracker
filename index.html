@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#1A1A2E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="在看什麼?">
+<meta name="apple-mobile-web-app-title" content="在看什麼？">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.png">
-<title>在看什麼?</title>
+<title>在看什麼？</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -66,6 +66,7 @@ input,select,textarea,button{font-family:inherit}
 .poster-card-acts{position:absolute;top:7px;right:7px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
 .poster-card:hover .poster-card-acts{opacity:1}
 .poster-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.3);color:#fff;font-size:20px}
+.fav-badge{position:absolute;top:7px;left:7px;background:#F59E0B;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,.2);z-index:2}
 
 /* ── TABLE VIEW ── */
 .table-wrap{overflow-x:auto;border-radius:14px;border:.5px solid #E5E5F0;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.04)}
@@ -120,7 +121,7 @@ textarea{height:80px;resize:vertical}
 
 .result-count{font-size:13px;color:#aaa;font-weight:600;margin-bottom:.75rem}
 .sec-title{font-size:11px;font-weight:700;color:#aaa;margin-bottom:.5rem;margin-top:1rem;text-transform:uppercase;letter-spacing:.7px}
-.badge{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:700}
+.badge{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:700;white-space:nowrap;display:inline-block}
 .b-done{background:#E1F5EE;color:#0F6E56}
 .b-ongoing{background:#E6F1FB;color:#185FA5}
 .b-dropped{background:#FEF0F0;color:#B91C1C}
@@ -223,6 +224,7 @@ textarea{height:80px;resize:vertical}
     <div id="detail-content"></div>
     <div class="mfooter">
       <button class="icon-btn" onclick="closeModal('detail-modal')">關閉</button>
+      <button class="icon-btn" id="det-fav"><i class="ti ti-star"></i> 最愛</button>
       <button class="icon-btn" id="det-edit"><i class="ti ti-edit"></i> 編輯</button>
     </div>
   </div>
@@ -529,6 +531,8 @@ function getFiltered(){
     return (b.yearDone||0)-(a.yearDone||0);
   });
   else list.sort((a,b)=>b.addedAt-a.addedAt);
+  // favorites always float to the top, regardless of sort mode
+  list.sort((a,b)=>(b.favorite?1:0)-(a.favorite?1:0));
   return list;
 }
 
@@ -562,9 +566,11 @@ function renderGallery(list,el){
   el.innerHTML=list.map(d=>`
     <div class="poster-card" onclick="openDetail('${d.id}')">
       <div class="poster-card-acts">
+        <button class="icon-btn" onclick="toggleFavorite('${d.id}',event)" title="${d.favorite?'取消最愛':'設為最愛'}" style="padding:3px 5px;font-size:12px;color:${d.favorite?'#F59E0B':'#666'}"><i class="ti ti-star${d.favorite?'-filled':''}"></i></button>
         <button class="icon-btn" onclick="event.stopPropagation();openEdit('${d.id}')" title="編輯" style="padding:3px 5px;font-size:12px"><i class="ti ti-edit"></i></button>
         <button class="icon-btn" onclick="event.stopPropagation();del('${d.id}')" title="刪除" style="padding:3px 5px;font-size:12px"><i class="ti ti-trash"></i></button>
       </div>
+      ${d.favorite?`<div class="fav-badge"><i class="ti ti-star-filled"></i></div>`:''}
       ${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.querySelector('.poster-placeholder').style.display='flex'">`:''}
       <div class="poster-placeholder" style="display:${d.poster?'none':'flex'}"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(d.name)}</div>${d.orig?`<div class="ph-orig">${esc(d.orig)}</div>`:''}</div>
       <div class="poster-overlay">
@@ -590,12 +596,13 @@ function renderTable(list,el){
     <tbody>${list.map(d=>`
       <tr onclick="openDetail('${d.id}')">
         <td class="td-poster">${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy">`:`<div class="tp-ph"><i class="ti ti-device-tv"></i></div>`}</td>
-        <td><div class="td-name">${esc(d.name)}</div><div class="td-orig">${d.orig?esc(d.orig):''}</div></td>
+        <td><div class="td-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:12px;margin-right:3px"></i>':''}${esc(d.name)}</div><div class="td-orig">${d.orig?esc(d.orig):''}</div></td>
         <td class="td-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'—'}</td>
-        <td>${statusBadge(d.status)}</td>
+        <td style="white-space:nowrap">${statusBadge(d.status)}</td>
         <td style="color:#888;font-size:12px">${d.yearDone?d.yearDone+'年':'—'}</td>
         <td style="color:#888;font-size:12px">${d.platform?esc(d.platform):'—'}</td>
         <td class="td-acts">
+          <button class="icon-btn" onclick="toggleFavorite('${d.id}',event)" title="${d.favorite?'取消最愛':'設為最愛'}" style="color:${d.favorite?'#F59E0B':'#666'}"><i class="ti ti-star${d.favorite?'-filled':''}"></i></button>
           <button class="icon-btn" onclick="event.stopPropagation();openEdit('${d.id}')" title="編輯"><i class="ti ti-edit"></i></button>
           <button class="icon-btn" onclick="event.stopPropagation();del('${d.id}')" title="刪除"><i class="ti ti-trash"></i></button>
         </td>
@@ -699,6 +706,10 @@ function openDetail(id){
     ${d.note?`<div style="background:#F8F8FB;border-radius:12px;padding:.85rem;font-size:13px;line-height:1.7;margin-bottom:1rem;font-weight:500;color:#444">${esc(d.note)}</div>`:''}
     ${rel}`;
   document.getElementById('det-edit').onclick=()=>{closeModal('detail-modal');openEdit(id)};
+  const favBtn=document.getElementById('det-fav');
+  favBtn.innerHTML=d.favorite?'<i class="ti ti-star-filled"></i> 取消最愛':'<i class="ti ti-star"></i> 設為最愛';
+  favBtn.style.color=d.favorite?'#F59E0B':'';
+  favBtn.onclick=()=>{toggleFavorite(id);openDetail(id);};
   openModal('detail-modal');
 }
 
@@ -775,6 +786,12 @@ function saveForm(){
   save();closeModal('form-modal');render();
 }
 function del(id){if(!confirm('確定要刪除這部劇嗎？'))return;db=db.filter(x=>x.id!==id);save();render()}
+function toggleFavorite(id,event){
+  if(event)event.stopPropagation();
+  const d=db.find(x=>x.id===id);if(!d)return;
+  d.favorite=!d.favorite;
+  save();render();
+}
 function exportData(){const b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`追劇清單_${new Date().toISOString().slice(0,10)}.json`;a.click()}
 function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;if(confirm(`匯入 ${d.length} 筆資料？（會覆蓋現有資料）`)){db=d;save();render()}}catch{alert('格式不正確，請匯入之前匯出的 JSON 檔')}};r.readAsText(f);e.target.value=''}
 function fixRatedStatus(){
