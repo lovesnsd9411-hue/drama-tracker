@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1A1A2E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="追劇清單">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+<title>我的追劇清單</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito','Hiragino Maru Gothic Pro','Hiragino Sans','PingFang TC','Microsoft JhengHei',sans-serif;background:#F0F0F6;color:#1A1A2E;min-height:100vh}
+input,select,textarea,button{font-family:inherit}
+
+.app{padding:1.5rem 1rem;max-width:960px;margin:0 auto}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem}
+.app-title{font-size:22px;font-weight:700;color:#1A1A2E}
+.actions{display:flex;gap:8px;align-items:center}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem}
+.stat{background:#fff;border-radius:14px;border:.5px solid #E5E5F0;padding:.9rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.04);transition:all .15s}
+.stat:hover{border-color:#B8B5E8;box-shadow:0 3px 10px rgba(0,0,0,.08)}
+.stat-active{border-color:#8B86D4;box-shadow:0 3px 10px rgba(139,134,212,.2);background:#FAFAFF}
+.stat-n{font-size:24px;font-weight:700}
+.stat-l{font-size:12px;color:#888;margin-top:2px;font-weight:500}
+
+.toolbar{display:flex;gap:8px;margin-bottom:.75rem;align-items:center;flex-wrap:wrap}
+.toolbar input{flex:1;min-width:160px}
+.search-wrap{position:relative;flex:1;min-width:160px;display:flex}
+.search-wrap input{width:100%;padding-right:32px}
+.search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#bbb;font-size:14px;padding:4px;display:flex;align-items:center;border-radius:50%}
+.search-clear:hover{color:#666;background:#F0F0F5}
+.view-toggle{display:flex;gap:4px;background:#E8E8F0;border-radius:10px;padding:3px}
+.view-btn{background:none;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;color:#888;font-size:15px;transition:all .15s}
+.view-btn.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.75rem}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 11px;border-radius:20px;font-weight:600}
+.chip-filter{background:#EEEDFE;color:#3C3489;border:.5px solid #AFA9EC}
+.chip-person{background:#E1F5EE;color:#0F6E56;border:.5px solid #5DCAA5}
+.chip button{background:none;border:none;cursor:pointer;font-size:14px;padding:0;color:inherit;opacity:.7;display:flex;align-items:center}
+.chip button:hover{opacity:1}
+
+/* ── GALLERY VIEW ── */
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.poster-card{position:relative;border-radius:14px;overflow:hidden;cursor:pointer;background:#ddd;aspect-ratio:2/3;box-shadow:0 2px 8px rgba(0,0,0,.12);transition:transform .18s,box-shadow .18s}
+.poster-card:hover{transform:translateY(-4px);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+.poster-card img{width:100%;height:100%;object-fit:cover;display:block}
+.poster-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#2D2B55,#4A4580);color:#fff;padding:.75rem;text-align:center}
+.poster-placeholder .ph-icon{font-size:32px;margin-bottom:.5rem;opacity:.6}
+.poster-placeholder .ph-name{font-size:12px;font-weight:700;line-height:1.3}
+.poster-placeholder .ph-orig{font-size:10px;opacity:.6;margin-top:3px}
+.poster-overlay{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.85));padding:.75rem .6rem .6rem;color:#fff}
+.poster-overlay .po-name{font-size:12px;font-weight:700;line-height:1.3;margin-bottom:3px}
+.poster-overlay .po-score{font-size:11px;font-weight:600;color:#FCD34D}
+.poster-overlay .po-badge{font-size:10px;padding:2px 6px;border-radius:10px;font-weight:700;display:inline-block;margin-top:3px}
+.po-done{background:#059669;color:#fff}
+.po-ongoing{background:#2563EB;color:#fff}
+.po-dropped{background:#B91C1C;color:#fff}
+.poster-card-acts{position:absolute;top:7px;right:7px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.poster-card:hover .poster-card-acts{opacity:1}
+.poster-loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.3);color:#fff;font-size:20px}
+
+/* ── TABLE VIEW ── */
+.table-wrap{overflow-x:auto;border-radius:14px;border:.5px solid #E5E5F0;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{padding:.75rem 1rem;text-align:left;font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.5px;border-bottom:.5px solid #F0F0F5;white-space:nowrap}
+tbody tr{cursor:pointer;transition:background .12s;border-bottom:.5px solid #F5F5FA}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:#F8F8FD}
+tbody td{padding:.65rem 1rem;vertical-align:middle}
+.td-poster{width:36px}
+.td-poster img{width:36px;height:54px;object-fit:cover;border-radius:6px;display:block}
+.td-poster .tp-ph{width:36px;height:54px;border-radius:6px;background:linear-gradient(135deg,#2D2B55,#4A4580);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+.td-name{font-weight:700;color:#1A1A2E}
+.td-orig{font-size:11px;color:#bbb;font-weight:500}
+.td-score{font-weight:700;color:#D97706;white-space:nowrap}
+.td-acts{white-space:nowrap}
+.td-acts .icon-btn{display:inline-flex;padding:3px 6px;font-size:12px}
+
+.empty{text-align:center;padding:3rem;color:#999;font-size:14px;grid-column:1/-1}
+
+/* Buttons & inputs */
+.icon-btn{background:#fff;border:.5px solid #E0E0EE;border-radius:8px;padding:5px 8px;cursor:pointer;color:#666;font-size:14px;display:flex;align-items:center;gap:4px;font-weight:500;transition:background .12s}
+.icon-btn:hover{background:#F3F3F8}
+.btn-primary{background:#1A1A2E;color:#fff;border:none;border-radius:10px;padding:8px 18px;cursor:pointer;font-size:14px;font-weight:700;transition:opacity .15s}
+.btn-primary:hover{opacity:.85}
+
+input[type=text],input[type=date],select,textarea{background:#fff;border:.5px solid #E0E0EE;border-radius:10px;padding:8px 12px;font-size:14px;color:#1A1A2E;outline:none;transition:border-color .15s;width:100%}
+input[type=text]:focus,input[type=date]:focus,select:focus,textarea:focus{border-color:#8B86D4}
+select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+textarea{height:80px;resize:vertical}
+
+/* Modal */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:18px;border:.5px solid #E5E5F0;padding:1.75rem;width:min(560px,95vw);max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.12)}
+.modal-title{font-size:18px;font-weight:700;margin-bottom:1.25rem;color:#1A1A2E}
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:13px;font-weight:600;color:#666;margin-bottom:5px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem}
+.mfooter{display:flex;justify-content:flex-end;gap:8px;margin-top:1.25rem;padding-top:1rem;border-top:.5px solid #F0F0F5}
+
+/* Poster search in form */
+.poster-search-row{display:flex;gap:8px;align-items:flex-end}
+.poster-search-row .field{flex:1;margin:0}
+.poster-preview{display:flex;gap:12px;flex-wrap:wrap;margin-top:.5rem}
+.poster-opt{cursor:pointer;border-radius:8px;overflow:hidden;border:2.5px solid transparent;transition:border-color .15s;flex-shrink:0}
+.poster-opt:hover{border-color:#8B86D4}
+.poster-opt.selected{border-color:#3C3489}
+.poster-opt img{width:70px;height:105px;object-fit:cover;display:block}
+.poster-opt .po-title{font-size:10px;text-align:center;padding:3px 4px;color:#666;font-weight:600;max-width:70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.result-count{font-size:13px;color:#aaa;font-weight:600;margin-bottom:.75rem}
+.sec-title{font-size:11px;font-weight:700;color:#aaa;margin-bottom:.5rem;margin-top:1rem;text-transform:uppercase;letter-spacing:.7px}
+.badge{font-size:11px;padding:3px 9px;border-radius:20px;font-weight:700}
+.b-done{background:#E1F5EE;color:#0F6E56}
+.b-ongoing{background:#E6F1FB;color:#185FA5}
+.b-dropped{background:#FEF0F0;color:#B91C1C}
+.ppill{font-size:12px;padding:5px 12px;background:#F5F5FA;border-radius:20px;color:#555;border:.5px solid #E5E5F0;cursor:pointer;display:inline-block;margin:2px;font-weight:600;transition:all .12s}
+.ppill:hover{background:#EEEDFE;color:#3C3489;border-color:#AFA9EC}
+.cpill{font-size:12px;padding:4px 10px;background:#F5F5FA;border-radius:20px;color:#666;border:.5px solid #E5E5F0;display:inline-block;margin:2px;font-weight:500;cursor:pointer;transition:all .12s}
+.cpill:hover{border-color:#B8B5E8;color:#3C3489}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="app-title">🎬 <span id="sync-status" style="font-size:11px;font-weight:500;color:#aaa;vertical-align:middle"></span></div>
+    <div class="actions">
+      <button class="icon-btn" onclick="exportData()"><i class="ti ti-download"></i> 匯出</button>
+      <button class="icon-btn" onclick="document.getElementById('imp').click()"><i class="ti ti-upload"></i> 匯入</button>
+      <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
+      <button class="btn-primary" onclick="openAdd()">＋ 新增</button>
+    </div>
+  </div>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="toolbar">
+    <div class="search-wrap">
+      <input type="text" id="search" placeholder="搜尋劇名、原文名、演員…" oninput="onSearchInput()">
+      <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none" title="清除搜尋"><i class="ti ti-x"></i></button>
+    </div>
+    <select id="ftype" onchange="onTypeChange()">
+      <option value="">篩選 / 排序</option>
+      <option value="status">觀看狀態</option>
+      <option value="year">看完年度</option>
+      <option value="genre">類型</option>
+      <option value="platform">平台</option>
+      <option value="rating">評分</option>
+      <option value="sort">排序方式</option>
+    </select>
+    <select id="fval" style="display:none;min-width:140px" onchange="onValChange()"></select>
+    <div class="view-toggle">
+      <button class="view-btn on" id="btn-gallery" onclick="setView('gallery')" title="海報牆"><i class="ti ti-layout-grid"></i></button>
+      <button class="view-btn" id="btn-table" onclick="setView('table')" title="表格"><i class="ti ti-table"></i></button>
+    </div>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div id="result-count"></div>
+  <div id="list"></div>
+</div>
+
+<!-- 新增/編輯 modal -->
+<div class="modal-bg" id="form-modal">
+  <div class="modal">
+    <div class="modal-title" id="form-title">新增劇目</div>
+    <div class="row2">
+      <div class="field"><label>劇名 ＊</label><input type="text" id="f-name" placeholder="例：黑暗榮耀" oninput="debouncePosterSearch();checkDuplicate()"><div id="dup-warning" style="display:none;font-size:12px;color:#D97706;margin-top:4px;font-weight:600"></div></div>
+      <div class="field"><label>原文名稱</label><input type="text" id="f-orig" placeholder="例：더 글로리" oninput="debouncePosterSearch();checkDuplicate()"></div>
+    </div>
+
+    <!-- Poster picker -->
+    <div class="field">
+      <label>海報</label>
+      <div class="poster-search-row">
+        <div class="field"><input type="text" id="f-poster-q" placeholder="搜尋海報（自動填入劇名）"></div>
+        <button class="icon-btn" onclick="searchPosters()" style="white-space:nowrap;flex-shrink:0"><i class="ti ti-search"></i> 搜尋</button>
+        <button class="icon-btn" onclick="clearPoster()" title="清除海報" style="flex-shrink:0"><i class="ti ti-x"></i></button>
+      </div>
+      <div class="poster-preview" id="poster-preview"></div>
+      <input type="hidden" id="f-poster">
+    </div>
+
+    <div class="row3">
+      <div class="field"><label>觀看狀態</label>
+        <select id="f-status"><option value="done">看完</option><option value="ongoing">觀看中</option><option value="dropped">棄劇</option></select>
+      </div>
+      <div class="field"><label>評分</label><select id="f-rating" onchange="onRatingChange()"></select></div>
+      <div class="field"><label>看完年度</label><select id="f-year"><option value="">—</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>類型</label><input type="text" id="f-genre" placeholder="愛情、懸疑…"></div>
+      <div class="field"><label>平台</label><input type="text" id="f-platform" placeholder="Netflix、Disney+…"></div>
+    </div>
+    <div class="field"><label>首播日期</label><input type="date" id="f-air"></div>
+    <div class="field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋"></div>
+    <div class="field"><label>主角（逗號分隔）</label><input type="text" id="f-actors" placeholder="宋慧喬, 李道賢"></div>
+    <div class="row2">
+      <div class="field"><label>導演（逗號分隔）</label><input type="text" id="f-director" placeholder="安吉鎬, 朴勳政"></div>
+      <div class="field"><label>編劇（逗號分隔）</label><input type="text" id="f-writer" placeholder="金恩淑, 朴海英"></div>
+    </div>
+    <div class="field"><label>筆記 / 心得</label><textarea id="f-note" placeholder="想記錄什麼都可以…"></textarea></div>
+    <div class="mfooter">
+      <button class="icon-btn" onclick="closeModal('form-modal')">取消</button>
+      <button class="btn-primary" onclick="saveForm()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 詳情 modal -->
+<div class="modal-bg" id="detail-modal">
+  <div class="modal">
+    <div id="detail-content"></div>
+    <div class="mfooter">
+      <button class="icon-btn" onclick="closeModal('detail-modal')">關閉</button>
+      <button class="icon-btn" id="det-edit"><i class="ti ti-edit"></i> 編輯</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY='drama-tracker-v7';
+const TMDB_KEY='a59aa4d8cffed270ea811d3b2fd0d77a';
+const TMDB_IMG='https://image.tmdb.org/t/p/w300';
+const TMDB_SEARCH='https://api.themoviedb.org/3/search/tv';
+const RATINGS=[5.0,4.8,4.5,4.2,4.0,3.8,3.5,3.0,2.5,2.0,1.5,1.0,0.0];
+const NY=new Date().getFullYear();
+let db=[],editId=null,aFilter={type:'',val:''},aSort='rating-year',pFilter=null,viewMode='gallery';
+let posterDebounce=null;
+
+// ── Supabase setup ──
+const SUPABASE_URL='https://edqzgytotxfkkbbvojcm.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkcXpneXRvdHhma2tiYnZvamNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODEwMzYsImV4cCI6MjA5NzY1NzAzNn0.nPbuccnMRedaf9H4WH6WCtgg3muaaNKNcXZwMVK8z5Q';
+let sb=null;
+let sbRowId=null; // the id of the single row we use to store all data
+let saveDebounce=null;
+
+function setSyncStatus(text,color){
+  const el=document.getElementById('sync-status');
+  if(el){el.textContent=text;el.style.color=color||'#aaa';}
+}
+
+function initSupabase(){
+  try{
+    sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    return true;
+  }catch(e){console.error('Supabase init failed',e);return false}
+}
+
+async function loadFromCloud(){
+  setSyncStatus('☁️ 同步中…','#888');
+  try{
+    const {data,error}=await sb.from('dramas').select('id,data').order('id',{ascending:true}).limit(1);
+    if(error) throw error;
+    if(data&&data.length){
+      sbRowId=data[0].id;
+      db=data[0].data||[];
+      setSyncStatus('☁️ 已同步','#0F6E56');
+    }else{
+      // no row yet - create one, migrate localStorage data if present
+      let localData=[];
+      try{localData=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{}
+      if(!localData.length) seedData();
+      else db=localData;
+      const {data:inserted,error:insErr}=await sb.from('dramas').insert({data:db}).select('id').single();
+      if(insErr) throw insErr;
+      sbRowId=inserted.id;
+      setSyncStatus('☁️ 已同步','#0F6E56');
+    }
+  }catch(e){
+    console.error('Cloud load failed, falling back to local storage',e);
+    setSyncStatus('⚠️ 離線模式','#B91C1C');
+    try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
+    if(!db.length) seedData();
+  }
+  render();
+}
+
+function load(){
+  // kept for compatibility; actual loading happens in loadFromCloud()
+}
+
+function save(){
+  // always keep a local backup copy
+  localStorage.setItem(KEY,JSON.stringify(db));
+  if(!sb||sbRowId===null){return}
+  clearTimeout(saveDebounce);
+  setSyncStatus('☁️ 儲存中…','#888');
+  saveDebounce=setTimeout(async()=>{
+    try{
+      const {error}=await sb.from('dramas').update({data:db}).eq('id',sbRowId);
+      if(error) throw error;
+      setSyncStatus('☁️ 已同步','#0F6E56');
+    }catch(e){
+      console.error('Cloud save failed',e);
+      setSyncStatus('⚠️ 儲存失敗','#B91C1C');
+    }
+  },500);
+}
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+
+function seedData(){
+  db=[
+    {id:uid(),name:'黑暗榮耀',orig:'더 글로리',status:'done',rating:5.0,genre:'復仇',platform:'Netflix',airDate:'2022-12-30',yearDone:'2023',actors:['宋慧喬','李道賢','林智妍'],director:'安吉鎬',writer:'金恩淑',note:'把校暴拍得這麼有力量！',poster:'',addedAt:Date.now()-864e5*10},
+    {id:uid(),name:'我的解放日誌',orig:'나의 해방일지',status:'done',rating:4.8,genre:'日常',platform:'Netflix',airDate:'2022-04-02',yearDone:'2022',actors:['孫錫久','金志媛','李民基'],director:'金錫允',writer:'朴海英',note:'慢熱但越看越上癮',poster:'',addedAt:Date.now()-864e5*8},
+    {id:uid(),name:'財閥家的小兒子',orig:'재벌집 막내아들',status:'done',rating:3.5,genre:'重生',platform:'Disney+',airDate:'2022-12-02',yearDone:'2023',actors:['宋仲基','李聖民'],director:'鄭大允',writer:'',note:'結局差強人意',poster:'',addedAt:Date.now()-864e5*5},
+    {id:uid(),name:'謙遜嫵媚',orig:'No Gain No Love',status:'ongoing',rating:4.2,genre:'愛情',platform:'Netflix',airDate:'2025-05-31',yearDone:'',actors:['韓素希','庄東逸'],director:'',writer:'',note:'',poster:'',addedAt:Date.now()-864e5*2},
+    {id:uid(),name:'白色巨塔',orig:'하얀거탑',status:'done',rating:4.8,genre:'醫療',platform:'Netflix',airDate:'2007-01-06',yearDone:'2023',actors:['金明民','嚴基俊'],director:'안판석',writer:'',note:'',poster:'',addedAt:Date.now()-864e5},
+  ];
+}
+
+const rLabel=r=>r==0?'未評分':'⭐ '+parseFloat(r).toFixed(1);
+function statusBadge(s){
+  if(s==='done') return '<span class="badge b-done">看完</span>';
+  if(s==='dropped') return '<span class="badge b-dropped">棄劇</span>';
+  return '<span class="badge b-ongoing">觀看中</span>';
+}
+function uniq(k){return[...new Set(db.map(d=>d[k]).filter(Boolean))].sort()}
+function uniqGenres(){
+  const set=new Set();
+  db.forEach(d=>(d.genres&&d.genres.length?d.genres:(d.genre?d.genre.split(',').map(g=>g.trim()):[])).forEach(g=>{if(g)set.add(g)}));
+  return [...set].sort();
+}
+
+function setView(v){
+  viewMode=v;
+  document.getElementById('btn-gallery').classList.toggle('on',v==='gallery');
+  document.getElementById('btn-table').classList.toggle('on',v==='table');
+  render();
+}
+
+function fillRatingSel(id,cur){
+  const s=document.getElementById(id);
+  s.innerHTML=RATINGS.map(r=>`<option value="${r}">${rLabel(r)}</option>`).join('');
+  if(cur!==undefined)s.value=parseFloat(cur)||0;
+}
+function onRatingChange(){
+  const rating=parseFloat(document.getElementById('f-rating').value)||0;
+  if(rating>0){
+    document.getElementById('f-status').value='done';
+  }
+}
+function fillYearSel(id,cur){
+  const s=document.getElementById(id);s.innerHTML='<option value="">—</option>';
+  for(let y=NY;y>=2000;y--){const o=document.createElement('option');o.value=y;o.textContent=y+'年';s.appendChild(o)}
+  if(cur)s.value=cur;
+}
+
+// ── TMDB poster search ──
+function debouncePosterSearch(){
+  clearTimeout(posterDebounce);
+  posterDebounce=setTimeout(()=>{
+    const q=document.getElementById('f-orig').value.trim()||document.getElementById('f-name').value.trim();
+    if(q){document.getElementById('f-poster-q').value=q;searchPosters();}
+  },800);
+}
+
+async function searchPosters(){
+  // prefer original name (Korean), fallback to Chinese name
+  const orig=document.getElementById('f-orig').value.trim();
+  const name=document.getElementById('f-name').value.trim();
+  const manualQ=document.getElementById('f-poster-q').value.trim();
+  const q=manualQ||orig||name;
+  if(!q)return;
+  document.getElementById('f-poster-q').value=q;
+  const prev=document.getElementById('poster-preview');
+  prev.innerHTML='<span style="color:#aaa;font-size:12px">搜尋中…</span>';
+  try{
+    // search with ko-KR to get Korean posters
+    const res=await fetch(`${TMDB_SEARCH}?api_key=${TMDB_KEY}&query=${encodeURIComponent(q)}&language=ko-KR`);
+    const data=await res.json();
+    let results=(data.results||[]).filter(r=>r.poster_path).slice(0,6);
+    // if no results in ko-KR and query was Korean, try fallback
+    if(!results.length&&(orig||name)){
+      const fallbackQ=manualQ?name:name;
+      const res2=await fetch(`${TMDB_SEARCH}?api_key=${TMDB_KEY}&query=${encodeURIComponent(fallbackQ)}&language=ko-KR`);
+      const data2=await res2.json();
+      results=(data2.results||[]).filter(r=>r.poster_path).slice(0,6);
+    }
+    if(!results.length){prev.innerHTML='<span style="color:#aaa;font-size:12px">找不到海報，試試換個關鍵字</span>';return}
+    const cur=document.getElementById('f-poster').value;
+    prev.innerHTML=`<div style="font-size:11px;color:#aaa;width:100%;margin-bottom:2px">點劇名圖卡可以展開選「季」的海報（適合有第二季、第三季的劇）</div>`+results.map(r=>`
+      <div class="poster-opt${cur===r.poster_path?' selected':''}" onclick="selectPoster('${r.poster_path}',this)" oncontextmenu="event.preventDefault();showSeasons(${r.id},this);return false">
+        <img src="${TMDB_IMG}${r.poster_path}" loading="lazy">
+        <div class="po-title">${esc(r.name||r.title||'')}</div>
+        <div style="text-align:center;margin-top:2px"><button class="icon-btn" style="font-size:10px;padding:2px 6px" onclick="event.stopPropagation();showSeasons(${r.id},this)">選季數</button></div>
+      </div>`).join('')+`<div id="season-preview" style="width:100%"></div>`;
+  }catch(e){prev.innerHTML='<span style="color:#e55;font-size:12px">搜尋失敗，請檢查網路</span>'}
+}
+
+async function showSeasons(tvId,el){
+  const seasonPrev=document.getElementById('season-preview');
+  seasonPrev.innerHTML='<div style="font-size:12px;color:#aaa;margin-top:8px">載入季數中…</div>';
+  try{
+    const res=await fetch(`https://api.themoviedb.org/3/tv/${tvId}?api_key=${TMDB_KEY}&language=ko-KR`);
+    const data=await res.json();
+    const seasons=(data.seasons||[]).filter(s=>s.poster_path&&s.season_number>0);
+    if(!seasons.length){seasonPrev.innerHTML='<div style="font-size:12px;color:#aaa;margin-top:8px">這部劇沒有分季海報</div>';return}
+    const cur=document.getElementById('f-poster').value;
+    seasonPrev.innerHTML=`<div style="font-size:11px;color:#888;font-weight:700;margin:10px 0 6px;width:100%">選擇季數：</div>`+
+      seasons.map(s=>`
+        <div class="poster-opt${cur===s.poster_path?' selected':''}" onclick="selectPoster('${s.poster_path}',this)" style="display:inline-block;margin:2px">
+          <img src="${TMDB_IMG}${s.poster_path}" loading="lazy">
+          <div class="po-title">${esc(s.name||('第'+s.season_number+'季'))}</div>
+        </div>`).join('');
+  }catch(e){seasonPrev.innerHTML='<div style="font-size:12px;color:#e55;margin-top:8px">載入失敗</div>'}
+}
+
+function selectPoster(path,el){
+  document.getElementById('f-poster').value=path;
+  document.querySelectorAll('.poster-opt').forEach(e=>e.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function clearPoster(){
+  document.getElementById('f-poster').value='';
+  document.querySelectorAll('.poster-opt').forEach(e=>e.classList.remove('selected'));
+}
+
+// ── Filter ──
+function onTypeChange(){
+  const t=document.getElementById('ftype').value,vs=document.getElementById('fval');
+  if(!t){vs.style.display='none';aFilter={type:'',val:''};render();return}
+  vs.style.display='';
+  if(t==='status') vs.innerHTML='<option value="done">看完</option><option value="ongoing">觀看中</option><option value="dropped">棄劇</option>';
+  else if(t==='year') vs.innerHTML=uniq('yearDone').sort((a,b)=>b-a).map(y=>`<option value="${y}">${y}年看完</option>`).join('');
+  else if(t==='genre') vs.innerHTML=uniqGenres().map(g=>`<option value="${g}">${g}</option>`).join('');
+  else if(t==='platform') vs.innerHTML=uniq('platform').map(p=>`<option value="${p}">${p}</option>`).join('');
+  else if(t==='rating') vs.innerHTML=RATINGS.map(r=>`<option value="${r}">${rLabel(r)}</option>`).join('');
+  else if(t==='sort') vs.innerHTML='<option value="rating-year">評分高→低，同分年代新→舊</option><option value="year-rating">年代新→舊，同年評分高→低</option><option value="date-desc">最新新增</option><option value="rating-desc">評分高→低</option><option value="rating-asc">評分低→高</option><option value="name">劇名 A→Z</option><option value="year-desc">看完年度新→舊</option>';
+  onValChange();
+}
+function onValChange(){
+  const t=document.getElementById('ftype').value,v=document.getElementById('fval').value;
+  if(t==='sort'){aSort=v;aFilter={type:'',val:''}}else{aFilter={type:t,val:v}}
+  render();
+}
+function clearFilter(){aFilter={type:'',val:''};document.getElementById('ftype').value='';document.getElementById('fval').style.display='none';render()}
+function checkDuplicate(){
+  const name=document.getElementById('f-name').value.trim();
+  const orig=document.getElementById('f-orig').value.trim();
+  const warnEl=document.getElementById('dup-warning');
+  if(!name){warnEl.style.display='none';return}
+  const dup=findDuplicate(name,orig);
+  if(dup){
+    warnEl.style.display='block';
+    warnEl.innerHTML=`⚠️ 清單裡已經有「${esc(dup.name)}」了${dup.orig?'（原文：'+esc(dup.orig)+'）':''}`;
+  }else{
+    warnEl.style.display='none';
+  }
+}
+function findDuplicate(name,orig){
+  return db.find(x=>{
+    if(editId&&x.id===editId)return false; // skip self when editing
+    // Prioritize original name match (more reliable than translated Chinese name)
+    if(orig&&x.orig){
+      return x.orig.trim().toLowerCase()===orig.toLowerCase();
+    }
+    // fallback to Chinese name only if no orig name is available on either side
+    return x.name&&x.name.trim().toLowerCase()===name.toLowerCase();
+  });
+}
+function onSearchInput(){
+  const v=document.getElementById('search').value;
+  document.getElementById('search-clear').style.display=v?'flex':'none';
+  render();
+}
+function clearSearch(){
+  document.getElementById('search').value='';
+  document.getElementById('search-clear').style.display='none';
+  render();
+}
+function clearPerson(){pFilter=null;render()}
+function setPerson(name,role){pFilter={name,role};closeModal('detail-modal');render()}
+
+function renderChips(){
+  let h='';
+  if(aFilter.type){
+    const tl={status:'狀態',year:'年度',genre:'類型',platform:'平台',rating:'評分'}[aFilter.type]||'';
+    const vl=aFilter.type==='status'?(aFilter.val==='done'?'看完':aFilter.val==='dropped'?'棄劇':'觀看中'):aFilter.type==='year'?aFilter.val+'年看完':aFilter.type==='rating'?rLabel(parseFloat(aFilter.val)):aFilter.val;
+    h+=`<span class="chip chip-filter">${tl}：${vl}<button onclick="clearFilter()"><i class="ti ti-x"></i></button></span>`;
+  }
+  if(pFilter){
+    const rl={actor:'演員',director:'導演',writer:'編劇'}[pFilter.role]||'';
+    h+=`<span class="chip chip-person">${rl}：${esc(pFilter.name)}<button onclick="clearPerson()"><i class="ti ti-x"></i></button></span>`;
+  }
+  document.getElementById('chips').innerHTML=h;
+}
+
+function getFiltered(){
+  const q=(document.getElementById('search').value||'').toLowerCase();
+  let list=[...db];
+  if(q) list=list.filter(d=>[d.name,d.orig||'',...(d.actors||[]),...(d.directors||(d.director?[d.director]:[])),...(d.writers||(d.writer?[d.writer]:[]))].join(' ').toLowerCase().includes(q));
+  if(aFilter.type==='status') list=list.filter(d=>d.status===aFilter.val);
+  else if(aFilter.type==='year') list=list.filter(d=>d.yearDone===aFilter.val);
+  else if(aFilter.type==='genre') list=list.filter(d=>{
+    const gs=d.genres&&d.genres.length?d.genres:(d.genre?d.genre.split(',').map(g=>g.trim()):[]);
+    return gs.includes(aFilter.val);
+  });
+  else if(aFilter.type==='platform') list=list.filter(d=>d.platform===aFilter.val);
+  else if(aFilter.type==='rating') list=list.filter(d=>parseFloat(d.rating||0)===parseFloat(aFilter.val));
+  if(pFilter){
+    if(pFilter.role==='actor') list=list.filter(d=>(d.actors||[]).includes(pFilter.name));
+    else if(pFilter.role==='director') list=list.filter(d=>(d.directors&&d.directors.length?d.directors:(d.director?[d.director]:[])).includes(pFilter.name));
+    else if(pFilter.role==='writer') list=list.filter(d=>(d.writers&&d.writers.length?d.writers:(d.writer?[d.writer]:[])).includes(pFilter.name));
+  }
+  if(aSort==='rating-desc') list.sort((a,b)=>parseFloat(b.rating||0)-parseFloat(a.rating||0));
+  else if(aSort==='rating-asc') list.sort((a,b)=>parseFloat(a.rating||0)-parseFloat(b.rating||0));
+  else if(aSort==='name') list.sort((a,b)=>a.name.localeCompare(b.name,'zh'));
+  else if(aSort==='year-desc') list.sort((a,b)=>(b.yearDone||0)-(a.yearDone||0));
+  else if(aSort==='year-rating') list.sort((a,b)=>{
+    const yd=(b.yearDone||0)-(a.yearDone||0);
+    if(yd!==0) return yd;
+    return parseFloat(b.rating||0)-parseFloat(a.rating||0);
+  });
+  else if(aSort==='rating-year') list.sort((a,b)=>{
+    const rd=parseFloat(b.rating||0)-parseFloat(a.rating||0);
+    if(rd!==0) return rd;
+    return (b.yearDone||0)-(a.yearDone||0);
+  });
+  else list.sort((a,b)=>b.addedAt-a.addedAt);
+  return list;
+}
+
+function render(){
+  renderChips();renderStats();
+  const list=getFiltered();
+  const total=db.length;
+  const countEl=document.getElementById('result-count');
+  const isFiltered=aFilter.type||pFilter||(document.getElementById('search').value||'').trim();
+  if(isFiltered){
+    countEl.innerHTML=`<div class="result-count">共 ${list.length} 部${list.length<total?' / 全部 '+total+' 部':''}</div>`;
+  } else {
+    countEl.innerHTML='';
+  }
+  const el=document.getElementById('list');
+  if(!list.length){el.innerHTML='<div class="empty">😶 找不到符合的劇目</div>';return}
+  if(viewMode==='gallery') renderGallery(list,el);
+  else renderTable(list,el);
+}
+
+function posterImg(d,cls=''){
+  if(d.poster) return `<img src="${TMDB_IMG}${d.poster}" loading="lazy" class="${cls}" onerror="this.parentElement.innerHTML=phHTML('${esc(d.name)}','${esc(d.orig||'')}')">`;
+  return phHTML(d.name,d.orig||'');
+}
+function phHTML(name,orig){
+  return `<div class="poster-placeholder"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(name)}</div>${orig?`<div class="ph-orig">${esc(orig)}</div>`:''}</div>`;
+}
+
+function renderGallery(list,el){
+  el.className='gallery';
+  el.innerHTML=list.map(d=>`
+    <div class="poster-card" onclick="openDetail('${d.id}')">
+      <div class="poster-card-acts">
+        <button class="icon-btn" onclick="event.stopPropagation();openEdit('${d.id}')" title="編輯" style="padding:3px 5px;font-size:12px"><i class="ti ti-edit"></i></button>
+        <button class="icon-btn" onclick="event.stopPropagation();del('${d.id}')" title="刪除" style="padding:3px 5px;font-size:12px"><i class="ti ti-trash"></i></button>
+      </div>
+      ${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.querySelector('.poster-placeholder').style.display='flex'">`:''}
+      <div class="poster-placeholder" style="display:${d.poster?'none':'flex'}"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(d.name)}</div>${d.orig?`<div class="ph-orig">${esc(d.orig)}</div>`:''}</div>
+      <div class="poster-overlay">
+        <div class="po-name">${esc(d.name)}</div>
+        <div class="po-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):''}</div>
+        <span class="po-badge ${d.status==='done'?'po-done':d.status==='dropped'?'po-dropped':'po-ongoing'}">${d.status==='done'?'看完':d.status==='dropped'?'棄劇':'觀看中'}</span>
+      </div>
+    </div>`).join('');
+}
+
+function renderTable(list,el){
+  el.className='table-wrap';
+  el.innerHTML=`<table>
+    <thead><tr>
+      <th class="td-poster"></th>
+      <th>劇名</th>
+      <th>評分</th>
+      <th>狀態</th>
+      <th>年度</th>
+      <th>平台</th>
+      <th></th>
+    </tr></thead>
+    <tbody>${list.map(d=>`
+      <tr onclick="openDetail('${d.id}')">
+        <td class="td-poster">${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy">`:`<div class="tp-ph"><i class="ti ti-device-tv"></i></div>`}</td>
+        <td><div class="td-name">${esc(d.name)}</div><div class="td-orig">${d.orig?esc(d.orig):''}</div></td>
+        <td class="td-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'—'}</td>
+        <td>${statusBadge(d.status)}</td>
+        <td style="color:#888;font-size:12px">${d.yearDone?d.yearDone+'年':'—'}</td>
+        <td style="color:#888;font-size:12px">${d.platform?esc(d.platform):'—'}</td>
+        <td class="td-acts">
+          <button class="icon-btn" onclick="event.stopPropagation();openEdit('${d.id}')" title="編輯"><i class="ti ti-edit"></i></button>
+          <button class="icon-btn" onclick="event.stopPropagation();del('${d.id}')" title="刪除"><i class="ti ti-trash"></i></button>
+        </td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+function renderStats(){
+  const t=db.length,done=db.filter(d=>d.status==='done').length,on=db.filter(d=>d.status==='ongoing').length,dropped=db.filter(d=>d.status==='dropped').length;
+  const cur=aFilter.type==='status'?aFilter.val:'';
+  document.getElementById('stats').innerHTML=`
+    <div class="stat${cur===''?' stat-active':''}" onclick="filterByStatus('')" style="cursor:pointer"><div class="stat-n">${t}</div><div class="stat-l">全部</div></div>
+    <div class="stat${cur==='done'?' stat-active':''}" onclick="filterByStatus('done')" style="cursor:pointer"><div class="stat-n" style="color:#0F6E56">${done}</div><div class="stat-l">看完</div></div>
+    <div class="stat${cur==='ongoing'?' stat-active':''}" onclick="filterByStatus('ongoing')" style="cursor:pointer"><div class="stat-n" style="color:#185FA5">${on}</div><div class="stat-l">觀看中</div></div>
+    <div class="stat${cur==='dropped'?' stat-active':''}" onclick="filterByStatus('dropped')" style="cursor:pointer"><div class="stat-n" style="color:#B91C1C">${dropped}</div><div class="stat-l">棄劇</div></div>`;
+}
+
+function filterByStatus(val){
+  if(!val){
+    aFilter={type:'',val:''};
+    document.getElementById('ftype').value='';
+    document.getElementById('fval').style.display='none';
+  } else {
+    aFilter={type:'status',val};
+    document.getElementById('ftype').value='status';
+    const vs=document.getElementById('fval');
+    vs.style.display='';
+    vs.innerHTML='<option value="done">看完</option><option value="ongoing">觀看中</option><option value="dropped">棄劇</option>';
+    vs.value=val;
+  }
+  render();
+}
+
+function openDetail(id){
+  const d=db.find(x=>x.id===id);if(!d)return;
+  const dDirectors=d.directors&&d.directors.length?d.directors:(d.director?[d.director]:[]);
+  const dWriters=d.writers&&d.writers.length?d.writers:(d.writer?[d.writer]:[]);
+  let relActors='',relDirectors='',relWriters='';
+
+  // Group by each actor: show "演員名：其他作品1, 其他作品2"
+  if(d.actors&&d.actors.length){
+    const blocks=[];
+    d.actors.forEach(actor=>{
+      const others=db.filter(x=>x.id!==id&&x.actors&&x.actors.includes(actor));
+      if(others.length){
+        blocks.push(`<div style="margin-bottom:.4rem"><span class="ppill" onclick="setPerson('${esc(actor)}','actor')" style="margin:0 4px 0 0">${esc(actor)}</span><span style="font-size:12px;color:#999">其他作品：</span>${others.map(x=>`<span class="cpill" onclick="closeModal('detail-modal');openDetail('${x.id}')">${esc(x.name)}</span>`).join('')}</div>`);
+      }
+    });
+    if(blocks.length) relActors=`<div class="sec-title">演員的其他作品</div>${blocks.join('')}`;
+  }
+
+  // Director(s)
+  if(dDirectors.length){
+    const blocks=[];
+    dDirectors.forEach(director=>{
+      const others=db.filter(x=>x.id!==id&&(x.directors&&x.directors.length?x.directors:(x.director?[x.director]:[])).includes(director));
+      if(others.length){
+        blocks.push(`<div style="margin-bottom:.4rem"><span class="ppill" onclick="setPerson('${esc(director)}','director')" style="margin:0 4px 0 0">${esc(director)}</span><span style="font-size:12px;color:#999">其他作品：</span>${others.map(x=>`<span class="cpill" onclick="closeModal('detail-modal');openDetail('${x.id}')">${esc(x.name)}</span>`).join('')}</div>`);
+      }
+    });
+    if(blocks.length) relDirectors=`<div class="sec-title">導演的其他作品</div>${blocks.join('')}`;
+  }
+
+  // Writer(s)
+  if(dWriters.length){
+    const blocks=[];
+    dWriters.forEach(writer=>{
+      const others=db.filter(x=>x.id!==id&&(x.writers&&x.writers.length?x.writers:(x.writer?[x.writer]:[])).includes(writer));
+      if(others.length){
+        blocks.push(`<div style="margin-bottom:.4rem"><span class="ppill" onclick="setPerson('${esc(writer)}','writer')" style="margin:0 4px 0 0">${esc(writer)}</span><span style="font-size:12px;color:#999">其他作品：</span>${others.map(x=>`<span class="cpill" onclick="closeModal('detail-modal');openDetail('${x.id}')">${esc(x.name)}</span>`).join('')}</div>`);
+      }
+    });
+    if(blocks.length) relWriters=`<div class="sec-title">編劇的其他作品</div>${blocks.join('')}`;
+  }
+
+  const rel=relActors+relDirectors+relWriters;
+  const posterHtml=d.poster
+    ?`<img src="${TMDB_IMG}${d.poster}" style="width:110px;height:165px;object-fit:cover;border-radius:12px;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.15)" loading="lazy">`
+    :'';
+  const genreList=d.genres&&d.genres.length?d.genres:(d.genre?d.genre.split(',').map(g=>g.trim()).filter(Boolean):[]);
+  document.getElementById('detail-content').innerHTML=`
+    <div style="display:flex;gap:1rem;margin-bottom:1rem;align-items:flex-start">
+      ${posterHtml}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:20px;font-weight:700;color:#1A1A2E;line-height:1.3">${esc(d.name)}</div>
+        ${d.orig?`<div style="font-size:13px;color:#999;margin-top:2px;font-weight:500">${esc(d.orig)}</div>`:''}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">${statusBadge(d.status)}<span style="font-size:16px;font-weight:700;color:#D97706">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'未評分'}</span>${(()=>{const namuUrl=d.namu||(d.orig?'https://namu.wiki/Search?q='+encodeURIComponent(d.orig):'');return namuUrl?`<a href="${esc(namuUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#3C3489;font-weight:600;text-decoration:none;background:#EEEDFE;padding:4px 10px;border-radius:20px"><i class="ti ti-external-link"></i> 나무위키${d.namu?'':' (搜尋)'}</a>`:''})()}</div>
+      </div>
+    </div>
+    ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem 1rem;font-size:13px;margin-bottom:1rem">
+      ${d.platform?`<div><span style="color:#aaa;font-weight:600">平台</span><br><span style="font-weight:500">${esc(d.platform)}</span></div>`:''}
+      ${d.airDate?`<div><span style="color:#aaa;font-weight:600">首播日期</span><br><span style="font-weight:500">${d.airDate}</span></div>`:''}
+      ${d.yearDone?`<div><span style="color:#aaa;font-weight:600">看完年度</span><br><span style="font-weight:500">${d.yearDone}年</span></div>`:''}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem 1.5rem;font-size:13px;margin-bottom:1rem">
+      ${dDirectors.length?`<div><span style="color:#aaa;font-weight:600">導演</span><br>${dDirectors.map(p=>`<span class="ppill" onclick="setPerson('${esc(p)}','director')">${esc(p)} 🔍</span>`).join('')}</div>`:''}
+      ${dWriters.length?`<div><span style="color:#aaa;font-weight:600">編劇</span><br>${dWriters.map(p=>`<span class="ppill" onclick="setPerson('${esc(p)}','writer')">${esc(p)} 🔍</span>`).join('')}</div>`:''}
+    </div>
+    ${d.actors&&d.actors.length?`<div style="margin-bottom:1rem"><div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.35rem">主角</div><div>${d.actors.map(a=>`<span class="ppill" onclick="setPerson('${esc(a)}','actor')">${esc(a)} 🔍</span>`).join('')}</div></div>`:''}
+    ${d.note?`<div style="background:#F8F8FB;border-radius:12px;padding:.85rem;font-size:13px;line-height:1.7;margin-bottom:1rem;font-weight:500;color:#444">${esc(d.note)}</div>`:''}
+    ${rel}`;
+  document.getElementById('det-edit').onclick=()=>{closeModal('detail-modal');openEdit(id)};
+  openModal('detail-modal');
+}
+
+function filterByGenre(g){
+  closeModal('detail-modal');
+  aFilter={type:'genre',val:g};
+  document.getElementById('ftype').value='genre';
+  const vs=document.getElementById('fval');
+  vs.style.display='';
+  vs.innerHTML=uniqGenres().map(x=>`<option value="${x}">${x}</option>`).join('');
+  vs.value=g;
+  render();
+}
+
+function openAdd(){
+  editId=null;document.getElementById('form-title').textContent='新增劇目';
+  ['f-name','f-orig','f-genre','f-platform','f-actors','f-director','f-writer','f-note','f-poster','f-poster-q','f-namu'].forEach(k=>document.getElementById(k).value='');
+  document.getElementById('poster-preview').innerHTML='';
+  document.getElementById('dup-warning').style.display='none';
+  document.getElementById('f-status').value='ongoing';
+  fillRatingSel('f-rating',0);document.getElementById('f-air').value='';
+  fillYearSel('f-year','');openModal('form-modal');
+}
+function openEdit(id){
+  const d=db.find(x=>x.id===id);if(!d)return;
+  editId=id;document.getElementById('form-title').textContent='編輯劇目';
+  document.getElementById('f-name').value=d.name||'';document.getElementById('f-orig').value=d.orig||'';
+  document.getElementById('dup-warning').style.display='none';
+  document.getElementById('f-status').value=d.status||'ongoing';
+  fillRatingSel('f-rating',d.rating||0);
+  document.getElementById('f-air').value=d.airDate||'';
+  document.getElementById('f-genre').value=(d.genres&&d.genres.length?d.genres.join(', '):(d.genre||''));document.getElementById('f-platform').value=d.platform||'';
+  document.getElementById('f-namu').value=d.namu||'';
+  document.getElementById('f-actors').value=(d.actors||[]).join(', ');
+  document.getElementById('f-director').value=(d.directors&&d.directors.length?d.directors.join(', '):(d.director||''));
+  document.getElementById('f-writer').value=(d.writers&&d.writers.length?d.writers.join(', '):(d.writer||''));
+  document.getElementById('f-note').value=d.note||'';
+  document.getElementById('f-poster').value=d.poster||'';
+  document.getElementById('f-poster-q').value=d.orig||d.name||'';
+  fillYearSel('f-year',d.yearDone||'');
+  // auto search poster using original name (Korean)
+  const autoQ=d.orig||d.name||'';
+  document.getElementById('f-poster-q').value=autoQ;
+  const prev=document.getElementById('poster-preview');
+  if(d.poster){
+    prev.innerHTML=`<div class="poster-opt selected" onclick="selectPoster('${d.poster}',this)"><img src="${TMDB_IMG}${d.poster}"><div class="po-title">目前海報</div></div>`;
+  }else{prev.innerHTML=''}
+  if(autoQ) setTimeout(()=>searchPosters(),300);
+  openModal('form-modal');
+}
+function saveForm(){
+  const name=document.getElementById('f-name').value.trim();if(!name){alert('請填入劇名');return}
+  const orig=document.getElementById('f-orig').value.trim();
+
+  // duplicate check (only when adding new, not editing)
+  if(!editId){
+    const dup=findDuplicate(name,orig);
+    if(dup){
+      const ok=confirm(`清單裡已經有「${dup.name}」了${dup.orig?'（原文：'+dup.orig+'）':''}，要繼續新增嗎？\n（按取消可以改去編輯原本那部劇）`);
+      if(!ok)return;
+    }
+  }
+
+  const actors=document.getElementById('f-actors').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const genreInput=document.getElementById('f-genre').value.trim();
+  const genres=genreInput.split(',').map(g=>g.trim()).filter(Boolean);
+  const rating=parseFloat(document.getElementById('f-rating').value)||0;
+  const status=rating>0?'done':document.getElementById('f-status').value;
+  const directors=document.getElementById('f-director').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const writers=document.getElementById('f-writer').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const data={name,orig,status,rating,genre:genreInput,genres,platform:document.getElementById('f-platform').value.trim(),airDate:document.getElementById('f-air').value,yearDone:document.getElementById('f-year').value,actors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:document.getElementById('f-note').value.trim(),poster:document.getElementById('f-poster').value,namu:document.getElementById('f-namu').value.trim()};
+  if(editId){const i=db.findIndex(x=>x.id===editId);if(i>-1)db[i]={...db[i],...data}}
+  else db.unshift({id:uid(),addedAt:Date.now(),...data});
+  save();closeModal('form-modal');render();
+}
+function del(id){if(!confirm('確定要刪除這部劇嗎？'))return;db=db.filter(x=>x.id!==id);save();render()}
+function exportData(){const b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`追劇清單_${new Date().toISOString().slice(0,10)}.json`;a.click()}
+function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;if(confirm(`匯入 ${d.length} 筆資料？（會覆蓋現有資料）`)){db=d;save();render()}}catch{alert('格式不正確，請匯入之前匯出的 JSON 檔')}};r.readAsText(f);e.target.value=''}
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id)}));
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+
+if(initSupabase()){
+  loadFromCloud();
+}else{
+  setSyncStatus('⚠️ 離線模式','#B91C1C');
+  try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
+  if(!db.length) seedData();
+  render();
+}
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
