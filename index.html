@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#1A1A2E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="追劇清單">
+<meta name="apple-mobile-web-app-title" content="在看什麼?">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.png">
-<title>我的追劇清單</title>
+<title>在看什麼?</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -137,6 +137,7 @@ textarea{height:80px;resize:vertical}
     <div class="actions">
       <button class="icon-btn" onclick="exportData()"><i class="ti ti-download"></i> 匯出</button>
       <button class="icon-btn" onclick="document.getElementById('imp').click()"><i class="ti ti-upload"></i> 匯入</button>
+      <button class="icon-btn" onclick="fixRatedStatus()" title="一次性修正：把有評分但狀態不是看完的劇修正"><i class="ti ti-wand"></i> 修正狀態</button>
       <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
       <button class="btn-primary" onclick="openAdd()">＋ 新增</button>
     </div>
@@ -776,6 +777,21 @@ function saveForm(){
 function del(id){if(!confirm('確定要刪除這部劇嗎？'))return;db=db.filter(x=>x.id!==id);save();render()}
 function exportData(){const b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`追劇清單_${new Date().toISOString().slice(0,10)}.json`;a.click()}
 function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;if(confirm(`匯入 ${d.length} 筆資料？（會覆蓋現有資料）`)){db=d;save();render()}}catch{alert('格式不正確，請匯入之前匯出的 JSON 檔')}};r.readAsText(f);e.target.value=''}
+function fixRatedStatus(){
+  let count=0;
+  db.forEach(d=>{
+    if(parseFloat(d.rating||0)>0 && d.status!=='done'){
+      d.status='done';
+      count++;
+    }
+  });
+  if(count>0){
+    save();render();
+    alert(`已修正 ${count} 部劇的觀看狀態為「看完」`);
+  }else{
+    alert('沒有發現需要修正的資料，全部都正確！');
+  }
+}
 function openModal(id){document.getElementById(id).classList.add('open')}
 function closeModal(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id)}));

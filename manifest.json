@@ -1,6 +1,6 @@
 {
-  "name": "我的追劇清單",
-  "short_name": "追劇清單",
+  "name": "在看什麼?",
+  "short_name": "在看什麼?",
   "description": "個人追劇紀錄與管理 app",
   "start_url": "./index.html",
   "display": "standalone",
