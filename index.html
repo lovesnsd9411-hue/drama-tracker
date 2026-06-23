@@ -71,19 +71,19 @@ input,select,textarea,button{font-family:inherit}
 /* ── TABLE VIEW ── */
 .table-wrap{overflow-x:auto;border-radius:14px;border:.5px solid #E5E5F0;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.04)}
 table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
-thead th{padding:.75rem 1rem;text-align:left;font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.5px;border-bottom:.5px solid #F0F0F5;white-space:nowrap}
+thead th{padding:.75rem .5rem;text-align:left;font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.5px;border-bottom:.5px solid #F0F0F5;white-space:nowrap}
 tbody tr{cursor:pointer;transition:background .12s;border-bottom:.5px solid #F5F5FA}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:#F8F8FD}
-tbody td{padding:.65rem 1rem;vertical-align:middle;overflow:hidden}
+tbody td{padding:.65rem .5rem;vertical-align:middle;overflow:hidden}
 .td-name{font-weight:700;color:#1A1A2E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .td-poster{width:36px}
 .td-poster img{width:36px;height:54px;object-fit:cover;border-radius:6px;display:block}
 .td-poster .tp-ph{width:36px;height:54px;border-radius:6px;background:linear-gradient(135deg,#2D2B55,#4A4580);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
 .td-orig{font-size:11px;color:#bbb;font-weight:500}
 .td-score{font-weight:700;color:#D97706;white-space:nowrap}
-.td-acts{white-space:nowrap}
-.td-acts .icon-btn{display:inline-flex;padding:3px 6px;font-size:12px}
+.td-acts{white-space:nowrap;display:flex;gap:3px}
+.td-acts .icon-btn{display:inline-flex;padding:3px 5px;font-size:12px}
 
 .empty{text-align:center;padding:3rem;color:#999;font-size:14px;grid-column:1/-1}
 
@@ -589,13 +589,13 @@ function renderTable(list,el){
   el.className='table-wrap';
   el.innerHTML=`<table>
     <colgroup>
-      <col style="width:52px">
+      <col style="width:44px">
       <col>
-      <col style="width:90px">
-      <col style="width:90px">
-      <col style="width:70px">
-      <col style="width:110px">
-      <col style="width:90px">
+      <col style="width:68px">
+      <col style="width:64px">
+      <col style="width:56px">
+      <col style="width:80px">
+      <col style="width:104px">
     </colgroup>
     <thead><tr>
       <th class="td-poster"></th>
