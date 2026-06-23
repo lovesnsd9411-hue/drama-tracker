@@ -166,16 +166,28 @@ textarea{height:80px;resize:vertical}
 .ppill:hover{background:#EEEDFE;color:#3C3489;border-color:#AFA9EC}
 .cpill{font-size:12px;padding:4px 10px;background:#F5F5FA;border-radius:20px;color:#666;border:.5px solid #E5E5F0;display:inline-block;margin:2px;font-weight:500;cursor:pointer;transition:all .12s}
 .cpill:hover{border-color:#B8B5E8;color:#3C3489}
+
+/* ── Read-only / shared link mode ── */
+/* Hides every editing affordance app-wide: admin toolbar, add button,
+   per-item edit/delete/favorite controls, and detail modal edit/fav buttons. */
+body.read-only-mode #admin-actions{display:none}
+body.read-only-mode .poster-card-acts{display:none}
+body.read-only-mode .rc-acts{display:none}
+body.read-only-mode .rt-c-acts{display:none}
+body.read-only-mode #det-edit{display:none}
+body.read-only-mode #det-fav{display:none}
+body.read-only-mode .fav-badge{display:none}
 </style>
 </head>
 <body>
 <div class="app">
   <div class="header">
     <div class="app-title">🎬 <span id="sync-status" style="font-size:11px;font-weight:500;color:#aaa;vertical-align:middle"></span></div>
-    <div class="actions">
+    <div class="actions" id="admin-actions">
       <button class="icon-btn" onclick="exportData()"><i class="ti ti-download"></i> 匯出</button>
       <button class="icon-btn" onclick="document.getElementById('imp').click()"><i class="ti ti-upload"></i> 匯入</button>
       <button class="icon-btn" onclick="fixRatedStatus()" title="一次性修正：把有評分但狀態不是看完的劇修正"><i class="ti ti-wand"></i> 修正狀態</button>
+      <button class="icon-btn" onclick="openShareModal()" title="產生唯讀分享連結"><i class="ti ti-share"></i> 分享清單</button>
       <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
       <button class="btn-primary" onclick="openAdd()">＋ 新增</button>
     </div>
@@ -267,6 +279,35 @@ textarea{height:80px;resize:vertical}
   </div>
 </div>
 
+<!-- 分享連結 modal -->
+<div class="modal-bg" id="share-modal">
+  <div class="modal" style="width:min(420px,95vw)">
+    <div class="modal-title">分享唯讀連結</div>
+    <p style="font-size:13px;color:#888;margin-bottom:1rem;line-height:1.6">產生一個任何人都能打開的唯讀連結，對方只能瀏覽，不能新增、編輯或刪除。</p>
+    <div class="field">
+      <label>連結有效期限</label>
+      <select id="share-expiry">
+        <option value="1">1 天後失效</option>
+        <option value="7" selected>7 天後失效</option>
+        <option value="30">30 天後失效</option>
+        <option value="0">永久有效</option>
+      </select>
+    </div>
+    <div class="field" id="share-link-field" style="display:none">
+      <label>分享連結</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="share-link-output" readonly style="flex:1;font-size:12px;background:#F8F8FB">
+        <button class="icon-btn" onclick="copyShareLink()" style="flex-shrink:0"><i class="ti ti-copy"></i> 複製</button>
+      </div>
+      <div id="share-copied-msg" style="display:none;font-size:12px;color:#0F6E56;font-weight:600;margin-top:6px">✓ 已複製到剪貼簿</div>
+    </div>
+    <div class="mfooter">
+      <button class="icon-btn" onclick="closeModal('share-modal')">關閉</button>
+      <button class="btn-primary" onclick="generateShareLink()">產生連結</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const KEY='drama-tracker-v7';
 const TMDB_KEY='a59aa4d8cffed270ea811d3b2fd0d77a';
@@ -275,6 +316,7 @@ const TMDB_SEARCH='https://api.themoviedb.org/3/search/tv';
 const RATINGS=[5.0,4.8,4.5,4.2,4.0,3.8,3.5,3.0,2.5,2.0,1.5,1.0,0.0];
 const NY=new Date().getFullYear();
 let db=[],editId=null,aFilter={type:'',val:''},aSort='rating-year',pFilter=null,viewMode='gallery';
+let isReadOnly=false;
 let posterDebounce=null;
 
 // ── Supabase setup ──
@@ -794,6 +836,7 @@ function filterByGenre(g){
 }
 
 function openAdd(){
+  if(isReadOnly)return;
   editId=null;document.getElementById('form-title').textContent='新增劇目';
   ['f-name','f-orig','f-genre','f-platform','f-actors','f-director','f-writer','f-note','f-poster','f-poster-q','f-namu'].forEach(k=>document.getElementById(k).value='');
   document.getElementById('poster-preview').innerHTML='';
@@ -803,6 +846,7 @@ function openAdd(){
   fillYearSel('f-year','');openModal('form-modal');
 }
 function openEdit(id){
+  if(isReadOnly)return;
   const d=db.find(x=>x.id===id);if(!d)return;
   editId=id;document.getElementById('form-title').textContent='編輯劇目';
   document.getElementById('f-name').value=d.name||'';document.getElementById('f-orig').value=d.orig||'';
@@ -830,6 +874,7 @@ function openEdit(id){
   openModal('form-modal');
 }
 function saveForm(){
+  if(isReadOnly)return;
   const name=document.getElementById('f-name').value.trim();if(!name){alert('請填入劇名');return}
   const orig=document.getElementById('f-orig').value.trim();
 
@@ -854,16 +899,18 @@ function saveForm(){
   else db.unshift({id:uid(),addedAt:Date.now(),...data});
   save();closeModal('form-modal');render();
 }
-function del(id){if(!confirm('確定要刪除這部劇嗎？'))return;db=db.filter(x=>x.id!==id);save();render()}
+function del(id){if(isReadOnly)return;if(!confirm('確定要刪除這部劇嗎？'))return;db=db.filter(x=>x.id!==id);save();render()}
 function toggleFavorite(id,event){
+  if(isReadOnly)return;
   if(event)event.stopPropagation();
   const d=db.find(x=>x.id===id);if(!d)return;
   d.favorite=!d.favorite;
   save();render();
 }
 function exportData(){const b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`追劇清單_${new Date().toISOString().slice(0,10)}.json`;a.click()}
-function importData(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;if(confirm(`匯入 ${d.length} 筆資料？（會覆蓋現有資料）`)){db=d;save();render()}}catch{alert('格式不正確，請匯入之前匯出的 JSON 檔')}};r.readAsText(f);e.target.value=''}
+function importData(e){if(isReadOnly)return;const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;if(confirm(`匯入 ${d.length} 筆資料？（會覆蓋現有資料）`)){db=d;save();render()}}catch{alert('格式不正確，請匯入之前匯出的 JSON 檔')}};r.readAsText(f);e.target.value=''}
 function fixRatedStatus(){
+  if(isReadOnly)return;
   let count=0;
   db.forEach(d=>{
     if(parseFloat(d.rating||0)>0 && d.status!=='done'){
@@ -878,25 +925,114 @@ function fixRatedStatus(){
     alert('沒有發現需要修正的資料，全部都正確！');
   }
 }
+
+// ── Share / read-only mode ──
+function openShareModal(){
+  if(isReadOnly)return;
+  document.getElementById('share-link-field').style.display='none';
+  document.getElementById('share-copied-msg').style.display='none';
+  document.getElementById('share-expiry').value='7';
+  openModal('share-modal');
+}
+
+function generateShareLink(){
+  const days=parseInt(document.getElementById('share-expiry').value);
+  const baseUrl=window.location.origin+window.location.pathname;
+  let url;
+  if(days===0){
+    // permanent link - no expires param at all
+    url=`${baseUrl}?mode=share`;
+  }else{
+    const expiresAt=Date.now()+days*24*60*60*1000;
+    url=`${baseUrl}?mode=share&expires=${expiresAt}`;
+  }
+  const out=document.getElementById('share-link-output');
+  out.value=url;
+  document.getElementById('share-link-field').style.display='block';
+  document.getElementById('share-copied-msg').style.display='none';
+}
+
+function copyShareLink(){
+  const out=document.getElementById('share-link-output');
+  out.select();
+  out.setSelectionRange(0,99999);
+  try{
+    navigator.clipboard.writeText(out.value).then(()=>{
+      document.getElementById('share-copied-msg').style.display='block';
+    }).catch(()=>{
+      document.execCommand('copy');
+      document.getElementById('share-copied-msg').style.display='block';
+    });
+  }catch(e){
+    document.execCommand('copy');
+    document.getElementById('share-copied-msg').style.display='block';
+  }
+}
+
+// Detect read-only / share mode from URL params. Returns:
+//  'expired'  -> link is share mode but past expiry, must NOT load cloud data
+//  'readonly' -> valid share mode (within expiry, or permanent), load data but hide all edit controls
+//  null       -> normal admin mode
+function detectShareMode(){
+  const params=new URLSearchParams(window.location.search);
+  if(params.get('mode')!=='share') return null;
+  const expires=params.get('expires');
+  if(expires){
+    const expiresAt=parseInt(expires,10);
+    if(!isNaN(expiresAt) && Date.now()>expiresAt){
+      return 'expired';
+    }
+  }
+  return 'readonly';
+}
+
+function showExpiredScreen(){
+  document.body.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center;font-family:'Nunito','PingFang TC',sans-serif">
+      <div>
+        <div style="font-size:48px;margin-bottom:1rem">🔒</div>
+        <div style="font-size:18px;font-weight:700;color:#1A1A2E;margin-bottom:.5rem">此連結已超過有效期限</div>
+        <div style="font-size:14px;color:#888">請向對方索取新的分享連結</div>
+      </div>
+    </div>`;
+}
+
+function applyReadOnlyMode(){
+  isReadOnly=true;
+  document.body.classList.add('read-only-mode');
+  setSyncStatus('👀 唯讀模式','#888');
+}
+
 function openModal(id){document.getElementById(id).classList.add('open')}
 function closeModal(id){document.getElementById(id).classList.remove('open')}
 document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id)}));
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
-if(initSupabase()){
-  loadFromCloud();
+const shareMode=detectShareMode();
+
+if(shareMode==='expired'){
+  // CRITICAL: do not initialize Supabase or load any data when link is expired
+  showExpiredScreen();
 }else{
-  setSyncStatus('⚠️ 離線模式','#B91C1C');
-  try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
-  if(!db.length) seedData();
-  render();
+  if(shareMode==='readonly'){
+    applyReadOnlyMode();
+  }
+  if(initSupabase()){
+    loadFromCloud();
+  }else{
+    setSyncStatus('⚠️ 離線模式','#B91C1C');
+    try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
+    if(!db.length) seedData();
+    render();
+  }
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',()=>{
+      navigator.serviceWorker.register('sw.js').catch(()=>{});
+    });
+  }
 }
 
-if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  });
-}
 </script>
 </body>
 </html>
