@@ -69,49 +69,58 @@ input,select,textarea,button{font-family:inherit}
 .fav-badge{position:absolute;top:7px;left:7px;background:#F59E0B;color:#fff;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 2px 6px rgba(0,0,0,.2);z-index:2}
 
 /* ── TABLE VIEW ── */
-.table-wrap{overflow-x:auto;border-radius:14px;border:.5px solid #E5E5F0;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.04)}
-.mobile-table-list{display:none}
-.mt-row{display:flex;gap:10px;align-items:flex-start;padding:.75rem .9rem;border-bottom:.5px solid #F5F5FA;cursor:pointer}
-.mt-row:last-child{border-bottom:none}
-.mt-row:hover{background:#F8F8FD}
-.mt-poster{flex-shrink:0;width:44px}
-.mt-poster img{width:44px;height:64px;object-fit:cover;border-radius:6px;display:block}
-.mt-poster .tp-ph{width:44px;height:64px;border-radius:6px;background:linear-gradient(135deg,#2D2B55,#4A4580);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
-.mt-info{flex:1;min-width:0}
-.mt-name{font-weight:700;color:#1A1A2E;font-size:13px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mt-orig{font-size:11px;color:#bbb;font-weight:500;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.mt-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center}
-.mt-badge{font-size:11px;color:#888;background:#F5F5FA;padding:2px 7px;border-radius:10px;font-weight:600;white-space:nowrap}
-.mt-score{color:#D97706;background:#FEF3E2}
-.mt-acts{flex-shrink:0;display:flex;flex-direction:column;gap:4px}
-.mt-acts .icon-btn{padding:4px 6px;font-size:12px}
+.table-wrap{border-radius:14px;border:.5px solid #E5E5F0;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.04);overflow:hidden}
 
-@media (max-width: 680px){
-  .desktop-table{display:none}
-  .mobile-table-list{display:block}
-  .table-wrap{overflow-x:visible}
+/* Mobile-first default: show card list (rc-), hide desktop grid (rt-) */
+.rt-wrap{display:none}
+.rc-wrap{display:block}
+
+.rc-row{display:flex;flex-direction:row;align-items:flex-start;gap:10px;padding:.75rem .9rem;border-bottom:.5px solid #F5F5FA;cursor:pointer}
+.rc-row:last-child{border-bottom:none}
+.rc-row:hover{background:#F8F8FD}
+.rc-poster{flex-shrink:0;width:44px}
+.rc-poster img{width:44px;height:64px;object-fit:cover;border-radius:6px;display:block}
+.rc-ph{width:44px;height:64px;border-radius:6px;background:linear-gradient(135deg,#2D2B55,#4A4580);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+.rc-info{flex:1;min-width:0;width:auto}
+.rc-name{font-weight:700;color:#1A1A2E;font-size:13px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-orig{font-size:11px;color:#bbb;font-weight:500;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center;width:auto}
+.rc-badge{font-size:11px;color:#888;background:#F5F5FA;padding:2px 7px;border-radius:10px;font-weight:600;white-space:nowrap;width:auto;display:inline-block}
+.rc-badge-score{color:#D97706;background:#FEF3E2}
+.rc-acts{flex-shrink:0;display:flex;flex-direction:column;gap:4px}
+.rc-acts .icon-btn{padding:4px 6px;font-size:12px}
+
+/* Desktop (>=768px): switch to grid table, hide mobile cards */
+@media (min-width: 768px){
+  .rc-wrap{display:none}
+  .rt-wrap{display:flex;flex-direction:column;font-size:13px}
+
+  .rt-row{
+    display:grid;
+    grid-template-columns: 44px 3fr 1fr 1fr 1fr 1fr 120px;
+    align-items:center;
+    column-gap:.75rem;
+  }
+
+  .rt-head{padding:.75rem .75rem;border-bottom:.5px solid #F0F0F5}
+  .rt-head .rt-cell{font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
+  .rt-body{padding:.65rem .75rem;cursor:pointer;transition:background .12s;border-bottom:.5px solid #F5F5FA}
+  .rt-body:last-child{border-bottom:none}
+  .rt-body:hover{background:#F8F8FD}
+  .rt-cell{overflow:hidden;min-width:0}
+
+  .rt-c-poster{width:36px}
+  .rt-ph{width:36px;height:54px;border-radius:6px;background:linear-gradient(135deg,#2D2B55,#4A4580);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+  .rt-c-poster img{width:36px;height:54px;object-fit:cover;border-radius:6px;display:block}
+
+  .rt-name{font-weight:700;color:#1A1A2E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rt-orig{font-size:11px;color:#bbb;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:14px}
+  .rt-score{font-weight:700;color:#D97706;white-space:nowrap}
+  .rt-muted{color:#888;font-size:12px;white-space:nowrap}
+  .rt-c-status{white-space:nowrap}
+  .rt-c-acts{white-space:nowrap;display:flex;gap:3px}
+  .rt-c-acts .icon-btn{display:inline-flex;padding:3px 5px;font-size:12px}
 }
-.desktop-table{font-size:13px;display:flex;flex-direction:column}
-.dt-row{
-  display:grid;
-  grid-template-columns: 44px minmax(120px, 2fr) 68px 64px 56px 80px 104px;
-  align-items:center;
-  column-gap:.5rem;
-}
-.dt-head{padding:.75rem .5rem;border-bottom:.5px solid #F0F0F5}
-.dt-head .dt-cell{font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.5px;white-space:nowrap}
-.dt-body{padding:.65rem .5rem;cursor:pointer;transition:background .12s;border-bottom:.5px solid #F5F5FA}
-.dt-body:last-child{border-bottom:none}
-.dt-body:hover{background:#F8F8FD}
-.dt-cell{overflow:hidden;min-width:0}
-.td-name{font-weight:700;color:#1A1A2E;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dt-poster{width:36px}
-.dt-poster img{width:36px;height:54px;object-fit:cover;border-radius:6px;display:block}
-.dt-poster .tp-ph{width:36px;height:54px;border-radius:6px;background:linear-gradient(135deg,#2D2B55,#4A4580);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
-.td-orig{font-size:11px;color:#bbb;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.td-score{font-weight:700;color:#D97706;white-space:nowrap}
-.td-acts{white-space:nowrap;display:flex;gap:3px}
-.td-acts .icon-btn{display:inline-flex;padding:3px 5px;font-size:12px}
 
 .empty{text-align:center;padding:3rem;color:#999;font-size:14px;grid-column:1/-1}
 
@@ -616,26 +625,29 @@ function renderGallery(list,el){
 function renderTable(list,el){
   el.className='table-wrap';
 
-  // Desktop grid (hidden on narrow screens via CSS) - header and rows share identical grid-template-columns
-  const desktopTable=`<div class="desktop-table">
-    <div class="dt-row dt-head">
-      <div class="dt-cell dt-poster"></div>
-      <div class="dt-cell dt-name-col">劇名</div>
-      <div class="dt-cell">評分</div>
-      <div class="dt-cell">狀態</div>
-      <div class="dt-cell">年度</div>
-      <div class="dt-cell">平台</div>
-      <div class="dt-cell"></div>
+  // Desktop grid view — namespace "rt-" (Row Table), used only at >=768px
+  const desktopTable=`<div class="rt-wrap">
+    <div class="rt-row rt-head">
+      <div class="rt-cell rt-c-poster"></div>
+      <div class="rt-cell rt-c-name">劇名</div>
+      <div class="rt-cell rt-c-rating">評分</div>
+      <div class="rt-cell rt-c-status">狀態</div>
+      <div class="rt-cell rt-c-year">年度</div>
+      <div class="rt-cell rt-c-platform">平台</div>
+      <div class="rt-cell rt-c-acts"></div>
     </div>
     ${list.map(d=>`
-      <div class="dt-row dt-body" onclick="openDetail('${d.id}')">
-        <div class="dt-cell dt-poster">${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy">`:`<div class="tp-ph"><i class="ti ti-device-tv"></i></div>`}</div>
-        <div class="dt-cell dt-name-col"><div class="td-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:12px;margin-right:3px"></i>':''}${esc(d.name)}</div><div class="td-orig">${d.orig?esc(d.orig):''}</div></div>
-        <div class="dt-cell td-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'—'}</div>
-        <div class="dt-cell" style="white-space:nowrap">${statusBadge(d.status)}</div>
-        <div class="dt-cell" style="color:#888;font-size:12px">${d.yearDone?d.yearDone+'年':'—'}</div>
-        <div class="dt-cell" style="color:#888;font-size:12px">${d.platform?esc(d.platform):'—'}</div>
-        <div class="dt-cell td-acts">
+      <div class="rt-row rt-body" onclick="openDetail('${d.id}')">
+        <div class="rt-cell rt-c-poster">${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy">`:`<div class="rt-ph"><i class="ti ti-device-tv"></i></div>`}</div>
+        <div class="rt-cell rt-c-name">
+          <div class="rt-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:12px;margin-right:3px"></i>':''}${esc(d.name)}</div>
+          <div class="rt-orig">${d.orig?esc(d.orig):''}</div>
+        </div>
+        <div class="rt-cell rt-c-rating rt-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'—'}</div>
+        <div class="rt-cell rt-c-status">${statusBadge(d.status)}</div>
+        <div class="rt-cell rt-c-year rt-muted">${d.yearDone?d.yearDone+'年':'—'}</div>
+        <div class="rt-cell rt-c-platform rt-muted">${d.platform?esc(d.platform):'—'}</div>
+        <div class="rt-cell rt-c-acts">
           <button class="icon-btn" onclick="toggleFavorite('${d.id}',event)" title="${d.favorite?'取消最愛':'設為最愛'}" style="color:${d.favorite?'#F59E0B':'#666'}"><i class="ti ti-star${d.favorite?'-filled':''}"></i></button>
           <button class="icon-btn" onclick="event.stopPropagation();openEdit('${d.id}')" title="編輯"><i class="ti ti-edit"></i></button>
           <button class="icon-btn" onclick="event.stopPropagation();del('${d.id}')" title="刪除"><i class="ti ti-trash"></i></button>
@@ -643,21 +655,21 @@ function renderTable(list,el){
       </div>`).join('')}
   </div>`;
 
-  // Mobile card list (hidden on wide screens via CSS) - stacked info, no horizontal squeeze
-  const mobileList=`<div class="mobile-table-list">${list.map(d=>`
-    <div class="mt-row" onclick="openDetail('${d.id}')">
-      <div class="mt-poster">${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy">`:`<div class="tp-ph"><i class="ti ti-device-tv"></i></div>`}</div>
-      <div class="mt-info">
-        <div class="mt-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:11px;margin-right:3px"></i>':''}${esc(d.name)}</div>
-        ${d.orig?`<div class="mt-orig">${esc(d.orig)}</div>`:''}
-        <div class="mt-badges">
-          ${d.rating&&d.rating>0?`<span class="mt-badge mt-score">⭐ ${parseFloat(d.rating).toFixed(1)}</span>`:''}
+  // Mobile stacked card view — namespace "rc-" (Row Card), used only at <768px
+  const mobileList=`<div class="rc-wrap">${list.map(d=>`
+    <div class="rc-row" onclick="openDetail('${d.id}')">
+      <div class="rc-poster">${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy">`:`<div class="rc-ph"><i class="ti ti-device-tv"></i></div>`}</div>
+      <div class="rc-info">
+        <div class="rc-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:11px;margin-right:3px"></i>':''}${esc(d.name)}</div>
+        ${d.orig?`<div class="rc-orig">${esc(d.orig)}</div>`:''}
+        <div class="rc-badges">
+          ${d.rating&&d.rating>0?`<span class="rc-badge rc-badge-score">⭐ ${parseFloat(d.rating).toFixed(1)}</span>`:''}
           ${statusBadge(d.status)}
-          ${d.yearDone?`<span class="mt-badge">${d.yearDone}年</span>`:''}
-          ${d.platform?`<span class="mt-badge">${esc(d.platform)}</span>`:''}
+          ${d.yearDone?`<span class="rc-badge">${d.yearDone}年</span>`:''}
+          ${d.platform?`<span class="rc-badge">${esc(d.platform)}</span>`:''}
         </div>
       </div>
-      <div class="mt-acts">
+      <div class="rc-acts">
         <button class="icon-btn" onclick="toggleFavorite('${d.id}',event)" title="${d.favorite?'取消最愛':'設為最愛'}" style="color:${d.favorite?'#F59E0B':'#666'}"><i class="ti ti-star${d.favorite?'-filled':''}"></i></button>
         <button class="icon-btn" onclick="event.stopPropagation();openEdit('${d.id}')" title="編輯"><i class="ti ti-edit"></i></button>
         <button class="icon-btn" onclick="event.stopPropagation();del('${d.id}')" title="刪除"><i class="ti ti-trash"></i></button>
