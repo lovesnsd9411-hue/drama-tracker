@@ -70,6 +70,27 @@ input,select,textarea,button{font-family:inherit}
 
 /* ── TABLE VIEW ── */
 .table-wrap{overflow-x:auto;border-radius:14px;border:.5px solid #E5E5F0;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.mobile-table-list{display:none}
+.mt-row{display:flex;gap:10px;align-items:flex-start;padding:.75rem .9rem;border-bottom:.5px solid #F5F5FA;cursor:pointer}
+.mt-row:last-child{border-bottom:none}
+.mt-row:hover{background:#F8F8FD}
+.mt-poster{flex-shrink:0;width:44px}
+.mt-poster img{width:44px;height:64px;object-fit:cover;border-radius:6px;display:block}
+.mt-poster .tp-ph{width:44px;height:64px;border-radius:6px;background:linear-gradient(135deg,#2D2B55,#4A4580);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+.mt-info{flex:1;min-width:0}
+.mt-name{font-weight:700;color:#1A1A2E;font-size:13px;line-height:1.4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mt-orig{font-size:11px;color:#bbb;font-weight:500;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mt-badges{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center}
+.mt-badge{font-size:11px;color:#888;background:#F5F5FA;padding:2px 7px;border-radius:10px;font-weight:600;white-space:nowrap}
+.mt-score{color:#D97706;background:#FEF3E2}
+.mt-acts{flex-shrink:0;display:flex;flex-direction:column;gap:4px}
+.mt-acts .icon-btn{padding:4px 6px;font-size:12px}
+
+@media (max-width: 680px){
+  .desktop-table{display:none}
+  .mobile-table-list{display:block}
+  .table-wrap{overflow-x:visible}
+}
 table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
 thead th{padding:.75rem .5rem;text-align:left;font-size:11px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.5px;border-bottom:.5px solid #F0F0F5;white-space:nowrap}
 tbody tr{cursor:pointer;transition:background .12s;border-bottom:.5px solid #F5F5FA}
@@ -587,7 +608,9 @@ function renderGallery(list,el){
 
 function renderTable(list,el){
   el.className='table-wrap';
-  el.innerHTML=`<table>
+
+  // Desktop table (hidden on narrow screens via CSS)
+  const desktopTable=`<table class="desktop-table">
     <colgroup>
       <col style="width:44px">
       <col>
@@ -621,6 +644,29 @@ function renderTable(list,el){
         </td>
       </tr>`).join('')}
     </tbody></table>`;
+
+  // Mobile card list (hidden on wide screens via CSS) - stacked info, no horizontal squeeze
+  const mobileList=`<div class="mobile-table-list">${list.map(d=>`
+    <div class="mt-row" onclick="openDetail('${d.id}')">
+      <div class="mt-poster">${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy">`:`<div class="tp-ph"><i class="ti ti-device-tv"></i></div>`}</div>
+      <div class="mt-info">
+        <div class="mt-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:11px;margin-right:3px"></i>':''}${esc(d.name)}</div>
+        ${d.orig?`<div class="mt-orig">${esc(d.orig)}</div>`:''}
+        <div class="mt-badges">
+          ${d.rating&&d.rating>0?`<span class="mt-badge mt-score">⭐ ${parseFloat(d.rating).toFixed(1)}</span>`:''}
+          ${statusBadge(d.status)}
+          ${d.yearDone?`<span class="mt-badge">${d.yearDone}年</span>`:''}
+          ${d.platform?`<span class="mt-badge">${esc(d.platform)}</span>`:''}
+        </div>
+      </div>
+      <div class="mt-acts">
+        <button class="icon-btn" onclick="toggleFavorite('${d.id}',event)" title="${d.favorite?'取消最愛':'設為最愛'}" style="color:${d.favorite?'#F59E0B':'#666'}"><i class="ti ti-star${d.favorite?'-filled':''}"></i></button>
+        <button class="icon-btn" onclick="event.stopPropagation();openEdit('${d.id}')" title="編輯"><i class="ti ti-edit"></i></button>
+        <button class="icon-btn" onclick="event.stopPropagation();del('${d.id}')" title="刪除"><i class="ti ti-trash"></i></button>
+      </div>
+    </div>`).join('')}</div>`;
+
+  el.innerHTML=desktopTable+mobileList;
 }
 
 function renderStats(){
