@@ -1061,11 +1061,22 @@ function renderHistoryActorChips(item) {
   }).join('');
 }
 
-function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
+async function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   const input = document.getElementById(inputId);
   const name = input ? input.value.trim() : '';
   if(!name) return;
   
+  // 🎯 1. 呼叫你原本核心的防呆機制！如果名字重複，它會自動觸發警示並回傳 false
+  if (typeof addMusicalActor === 'function') {
+    const added = await addMusicalActor(name);
+    // 如果因為重複而被防呆攔截了，就直接結束，不重複塞進去
+    if (!added) {
+      input.value = '';
+      return;
+    }
+  }
+  
+  // 🎯 2. 通過防呆檢查後，才動態塞入多刷勾選清單中
   const list = document.getElementById(listId);
   if(list) {
     const newLabel = document.createElement('label');
