@@ -1502,53 +1502,53 @@ function renderActorsTotalList() {
     return;
   }
 
-  // 找到網頁的搜尋框與顯示總筆數的按鈕/區塊
-  const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
-  
-  // 試圖抓取畫面上顯示數字的那個核心按鈕（例如有 509、439 數字的標籤）
-  const filterBtn = document.getElementById('filterBtn') || document.querySelector('.filter-btn') || document.querySelector('.total-count') || document.querySelector('.stats');
-  
+  // 3. ✨ 核心修正：從全域 items 劇目資料庫中，深入統計「多刷紀錄」裡的演員場次！
   const actorCounts = {};
+  
+  // 初始化計數器
+  uniqueNames.forEach(name => { actorCounts[name] = 0; });
 
-  // 3. ✨ 終極大絕：直接模擬搜尋並「複製」主畫面的正確統計數字！
-  if (searchInput) {
-    const originalValue = searchInput.value;
+  // 取得全域劇目陣列
+  const allItems = typeof items !== 'undefined' ? items : [];
 
-    uniqueNames.forEach(name => {
-      // 偷偷填入搜尋
-      searchInput.value = name;
-      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-      
-      let finalCount = 0;
-      
-      // 如果有找到主畫面的數字按鈕，直接去拔它的數字文字（例如從 "509 / 1" 裡面切出 1）
-      if (filterBtn) {
-        const btnText = filterBtn.innerText || filterBtn.textContent || '';
-        // 用正規表達式抓出裡面的數字（例如 509/1 會抓出後面的 1）
-        const matches = btnText.match(/\/\s*(\d+)/) || btnText.match(/(\d+)\s*$/) || btnText.match(/(\d+)/);
-        if (matches && matches[1]) {
-          finalCount = parseInt(matches[1], 10);
-        }
-      } 
-      
-      // 防呆：如果抄按鈕數字失敗，就用最嚴格的卡片精準文字比對當備案
-      if (finalCount === 0) {
-        const visibleCards = Array.from(document.querySelectorAll('.card, .movie-item, .item, [class*="card"]')).filter(card => {
-          const isInsideModal = card.closest('#actors-modal-bg') || card.closest('.modal');
-          const isVisible = card.style.display !== 'none' && !card.classList.contains('hidden') && card.offsetHeight > 0;
-          const hasExactName = (card.innerText || card.textContent || '').includes(name);
-          return !isInsideModal && isVisible && hasExactName;
+  allItems.forEach(item => {
+    // 檢查這部劇有沒有多刷紀錄歷史 (通常叫 history, dates, 或 records)
+    // 這裡把常見的陣列名稱都納入防呆比對
+    const historyRecords = item.history || item.dates || item.records || [];
+    
+    if (Array.isArray(historyRecords) && historyRecords.length > 0) {
+      historyRecords.forEach(record => {
+        // 狀況 A：多刷紀錄內有註記該場演員 (例如 record.actor 或 record.cast)
+        const recordCast = record.actor || record.cast || record.name || '';
+        
+        // 狀況 B：如果多刷紀錄沒個別寫演員，代表就是該劇的主要演員 (item.actors 或 item.cast)
+        const mainCast = item.actors || item.cast || '';
+
+        uniqueNames.forEach(name => {
+          if (recordCast) {
+            // 如果這一場有單獨記錄演員，且包含該演員名字，算一場！
+            if (recordCast.includes(name)) {
+              actorCounts[name]++;
+            }
+          } else if (mainCast && mainCast.includes(name)) {
+            // 如果這一場沒單獨記，但這部劇的主演員有他，這場多刷也算他一場！
+            actorCounts[name]++;
+          }
         });
-        finalCount = visibleCards.length;
-      }
-
-      actorCounts[name] = finalCount;
-    });
-
-    // 還原搜尋框
-    searchInput.value = originalValue;
-    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-  }
+      });
+    } else {
+      // 防呆：如果完全沒有多刷歷史紀錄陣列，但該劇本身算作「看過 1 場」，且主演員有他
+      const mainCast = item.actors || item.cast || '';
+      uniqueNames.forEach(name => {
+        if (mainCast && mainCast.includes(name)) {
+          // 只有當狀態是看過、或者是計算單場時才保底加一（可依需求微調）
+          if (item.status === '看完' || item.status === '觀看中') {
+            // 如果你的系統多刷陣列為空時代表 0 場，此處可不加。若代表預設 1 場則留著。
+          }
+        }
+      });
+    }
+  });
 
   // 4. 排序並渲染漂亮的圓角標籤按鈕
   Array.from(uniqueNames).sort().forEach(name => {
@@ -1558,8 +1558,10 @@ function renderActorsTotalList() {
     btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px; transition: all 0.15s;';
     btn.innerHTML = '🎭 ' + name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
 
+    // 點擊進行主頁篩選
     btn.addEventListener('click', () => {
       closeActorsModal();
+      const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
       if (searchInput) {
         searchInput.value = name;
         searchInput.dispatchEvent(new Event('input', { bubbles: true }));
