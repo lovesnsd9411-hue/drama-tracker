@@ -1475,25 +1475,45 @@ document.addEventListener('click', function(e) {
     modalBg.classList.remove('open');
   }
 });
-
 function renderActorsTotalList() {
   const listContainer = document.getElementById('actors-total-list');
   if (!listContainer) return;
   listContainer.innerHTML = '';
 
-  const currentActors = window.musicalActors || typeof musicalActors !== 'undefined' ? musicalActors : [];
-  if (currentActors.length === 0) {
+  // 1. 取得演員名單
+  let rawActors = window.musicalActors || (typeof musicalActors !== 'undefined' ? musicalActors : []);
+
+  // 2. 核心修正：自動把黏在一起的名字用逗號或空格拆開，並自動去重
+  const uniqueNames = new Set();
+  rawActors.forEach(actor => {
+    if (actor && actor.name) {
+      actor.name.split(/[,，/、\s]+/).forEach(n => {
+        if (n.trim()) uniqueNames.add(n.trim());
+      });
+    } else if (typeof actor === 'string') {
+      actor.split(/[,，/、\s]+/).forEach(n => {
+        if (n.trim()) uniqueNames.add(n.trim());
+      });
+    }
+  });
+
+  if (uniqueNames.size === 0) {
     listContainer.innerHTML = '<p style="color: #999; font-size: 13px; padding: 10px;">目前尚未建立任何演員資料</p>';
     return;
   }
 
-  const actorCounts = {};
-  const allItems = typeof items !== 'undefined' ? items : []; 
+  // 3. 自動偵測你的全域劇目資料庫變數
+  let dbItems = [];
+  if (typeof items !== 'undefined') dbItems = items;
+  else if (typeof movies !== 'undefined') dbItems = movies;
+  else if (typeof data !== 'undefined') dbItems = data;
 
-  allItems.forEach(item => {
-    const castString = item.actors || item.cast || '';
+  // 4. 精確統計每位演員的看戲場次
+  const actorCounts = {};
+  dbItems.forEach(item => {
+    const castString = item.actors || item.cast || item.actor || '';
     if (castString) {
-      const names = castString.split(/[,，]/).map(n => n.trim());
+      const names = castString.split(/[,，/、\s]+/).map(n => n.trim());
       names.forEach(name => {
         if (name) {
           actorCounts[name] = (actorCounts[name] || 0) + 1;
@@ -1502,18 +1522,20 @@ function renderActorsTotalList() {
     }
   });
 
-  currentActors.forEach(actor => {
-    const count = actorCounts[actor.name] || 0;
+  // 5. 排序並畫出一個個獨立漂亮的圓角標籤按鈕
+  Array.from(uniqueNames).sort().forEach(name => {
+    const count = actorCounts[name] || 0;
     const btn = document.createElement('button');
-    btn.className = 'icon-btn'; 
-    btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px;';
-    btn.innerHTML = '🎭 ' + actor.name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
+    btn.className = 'icon-btn';
+    btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px; transition: all 0.15s;';
+    btn.innerHTML = '🎭 ' + name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
 
+    // 點擊單一演員，自動填入搜尋框並觸發篩選
     btn.addEventListener('click', () => {
       closeActorsModal();
       const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
       if (searchInput) {
-        searchInput.value = actor.name;
+        searchInput.value = name;
         searchInput.dispatchEvent(new Event('input', { bubbles: true }));
         searchInput.dispatchEvent(new Event('change', { bubbles: true }));
       }
@@ -1522,26 +1544,28 @@ function renderActorsTotalList() {
     listContainer.appendChild(btn);
   });
 }
+// =========================================================
+// 程式碼結束，以下補回網頁必備的 HTML 彈窗結構與結尾標籤
+// =========================================================
 </script>
-  <div id="actors-modal-bg" class="modal-bg">
-    <div class="modal" style="width: min(650px, 95vw);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h3 class="modal-title" style="margin-bottom: 0;">🎭 演員大英博物館（人物總表）</h3>
-        <button onclick="closeActorsModal()" style="background: none; border: none; cursor: pointer; font-size: 20px; color: #888;"><i class="ti ti-x"></i></button>
+
+<div id="actors-modal-bg" class="modal-bg">
+  <div class="modal" style="width: min(650px, 95vw);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <h3 class="modal-title" style="margin-bottom: 0;">🎭 演員大英博物館（人物總表）</h3>
+      <button onclick="closeActorsModal()" style="background: none; border: none; cursor: pointer; font-size: 20px; color: #888;">×</button>
+    </div>
+    <p style="color: #888; font-size: 12px; margin-top: -10px; margin-bottom: 15px;">點擊演員名字可直接篩選作品，括號內為該演員的「總觀看場次」</p>
+    <hr style="border: none; border-top: .5px solid #F0F0F5; margin-bottom: 15px;">
+    
+    <div id="actors-total-list" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 50vh; overflow-y: auto; padding: 5px;">
       </div>
-      <p style="color: #888; font-size: 12px; margin-top: -10px; margin-bottom: 15px;">點擊演員名字可直接篩選作品，括號內為該演員的「總觀看場次」</p>
-      <hr style="border: none; border-top: .5px solid #F0F0F5; margin-bottom: 15px;">
-      
-      <div id="actors-total-list" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 50vh; overflow-y: auto; padding: 5px;">
-        </div>
-      
-      <div class="mfooter">
-        <button class="icon-btn" onclick="closeActorsModal()">關閉</button>
-      </div>
+    
+    <div class="mfooter">
+      <button class="icon-btn" onclick="closeActorsModal()">關閉</button>
     </div>
   </div>
+</div>
 
-</body>
-</html>
 </body>
 </html>
