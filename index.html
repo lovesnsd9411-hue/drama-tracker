@@ -1506,26 +1506,29 @@ function renderActorsTotalList() {
   const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
   const actorCounts = {};
 
-  // 3. ✨ 借刀殺人核心邏輯：如果能正常搜尋，我們就用搜尋的結果來算數量！
+  // 3. 借刀殺人 + 精準範圍鎖定
   if (searchInput) {
-    // 先備份原本搜尋框裡輸入到一半的字，避免打擾使用者
     const originalValue = searchInput.value;
 
     uniqueNames.forEach(name => {
-      // 模擬使用者在搜尋框輸入演員名字
       searchInput.value = name;
       searchInput.dispatchEvent(new Event('input', { bubbles: true }));
       
-      // 數數看這時畫面上亮起來、顯示出來的卡片有多少張
-      // 排除掉被設定為 display: none 或隱藏的卡片
-      const visibleCards = Array.from(document.querySelectorAll('.card, .movie-item, .item, [class*="card"], [class*="item"]')).filter(card => {
-        return card.style.display !== 'none' && !card.classList.contains('hidden') && card.offsetHeight > 0;
+      // ✨ 核心修正：只抓取海報牆/劇目列表區域內的卡片，徹底排除彈窗自己 (.modal) 或導覽列
+      // 我們先抓取可能的主內容區塊，如果找不到就限制排除 modal 內部
+      let cards = Array.from(document.querySelectorAll('.card, .movie-item, .item, [class*="card"]'));
+      
+      // 防呆：過濾掉屬於人物總表彈窗 (#actors-modal-bg) 內部的任何東西
+      const visibleCards = cards.filter(card => {
+        const isInsideModal = card.closest('#actors-modal-bg') || card.closest('.modal');
+        const isVisible = card.style.display !== 'none' && !card.classList.contains('hidden') && card.offsetHeight > 0;
+        return !isInsideModal && isVisible;
       });
 
       actorCounts[name] = visibleCards.length;
     });
 
-    // 全部偷偷算完後，把搜尋框還原成原本的字，並重整回原本的畫面
+    // 還原搜尋框
     searchInput.value = originalValue;
     searchInput.dispatchEvent(new Event('input', { bubbles: true }));
   }
@@ -1538,7 +1541,6 @@ function renderActorsTotalList() {
     btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px; transition: all 0.15s;';
     btn.innerHTML = '🎭 ' + name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
 
-    // 點擊單一演員，填入搜尋框正式進行篩選
     btn.addEventListener('click', () => {
       closeActorsModal();
       if (searchInput) {
