@@ -1045,7 +1045,41 @@ function renderHistoryActorChips(item) {
     `;
   }).join('');
 }
+function quickAddActorInForm() {
+  if (isReadOnly) return;
 
+  // 🎯 精準抓取大視窗專用的輸入框
+  const input = document.getElementById('form-new-actor-name');
+  if (!input) return;
+  
+  const name = input.value.trim();
+  if (!name) return;
+
+  // 🎯 抓取大視窗存放主要演員晶片的容器（通常是 actor-checkboxes）
+  const list = document.getElementById('actor-checkboxes') || document.getElementById('actor-checkbox-list');
+  if (list) {
+    if (list.innerHTML.includes('暫無') || list.innerHTML.includes('尚未設定')) list.innerHTML = '';
+    
+    // 檢查大視窗現有晶片中，是不是已經有同名演員了
+    const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
+    if (exists) {
+      alert('該演員已在清單中囉！');
+      input.value = '';
+      return;
+    }
+
+    // 建立大視窗專用的勾選晶片，使用大視窗儲存時認得的 name="checked-actors"
+    const label = document.createElement('label');
+    label.className = 'actor-chip checked';
+    label.style.margin = '2px';
+    label.innerHTML = `
+      <input type="checkbox" name="checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
+      ${esc(name)}
+    `;
+    list.appendChild(label);
+    input.value = '';
+  }
+}
 function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   const input = document.getElementById(inputId);
   const name = input ? input.value.trim() : '';
