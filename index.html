@@ -198,7 +198,8 @@ body.read-only-mode .fav-badge{display:none}
       <button class="icon-btn" onclick="fixRatedStatus()" title="一次性修正：把有評分但狀態不是看完的劇修正"><i class="ti ti-wand"></i> 修正狀態</button>
       <button class="icon-btn" onclick="openShareModal()" title="產生唯讀分享連結"><i class="ti ti-share"></i> 分享清單</button>
       <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
-      <button class="btn-primary" onclick="openAdd()">＋ 新增</button>
+     <button class="icon-btn" onclick="openActorsModal()"><i class="ti ti-masks-theater"></i> 🎭 人物總表</button>
+<button class="btn-primary" onclick="openAdd()">+ 新增</button>
     </div>
   </div>
 
@@ -1452,5 +1453,25 @@ if(shareMode==='expired'){
 }
 
 </script>
+  <div id="actors-modal-bg" class="modal-bg">
+    <div class="modal" style="width: min(650px, 95vw);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h3 class="modal-title" style="margin-bottom: 0;">🎭 演員大英博物館（人物總表）</h3>
+        <button onclick="closeActorsModal()" style="background: none; border: none; cursor: pointer; font-size: 20px; color: #888;"><i class="ti ti-x"></i></button>
+      </div>
+      <p style="color: #888; font-size: 12px; margin-top: -10px; margin-bottom: 15px;">點擊演員名字可直接篩選作品，括號內為該演員的「總觀看場次」</p>
+      <hr style="border: none; border-top: .5px solid #F0F0F5; margin-bottom: 15px;">
+      
+      <div id="actors-total-list" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 50vh; overflow-y: auto; padding: 5px;">
+        </div>
+      
+      <div class="mfooter">
+        <button class="icon-btn" onclick="closeActorsModal()">關閉</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
 </body>
 </html>
