@@ -984,7 +984,7 @@ async function openAddShowForm(dramaId){
   const wrap=document.getElementById('musical-add-show-wrap');
   if(musicalActors.length===0) await loadMusicalActors();
   
-  // 自動從全域的 items 清單中撈出當前這部劇的資料物件
+  // 🎯 從全域 items 撈出當前這部劇的完整資料物件
   const currentItem = (typeof items !== 'undefined' ? items : []).find(d => String(d.id) === String(dramaId)) || {};
 
   wrap.innerHTML=`
@@ -1011,69 +1011,38 @@ async function openAddShowForm(dramaId){
       </div>
     </div>`;
   
-  // 只把這部劇的主演畫成勾選標籤
+  // 🎯 呼叫渲染多刷紀錄專用的演員晶片
   renderHistoryActorChips(currentItem);
 }
 
-function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes'){
-  // 優先找大視窗原本的容器 id
-  let list = document.getElementById(listId) || document.getElementById('actor-checkbox-list');
-  if(!list) return;
-
-  const rawActors = window.musicalActors || [];
-  const uniqueNames = new Set();
-  rawActors.forEach(a => {
-    const nameStr = typeof a === 'object' ? (a.name || '') : String(a);
-    if (nameStr) {
-      if (Array.isArray(a)) {
-        a.forEach(n => uniqueNames.add(String(n).trim()));
-      } else {
-        nameStr.split(/[,，/、\s]+/).forEach(n => { if (n.trim()) uniqueNames.add(n.trim()); });
-      }
-    }
-  });
-
-  const sortedActors = Array.from(uniqueNames).sort();
-  list.innerHTML = sortedActors.map(name => {
-    const isChecked = selectedNames.includes(name);
-    return `
-      <label class="actor-chip${isChecked ? ' checked' : ''}">
-        <input type="checkbox" value="${esc(name)}" ${isChecked ? 'checked' : ''} onchange="this.closest('label').classList.toggle('checked', this.checked)">
-        ${esc(name)}
-      </label>
-    `;
-  }).join('');
-}
-
+// 🎯 多刷紀錄專用：精準解析大劇目的 actors 字串並轉為晶片
 function renderHistoryActorChips(item) {
   const list = document.getElementById('actor-checkbox-list');
   if (!list || !item) return;
 
-  // 🎯 依據截圖核心結構：優先從大劇目的 actors、f-actors 欄位或 orig 欄位中撈出原始字串
-  let castString = item.actors || item['f-actors'] || item.orig || '';
+  // 完美對齊：抓取大劇目的 actors 欄位
+  let castString = item.actors || '';
   
   if (Array.isArray(castString)) {
     castString = castString.join(', ');
   }
 
-  // 清除舊有的「此劇目尚未設定主要演員」灰色提示
-  list.innerHTML = '';
+  list.innerHTML = ''; // 先行清空容器
 
   const uniqueNames = new Set();
-  // 用逗號、斜線或空格精準切開韓文名字
+  // 用各式標點符號與逗號切開字串中的演員名字
   castString.split(/[,，/、\s]+/).forEach(n => {
     if (n.trim() && n.trim() !== 'undefined' && n.trim() !== 'null') {
       uniqueNames.add(n.trim());
     }
   });
 
-  // 防呆：如果真的完全沒有演員資料，才顯示提示
   if (uniqueNames.size === 0) {
     list.innerHTML = `<span style="font-size:12px;color:#aaa">此劇目尚未設定主要演員</span>`;
     return;
   }
 
-  // 🎯 畫出獨立分開的漂亮晶片
+  // 渲染出獨立分開的核取方塊晶片
   list.innerHTML = Array.from(uniqueNames).sort().map(name => {
     return `
       <label class="actor-chip" style="margin: 2px;">
@@ -1084,22 +1053,22 @@ function renderHistoryActorChips(item) {
   }).join('');
 }
 
+// 🎯 多刷紀錄專用：暫時不干涉大視窗的防呆新增
 function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   const input = document.getElementById(inputId);
   const name = input ? input.value.trim() : '';
   if(!name) return;
   
-  // 保留你的核心防呆警示機制
-  if (typeof addMusicalActor === 'function') {
-    const added = addMusicalActor(name);
-    if (added === false) {
+  const list = document.getElementById(listId);
+  if(list) {
+    // 檢查是不是已經存在一樣的名字晶片了
+    const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
+    if(exists) {
+      alert('該演員已在清單中囉！');
       input.value = '';
       return;
     }
-  }
-  
-  const list = document.getElementById(listId);
-  if(list) {
+
     const newLabel = document.createElement('label');
     newLabel.className = 'actor-chip checked';
     newLabel.style.margin = '2px';
@@ -1109,39 +1078,10 @@ function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   input.value = '';
 }
 
-async function saveShow(dramaId){
-  if(isReadOnly)return;
-  const date=document.getElementById('show-date').value;
-  if(!date){alert('請選擇觀看日期');return}
-  const time=document.getElementById('show-time').value.trim();
-  const amount=document.getElementById('show-amount').value.trim();
-  const note=document.getElementById('show-note').value.trim();
-  
-  const checkedActors = [...document.querySelectorAll('#actor-checkbox-list input:checked')].map(c=>c.value);
-  
-  const fallbackInput = document.getElementById('new-actor-name');
-  if (fallbackInput && fallbackInput.value.trim()) {
-    const fallbackName = fallbackInput.value.trim();
-    if (!checkedActors.includes(fallbackName)) {
-      checkedActors.push(fallbackName);
-    }
-  }
-
-  const cast = checkedActors;
-
-  const d=db.find(x=>x.id===dramaId);if(!d)return;
-  if(!d.viewing_history) d.viewing_history=[];
-  d.viewing_history.push({
-    id:uid(),
-    date,
-    time,
-    cast,
-    amount:amount?parseFloat(amount):null,
-    note
-  });
-  save();
-  document.getElementById('musical-add-show-wrap').innerHTML='';
-  openDetail(dramaId);
+// 🎯 大視窗恢復專用：徹底還原大視窗，不讓它被多刷邏輯蓋掉
+function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes'){
+  // 這裡完全留空或者不做任何干涉 HTML 的事，保障大視窗的輸入框與「＋新增演員」按鈕生還
+  return;
 }
 
 function deleteShow(dramaId,showId){
