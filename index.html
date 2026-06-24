@@ -1009,41 +1009,111 @@ async function openAddShowForm(dramaId){
   renderActorCheckboxes([]);
 }
 
-function renderActorCheckboxes(selectedNames, listId='actor-checkboxes-list'){
-  const list = document.getElementById(listId);
-  if(!list) return;
-
-  const rawActors = window.musicalActors || [];
-  if(!rawActors.length){
-    list.innerHTML = `<span style="font-size:12px;color:#aaa">還沒有演員資料，從下面新增第一位吧</span>`;
+// ✨ 終極智慧聯動：依據輸入的劇名與季度，自動撈出歷史匹配的演員，告別大雜燴
+function updateActorCheckboxesByContext() {
+  const nameInput = document.getElementById('add-item-name') || document.querySelector('input[placeholder*="原文劇名"]');
+  const seasonInput = document.getElementById('add-item-season') || document.querySelector('input[placeholder*="季度"]');
+  const listContainer = document.getElementById('actor-checkboxes-list');
+  
+  if (!listContainer) return;
+  
+  const currentTitle = nameInput ? nameInput.value.trim() : '';
+  const currentSeason = seasonInput ? seasonInput.value.trim() : '';
+  
+  // 💡 如果連劇名都還沒輸入，就顯示提示訊息引導填寫
+  if (!currentTitle) {
+    listContainer.innerHTML = `<span style="font-size:12px;color:#aaa">請先輸入劇名，系統將自動偵測該劇卡司（打字時會即時更新）</span>`;
     return;
   }
 
-  // ✨ 核心修正：將所有可能黏在一起的名字拆散，並利用 Set 自動去重
-  const uniqueNames = new Set();
-  rawActors.forEach(a => {
-    const nameStr = typeof a === 'object' ? (a.name || '') : String(a);
-    if (nameStr) {
-      // 用 逗號、斜線、頓號、空格 將字串徹底拆散
-      nameStr.split(/[,，/、\s]+/).forEach(n => {
-        if (n.trim()) uniqueNames.add(n.trim());
-      });
+  const allItems = typeof items !== 'undefined' ? items : [];
+  const suggestedActors = new Set();
+
+  // 遍歷所有歷史劇目資料
+  allItems.forEach(item => {
+    if (!item) return;
+    
+    // 檢查劇名是否相符（支援大小寫模糊比對）
+    const itemTitle = item.name || item.title || '';
+    if (itemTitle.toLowerCase().includes(currentTitle.toLowerCase()) || currentTitle.toLowerCase().includes(itemTitle.toLowerCase())) {
+      
+      const itemSeason = item.season || item.period || '';
+      // 如果連「季度」都填了，就啟動最高等級精準比對：只抓這部劇「該季度」的演員
+      if (currentSeason) {
+        if (itemSeason.toLowerCase().includes(currentSeason.toLowerCase())) {
+          extractActorsFromItem(item, suggestedActors);
+        }
+      } else {
+        // 如果還沒填季度，就先撈出這部劇「所有演出過」的演員當作候選
+        extractActorsFromItem(item, suggestedActors);
+      }
     }
   });
 
-  // 將去重後的名單轉回陣列並排序，確保畫面整齊
-  const sortedActors = Array.from(uniqueNames).sort();
+  // 拆解劇目中演員欄位的輔助函式（包含斷字去重）
+  function extractActorsFromItem(item, set) {
+    const castString = item.actors || item.cast || '';
+    if (castString) {
+      castString.split(/[,，/、\s]+/).forEach(n => {
+        if (n.trim()) set.add(n.trim());
+      });
+    }
+  }
 
-  // 渲染出乾淨、絕不重複的演員勾選標籤
-  list.innerHTML = sortedActors.map(name => {
-    const isChecked = selectedNames.includes(name);
+  // 💡 保底機制：如果這部劇在歷史紀錄是全新的，完全找不到演員，就拿全域的基礎清單當推薦
+  if (suggestedActors.size === 0) {
+    const rawActors = window.musicalActors || [];
+    rawActors.forEach(a => {
+      const n = typeof a === 'object' ? a.name : a;
+      if (n) n.split(/[,，/、\s]+/).forEach(name => { if(name.trim()) suggestedActors.add(name.trim()); });
+    });
+  }
+
+  // 轉回陣列排序
+  const sortedActors = Array.from(suggestedActors).sort();
+
+  // 完美融合你原本系統的渲染樣式、isChecked 判定與點擊勾選事件
+  const currentSelected = window.currentModalSelectedActors || []; 
+  
+  listContainer.innerHTML = sortedActors.map(name => {
+    const isChecked = currentSelected.includes(name);
     return `
       <label class="actor-chip${isChecked ? ' checked' : ''}">
-        <input type="checkbox" value="${esc(name)}" ${isChecked ? 'checked' : ''} onchange="this.closest('label').classList.toggle('checked', this.checked)">
+        <input type="checkbox" value="${esc(name)}" ${isChecked ? 'checked' : ''} onchange="
+          this.closest('label').classList.toggle('checked', this.checked);
+          if(!window.currentModalSelectedActors) window.currentModalSelectedActors = [];
+          if(this.checked) {
+            if(!window.currentModalSelectedActors.includes(this.value)) window.currentModalSelectedActors.push(this.value);
+          } else {
+            window.currentModalSelectedActors = window.currentModalSelectedActors.filter(v => v !== this.value);
+          }
+        ">
         ${esc(name)}
       </label>
     `;
   }).join('');
+}
+
+// 監聽器初始化：讓劇名和季度輸入框一邊打字，下方演員一邊跳出來
+function initAutocompleteEvents() {
+  const nameInput = document.getElementById('add-item-name') || document.querySelector('input[placeholder*="原文劇名"]');
+  const seasonInput = document.getElementById('add-item-season') || document.querySelector('input[placeholder*="季度"]');
+  
+  if (nameInput && !nameInput.dataset.listenerAttached) {
+    nameInput.addEventListener('input', updateActorCheckboxesByContext);
+    nameInput.dataset.listenerAttached = "true";
+  }
+  if (seasonInput && !seasonInput.dataset.listenerAttached) {
+    seasonInput.addEventListener('input', updateActorCheckboxesByContext);
+    seasonInput.dataset.listenerAttached = "true";
+  }
+}
+
+// 覆寫原本系統開窗時會呼叫的接口，確保無縫接軌
+function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes-list') {
+  window.currentModalSelectedActors = Array.isArray(selectedNames) ? [...selectedNames] : [];
+  updateActorCheckboxesByContext();
+  initAutocompleteEvents();
 }
 
 async function quickAddActor(inputId='new-actor-name',listId='actor-checkbox-list'){
