@@ -1016,8 +1016,11 @@ async function openAddShowForm(dramaId){
 }
 
 function renderActorCheckboxes(selectedNames = [], listId='actor-checkbox-list'){
-  const list = document.getElementById(listId);
+  // 🎯 防呆：如果傳入預設的 id 找不到，就試著找你大視窗原本可能用的 id 名稱（例如 actor-checkboxes 或 list）
+  let list = document.getElementById(listId);
+  if(!list) list = document.getElementById('actor-checkboxes'); // 👈 如果你大視窗的 id 叫別的，可以補在這裡
   if(!list) return;
+
   const rawActors = window.musicalActors || [];
   const uniqueNames = new Set();
   rawActors.forEach(a => {
@@ -1026,6 +1029,7 @@ function renderActorCheckboxes(selectedNames = [], listId='actor-checkbox-list')
       nameStr.split(/[,，/、\s]+/).forEach(n => { if (n.trim()) uniqueNames.add(n.trim()); });
     }
   });
+
   const sortedActors = Array.from(uniqueNames).sort();
   list.innerHTML = sortedActors.map(name => {
     const isChecked = selectedNames.includes(name);
@@ -1042,14 +1046,30 @@ function renderHistoryActorChips(item) {
   const list = document.getElementById('actor-checkbox-list');
   if (!list || !item) return;
 
-  const castString = item.actors || item.cast || '';
+  // 🎯 自動探測大劇目到底把演員存在哪一個欄位（把常見的 actors, cast, actor, main_actors 通通測試一遍）
+  let castString = item.actors || item.cast || item.actor || item.main_actors || '';
+  
+  // 💡 如果抓出來的是陣列格式，就把它轉成字串來處理
+  if (Array.isArray(castString)) {
+    castString = castString.join(', ');
+  }
+
   if (!castString) {
     list.innerHTML = `<span style="font-size:12px;color:#aaa">此劇目尚未設定主要演員</span>`;
     return;
   }
 
   const uniqueNames = new Set();
-  castString.split(/[,，/、\s]+/).forEach(n => { if (n.trim()) uniqueNames.add(n.trim()); });
+  castString.split(/[,，/、\s]+/).forEach(n => { 
+    if (n.trim() && n.trim() !== 'undefined' && n.trim() !== 'null') {
+      uniqueNames.add(n.trim()); 
+    }
+  });
+
+  if (uniqueNames.size === 0) {
+    list.innerHTML = `<span style="font-size:12px;color:#aaa">此劇目尚未設定主要演員</span>`;
+    return;
+  }
 
   list.innerHTML = Array.from(uniqueNames).sort().map(name => {
     return `
