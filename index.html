@@ -1452,7 +1452,7 @@ if(shareMode==='expired'){
   }
 }
 // ==========================================
-// 🎭 人物總表（演員大英博物館）控制功能
+// 🎭 人物總表 控制功能
 // ==========================================
 function openActorsModal() {
   const modalBg = document.getElementById('actors-modal-bg');
@@ -1483,7 +1483,7 @@ function renderActorsTotalList() {
   // 1. 取得演員名單
   let rawActors = window.musicalActors || (typeof musicalActors !== 'undefined' ? musicalActors : []);
 
-  // 2. 核心修正：自動把黏在一起的名字用逗號或空格拆開，並自動去重
+  // 2. 自動拆解名字並去重
   const uniqueNames = new Set();
   rawActors.forEach(actor => {
     if (actor && actor.name) {
@@ -1502,17 +1502,34 @@ function renderActorsTotalList() {
     return;
   }
 
-  // 3. 自動偵測你的全域劇目資料庫變數
+  // 3. ✨ 終極大絕招：全自動偵測網頁上「所有可能」的劇目資料來源！
   let dbItems = [];
-  if (typeof items !== 'undefined') dbItems = items;
-  else if (typeof movies !== 'undefined') dbItems = movies;
-  else if (typeof data !== 'undefined') dbItems = data;
+  if (typeof items !== 'undefined' && Array.isArray(items)) dbItems = items;
+  else if (typeof movies !== 'undefined' && Array.isArray(movies)) dbItems = movies;
+  else if (typeof data !== 'undefined' && Array.isArray(data)) dbItems = data;
+  else if (typeof musicalData !== 'undefined' && Array.isArray(musicalData)) dbItems = musicalData;
+  else {
+    // 如果上面的變數都沒對中，直接去抓網頁上其他任何名字的陣列
+    const possibleArrays = Object.keys(window).filter(key => {
+      try { return Array.isArray(window[key]) && key !== 'musicalActors' && key !== 'webpackChunk'; } catch(e) { return false; }
+    });
+    // 找出含有最多物件的那個陣列（通常就是你的劇目資料庫）
+    let maxLen = 0;
+    possibleArrays.forEach(key => {
+      if (window[key].length > maxLen) {
+        maxLen = window[key].length;
+        dbItems = window[key];
+      }
+    });
+  }
 
   // 4. 精確統計每位演員的看戲場次
   const actorCounts = {};
   dbItems.forEach(item => {
-    const castString = item.actors || item.cast || item.actor || '';
-    if (castString) {
+    if (!item) return;
+    // 同時支援多種常見的欄位名稱（actors、cast、actor、角色、卡司）
+    const castString = item.actors || item.cast || item.actor || item.character || '';
+    if (castString && typeof castString === 'string') {
       const names = castString.split(/[,，/、\s]+/).map(n => n.trim());
       names.forEach(name => {
         if (name) {
@@ -1522,6 +1539,27 @@ function renderActorsTotalList() {
     }
   });
 
+  // 5. 排序並畫出按鈕
+  Array.from(uniqueNames).sort().forEach(name => {
+    const count = actorCounts[name] || 0;
+    const btn = document.createElement('button');
+    btn.className = 'icon-btn';
+    btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px; transition: all 0.15s;';
+    btn.innerHTML = '🎭 ' + name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
+
+    btn.addEventListener('click', () => {
+      closeActorsModal();
+      const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
+      if (searchInput) {
+        searchInput.value = name;
+        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+        searchInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    listContainer.appendChild(btn);
+  });
+}
   // 5. 排序並畫出一個個獨立漂亮的圓角標籤按鈕
   Array.from(uniqueNames).sort().forEach(name => {
     const count = actorCounts[name] || 0;
