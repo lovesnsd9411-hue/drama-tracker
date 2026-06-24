@@ -1091,7 +1091,7 @@ function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   const input = document.getElementById(inputId);
   const name = input ? input.value.trim() : '';
   if(!name) return;
-  
+
   const list = document.getElementById(listId);
   if(list) {
     const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
@@ -1117,14 +1117,13 @@ async function saveShow(dramaId){
   const time=document.getElementById('show-time').value.trim();
   const amount=document.getElementById('show-amount').value.trim();
   const note=document.getElementById('show-note').value.trim();
-  
+
   // 🎯 同時收集被打勾的演員
   const checkedActors = [
     ...document.querySelectorAll('#actor-checkbox-list input:checked'),
     ...document.querySelectorAll('input[name="history-checked-actors"]:checked')
   ].map(c => c.value);
-  
-  // 🎯 修正原先 typo：把 fallbackName = fallbackInput... 改正為正確宣告
+
   const fallbackInput = document.getElementById('new-actor-name');
   if (fallbackInput && fallbackInput.value.trim()) {
     const fallbackName = fallbackInput.value.trim();
