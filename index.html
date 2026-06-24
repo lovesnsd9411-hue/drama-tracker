@@ -247,9 +247,18 @@ body.read-only-mode .fav-badge{display:none}
       </div>
       <input type="hidden" id="f-category" value="drama">
     </div>
-    <div class="row2">
+
+    <!-- ── 影劇專用：劇名（中＋原文兩欄） ── -->
+    <div class="row2" id="drama-only-names">
       <div class="field"><label>劇名 ＊</label><input type="text" id="f-name" placeholder="例：黑暗榮耀" oninput="debouncePosterSearch();checkDuplicate()"><div id="dup-warning" style="display:none;font-size:12px;color:#D97706;margin-top:4px;font-weight:600"></div></div>
       <div class="field"><label>原文名稱</label><input type="text" id="f-orig" placeholder="例：더 글로리" oninput="debouncePosterSearch();checkDuplicate()"></div>
+    </div>
+
+    <!-- ── 音樂劇專用：單一劇名（原文）欄位 ── -->
+    <div class="field" id="musical-only-name" style="display:none">
+      <label>劇名（原文）＊</label>
+      <input type="text" id="f-musical-name" placeholder="請輸入原文劇名（如：어쩌면 해피엔딩）" oninput="onMusicalNameInput()">
+      <div id="dup-warning-musical" style="display:none;font-size:12px;color:#D97706;margin-top:4px;font-weight:600"></div>
     </div>
 
     <!-- Poster picker -->
@@ -261,9 +270,16 @@ body.read-only-mode .fav-badge{display:none}
         <button class="icon-btn" onclick="clearPoster()" title="清除海報" style="flex-shrink:0"><i class="ti ti-x"></i></button>
       </div>
       <div class="poster-preview" id="poster-preview"></div>
+      <div style="margin-top:8px">
+        <label style="font-size:12px;color:#aaa;font-weight:600">搜不到海報？直接貼圖片網址</label>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <input type="text" id="f-poster-url" placeholder="https://..." oninput="onPosterUrlInput()" style="flex:1">
+        </div>
+      </div>
       <input type="hidden" id="f-poster">
     </div>
 
+    <!-- ── 影劇專用欄位 ── -->
     <div class="row3" id="drama-only-row3">
       <div class="field"><label>觀看狀態</label>
         <select id="f-status"><option value="done">看完</option><option value="ongoing">觀看中</option><option value="dropped">棄劇</option></select>
@@ -271,17 +287,44 @@ body.read-only-mode .fav-badge{display:none}
       <div class="field"><label>評分</label><select id="f-rating" onchange="onRatingChange()"></select></div>
       <div class="field"><label>看完年度</label><select id="f-year"><option value="">—</option></select></div>
     </div>
-    <div class="row2">
+    <div class="row2" id="drama-only-genre-platform">
       <div class="field"><label>類型</label><input type="text" id="f-genre" placeholder="愛情、懸疑…"></div>
       <div class="field"><label>平台</label><input type="text" id="f-platform" placeholder="Netflix、Disney+…"></div>
     </div>
     <div class="field" id="drama-only-air"><label>首播日期</label><input type="date" id="f-air"></div>
-    <div class="field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋"></div>
     <div class="field" id="drama-only-actors"><label>主角（逗號分隔）</label><input type="text" id="f-actors" placeholder="宋慧喬, 李道賢"></div>
     <div class="row2" id="drama-only-crew">
       <div class="field"><label>導演（逗號分隔）</label><input type="text" id="f-director" placeholder="安吉鎬, 朴勳政"></div>
       <div class="field"><label>編劇（逗號分隔）</label><input type="text" id="f-writer" placeholder="金恩淑, 朴海英"></div>
     </div>
+
+    <!-- ── 音樂劇專用欄位 ── -->
+    <div class="field" id="musical-only-season" style="display:none">
+      <label>季度 / 演出期間</label>
+      <input type="text" id="f-musical-season" placeholder="例：2026.03 ~ 2026.05　或　2026 三演">
+    </div>
+    <div class="field" id="musical-only-method" style="display:none">
+      <label>觀看方式</label>
+      <select id="f-musical-method">
+        <option value="現場觀劇">現場觀劇</option>
+        <option value="線上轉播">線上轉播</option>
+        <option value="錄影播映">錄影播映</option>
+        <option value="影音平台">影音平台</option>
+      </select>
+    </div>
+
+    <div class="field" id="namu-field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋"></div>
+
+    <!-- ── 音樂劇專用：主演勾選清單 ── -->
+    <div class="field" id="musical-only-cast" style="display:none">
+      <label>主要演員（勾選這一季的主演）</label>
+      <div id="form-actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="form-new-actor-name" placeholder="沒看到的演員？打名字按新增" style="flex:1">
+        <button class="icon-btn" onclick="quickAddActorInForm()" style="flex-shrink:0"><i class="ti ti-plus"></i> 新增演員</button>
+      </div>
+    </div>
+
     <div class="field"><label>筆記 / 心得</label><textarea id="f-note" placeholder="想記錄什麼都可以…"></textarea></div>
     <div class="mfooter">
       <button class="icon-btn" onclick="closeModal('form-modal')">取消</button>
@@ -464,6 +507,12 @@ function seedData(){
 }
 
 const rLabel=r=>r==0?'未評分':'⭐ '+parseFloat(r).toFixed(1);
+function posterSrc(d){
+  if(!d.poster)return '';
+  if(d.poster.startsWith('http://')||d.poster.startsWith('https://')) return d.poster;
+  return TMDB_IMG+d.poster;
+}
+
 function statusBadge(s){
   if(s==='done') return '<span class="badge b-done">看完</span>';
   if(s==='dropped') return '<span class="badge b-dropped">棄劇</span>';
@@ -494,17 +543,25 @@ function setMainCategory(cat){
   render();
 }
 
-function setFormCategory(cat){
+async function setFormCategory(cat){
   document.getElementById('f-category').value=cat;
   document.getElementById('cat-btn-drama').classList.toggle('on',cat==='drama');
   document.getElementById('cat-btn-musical').classList.toggle('on',cat==='musical');
   const isMusical=cat==='musical';
-  ['drama-only-row3','drama-only-air','drama-only-actors','drama-only-crew'].forEach(id=>{
+
+  // drama-only field groups
+  ['drama-only-names','drama-only-row3','drama-only-genre-platform','drama-only-air','drama-only-actors','drama-only-crew'].forEach(id=>{
     document.getElementById(id).style.display=isMusical?'none':'';
   });
-  // musical edit section only relevant once a drama already exists (handled in openEdit)
-  const musicalSec=document.getElementById('musical-edit-section');
-  if(musicalSec) musicalSec.style.display=isMusical?'':'none';
+  // musical-only field groups
+  ['musical-only-name','musical-only-season','musical-only-method','musical-only-cast'].forEach(id=>{
+    document.getElementById(id).style.display=isMusical?'':'none';
+  });
+
+  if(isMusical){
+    if(musicalActors.length===0) await loadMusicalActors();
+    renderFormActorCheckboxes([]);
+  }
 }
 
 function fillRatingSel(id,cur){
@@ -620,7 +677,8 @@ function clearFilter(){aFilter={type:'',val:''};document.getElementById('ftype')
 function checkDuplicate(){
   const name=document.getElementById('f-name').value.trim();
   const orig=document.getElementById('f-orig').value.trim();
-  const warnEl=document.getElementById('dup-warning');
+  const isMusical=document.getElementById('f-category').value==='musical';
+  const warnEl=document.getElementById(isMusical?'dup-warning-musical':'dup-warning');
   if(!name){warnEl.style.display='none';return}
   const dup=findDuplicate(name,orig);
   if(dup){
@@ -724,7 +782,7 @@ function render(){
 }
 
 function posterImg(d,cls=''){
-  if(d.poster) return `<img src="${TMDB_IMG}${d.poster}" loading="lazy" class="${cls}" onerror="this.parentElement.innerHTML=phHTML('${esc(d.name)}','${esc(d.orig||'')}')">`;
+  if(d.poster) return `<img src="${posterSrc(d)}" loading="lazy" class="${cls}" onerror="this.parentElement.innerHTML=phHTML('${esc(d.name)}','${esc(d.orig||'')}')">`;
   return phHTML(d.name,d.orig||'');
 }
 function phHTML(name,orig){
@@ -741,7 +799,7 @@ function renderGallery(list,el){
         <button class="icon-btn" onclick="event.stopPropagation();del('${d.id}')" title="刪除" style="padding:3px 5px;font-size:12px"><i class="ti ti-trash"></i></button>
       </div>
       ${d.favorite?`<div class="fav-badge"><i class="ti ti-star-filled"></i></div>`:''}
-      ${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.querySelector('.poster-placeholder').style.display='flex'">`:''}
+      ${d.poster?`<img src="${posterSrc(d)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.querySelector('.poster-placeholder').style.display='flex'">`:''}
       <div class="poster-placeholder" style="display:${d.poster?'none':'flex'}"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(d.name)}</div>${d.orig?`<div class="ph-orig">${esc(d.orig)}</div>`:''}</div>
       <div class="poster-overlay">
         <div class="po-name">${esc(d.name)}</div>
@@ -769,7 +827,7 @@ function renderTable(list,el){
     </div>
     ${list.map(d=>`
       <div class="rt-row rt-body" onclick="openDetail('${d.id}')">
-        <div class="rt-cell rt-c-poster">${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy">`:`<div class="rt-ph"><i class="ti ti-device-tv"></i></div>`}</div>
+        <div class="rt-cell rt-c-poster">${d.poster?`<img src="${posterSrc(d)}" loading="lazy">`:`<div class="rt-ph"><i class="ti ti-device-tv"></i></div>`}</div>
         <div class="rt-cell rt-c-name">
           <div class="rt-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:12px;margin-right:3px"></i>':''}${esc(d.name)}</div>
           <div class="rt-orig">${d.orig?esc(d.orig):''}</div>
@@ -789,7 +847,7 @@ function renderTable(list,el){
   // Mobile stacked card view — namespace "rc-" (Row Card), used only at <768px
   const mobileList=`<div class="rc-wrap">${list.map(d=>`
     <div class="rc-row" onclick="openDetail('${d.id}')">
-      <div class="rc-poster">${d.poster?`<img src="${TMDB_IMG}${d.poster}" loading="lazy">`:`<div class="rc-ph"><i class="ti ti-device-tv"></i></div>`}</div>
+      <div class="rc-poster">${d.poster?`<img src="${posterSrc(d)}" loading="lazy">`:`<div class="rc-ph"><i class="ti ti-device-tv"></i></div>`}</div>
       <div class="rc-info">
         <div class="rc-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:11px;margin-right:3px"></i>':''}${esc(d.name)}</div>
         ${d.orig?`<div class="rc-orig">${esc(d.orig)}</div>`:''}
@@ -839,8 +897,9 @@ function filterByStatus(val){
 // ── Musical detail view: viewing history timeline + add-show form ──
 function renderMusicalDetail(d){
   const genreList=d.genres&&d.genres.length?d.genres:(d.genre?d.genre.split(',').map(g=>g.trim()).filter(Boolean):[]);
-  const posterHtml=d.poster
-    ?`<img src="${TMDB_IMG}${d.poster}" style="width:110px;height:165px;object-fit:cover;border-radius:12px;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.15)" loading="lazy">`
+  const posterUrl=posterSrc(d);
+  const posterHtml=posterUrl
+    ?`<img src="${esc(posterUrl)}" style="width:110px;height:165px;object-fit:cover;border-radius:12px;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.15)" loading="lazy">`
     :'';
   const namuUrl=d.namu||(d.orig?'https://namu.wiki/Search?q='+encodeURIComponent(d.orig):'');
   const history=(d.viewing_history||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
@@ -852,15 +911,16 @@ function renderMusicalDetail(d){
       ${posterHtml}
       <div style="flex:1;min-width:0">
         <div style="font-size:20px;font-weight:700;color:#1A1A2E;line-height:1.3">${esc(d.name)}</div>
-        ${d.orig?`<div style="font-size:13px;color:#999;margin-top:2px;font-weight:500">${esc(d.orig)}</div>`:''}
+        ${d.season?`<div style="font-size:13px;color:#999;margin-top:2px;font-weight:500">${esc(d.season)}</div>`:''}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">
           <span class="badge" style="background:#EEEDFE;color:#3C3489"><i class="ti ti-music" style="font-size:11px;margin-right:3px"></i>音樂劇</span>
+          ${d.viewMethod?`<span class="badge" style="background:#F5F5FA;color:#666">${esc(d.viewMethod)}</span>`:''}
           ${namuUrl?`<a href="${esc(namuUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#3C3489;font-weight:600;text-decoration:none;background:#EEEDFE;padding:4px 10px;border-radius:20px"><i class="ti ti-external-link"></i> 나무위키${d.namu?'':' (搜尋)'}</a>`:''}
         </div>
       </div>
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
-    ${d.platform?`<div style="font-size:13px;margin-bottom:1rem"><span style="color:#aaa;font-weight:600">場地/平台</span><br><span style="font-weight:500">${esc(d.platform)}</span></div>`:''}
+    ${d.actors&&d.actors.length?`<div style="margin-bottom:1rem"><div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.35rem">主要演員</div><div>${d.actors.map(a=>`<span class="ppill" onclick="setPerson('${esc(a)}','actor')">${esc(a)} 🔍</span>`).join('')}</div></div>`:''}
     ${d.note?`<div style="background:#F8F8FB;border-radius:12px;padding:.85rem;font-size:13px;line-height:1.7;margin-bottom:1rem;font-weight:500;color:#444">${esc(d.note)}</div>`:''}
 
     <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">
@@ -924,8 +984,8 @@ async function openAddShowForm(dramaId){
   renderActorCheckboxes([]);
 }
 
-function renderActorCheckboxes(selectedNames){
-  const list=document.getElementById('actor-checkbox-list');
+function renderActorCheckboxes(selectedNames,listId='actor-checkbox-list'){
+  const list=document.getElementById(listId);
   if(!list)return;
   if(!musicalActors.length){
     list.innerHTML=`<span style="font-size:12px;color:#aaa">還沒有演員資料，從下面新增第一位吧</span>`;
@@ -938,18 +998,49 @@ function renderActorCheckboxes(selectedNames){
     </label>`).join('');
 }
 
-async function quickAddActor(){
-  const input=document.getElementById('new-actor-name');
+async function quickAddActor(inputId='new-actor-name',listId='actor-checkbox-list'){
+  const input=document.getElementById(inputId);
   const name=input.value.trim();
   if(!name)return;
   const added=await addMusicalActor(name);
   if(added){
     input.value='';
     // preserve currently checked actors while re-rendering the list with the new one included
-    const checked=[...document.querySelectorAll('#actor-checkbox-list input:checked')].map(c=>c.value);
-    renderActorCheckboxes([...checked,added.name]);
+    const checked=[...document.querySelectorAll('#'+listId+' input:checked')].map(c=>c.value);
+    renderActorCheckboxes([...checked,added.name],listId);
   }
 }
+
+// Wrappers used by the "新增劇目" form (separate container IDs from the "add show" form)
+function renderFormActorCheckboxes(selectedNames){
+  renderActorCheckboxes(selectedNames,'form-actor-checkbox-list');
+}
+async function quickAddActorInForm(){
+  await quickAddActor('form-new-actor-name','form-actor-checkbox-list');
+}
+
+// Musical-category name field: mirror into f-name/f-orig (hidden) so existing
+// search/dup-check/save logic keeps working without rewriting everything.
+function onMusicalNameInput(){
+  const val=document.getElementById('f-musical-name').value;
+  document.getElementById('f-name').value=val;
+  document.getElementById('f-orig').value=val;
+  document.getElementById('f-poster-q').value=val;
+  checkDuplicate();
+  debouncePosterSearch();
+}
+
+// Manual poster URL field: when filled, it takes priority over TMDB-searched poster
+function onPosterUrlInput(){
+  const url=document.getElementById('f-poster-url').value.trim();
+  if(url){
+    document.getElementById('f-poster').value=url;
+    document.querySelectorAll('.poster-opt').forEach(e=>e.classList.remove('selected'));
+    const prev=document.getElementById('poster-preview');
+    prev.innerHTML=`<div class="poster-opt selected"><img src="${esc(url)}" onerror="this.style.opacity=0.3"><div class="po-title">自訂網址</div></div>`;
+  }
+}
+
 
 async function saveShow(dramaId){
   if(isReadOnly)return;
@@ -1041,7 +1132,7 @@ function openDetail(id){
 
   const rel=relActors+relDirectors+relWriters;
   const posterHtml=d.poster
-    ?`<img src="${TMDB_IMG}${d.poster}" style="width:110px;height:165px;object-fit:cover;border-radius:12px;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.15)" loading="lazy">`
+    ?`<img src="${posterSrc(d)}" style="width:110px;height:165px;object-fit:cover;border-radius:12px;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.15)" loading="lazy">`
     :'';
   const genreList=d.genres&&d.genres.length?d.genres:(d.genre?d.genre.split(',').map(g=>g.trim()).filter(Boolean):[]);
   document.getElementById('detail-content').innerHTML=`
@@ -1088,9 +1179,11 @@ function filterByGenre(g){
 function openAdd(){
   if(isReadOnly)return;
   editId=null;document.getElementById('form-title').textContent='新增劇目';
-  ['f-name','f-orig','f-genre','f-platform','f-actors','f-director','f-writer','f-note','f-poster','f-poster-q','f-namu'].forEach(k=>document.getElementById(k).value='');
+  ['f-name','f-orig','f-genre','f-platform','f-actors','f-director','f-writer','f-note','f-poster','f-poster-q','f-namu','f-musical-name','f-poster-url','f-musical-season'].forEach(k=>document.getElementById(k).value='');
   document.getElementById('poster-preview').innerHTML='';
   document.getElementById('dup-warning').style.display='none';
+  document.getElementById('dup-warning-musical').style.display='none';
+  document.getElementById('f-musical-method').value='現場觀劇';
   document.getElementById('f-status').value='ongoing';
   fillRatingSel('f-rating',0);document.getElementById('f-air').value='';
   fillYearSel('f-year','');
@@ -1102,34 +1195,58 @@ function openEdit(id){
   const d=db.find(x=>x.id===id);if(!d)return;
   editId=id;document.getElementById('form-title').textContent='編輯劇目';
   document.getElementById('f-name').value=d.name||'';document.getElementById('f-orig').value=d.orig||'';
+  document.getElementById('f-musical-name').value=d.orig||d.name||'';
   document.getElementById('dup-warning').style.display='none';
+  document.getElementById('dup-warning-musical').style.display='none';
   document.getElementById('f-status').value=d.status||'ongoing';
   fillRatingSel('f-rating',d.rating||0);
   document.getElementById('f-air').value=d.airDate||'';
   document.getElementById('f-genre').value=(d.genres&&d.genres.length?d.genres.join(', '):(d.genre||''));document.getElementById('f-platform').value=d.platform||'';
+  document.getElementById('f-musical-season').value=d.season||'';
+  document.getElementById('f-musical-method').value=d.viewMethod||'現場觀劇';
   document.getElementById('f-namu').value=d.namu||'';
   document.getElementById('f-actors').value=(d.actors||[]).join(', ');
   document.getElementById('f-director').value=(d.directors&&d.directors.length?d.directors.join(', '):(d.director||''));
   document.getElementById('f-writer').value=(d.writers&&d.writers.length?d.writers.join(', '):(d.writer||''));
   document.getElementById('f-note').value=d.note||'';
   document.getElementById('f-poster').value=d.poster||'';
+  document.getElementById('f-poster-url').value='';
   document.getElementById('f-poster-q').value=d.orig||d.name||'';
   fillYearSel('f-year',d.yearDone||'');
   // auto search poster using original name (Korean)
   const autoQ=d.orig||d.name||'';
   document.getElementById('f-poster-q').value=autoQ;
   const prev=document.getElementById('poster-preview');
-  if(d.poster){
+  const isFullUrl=d.poster&&(d.poster.startsWith('http://')||d.poster.startsWith('https://'));
+  if(d.poster&&isFullUrl){
+    document.getElementById('f-poster-url').value=d.poster;
+    prev.innerHTML=`<div class="poster-opt selected"><img src="${esc(d.poster)}" onerror="this.style.opacity=0.3"><div class="po-title">自訂網址</div></div>`;
+  }else if(d.poster){
     prev.innerHTML=`<div class="poster-opt selected" onclick="selectPoster('${d.poster}',this)"><img src="${TMDB_IMG}${d.poster}"><div class="po-title">目前海報</div></div>`;
   }else{prev.innerHTML=''}
-  if(autoQ) setTimeout(()=>searchPosters(),300);
+  if(autoQ&&!isFullUrl) setTimeout(()=>searchPosters(),300);
   setFormCategory(d.category||'drama');
+  if((d.category||'drama')==='musical'){
+    // wait for actor list load (setFormCategory awaits it) before checking boxes
+    setTimeout(()=>renderFormActorCheckboxes(d.actors||[]),350);
+  }
   openModal('form-modal');
 }
 function saveForm(){
   if(isReadOnly)return;
-  const name=document.getElementById('f-name').value.trim();if(!name){alert('請填入劇名');return}
-  const orig=document.getElementById('f-orig').value.trim();
+  const category=document.getElementById('f-category').value||'drama';
+
+  let name,orig;
+  if(category==='musical'){
+    const musicalName=document.getElementById('f-musical-name').value.trim();
+    if(!musicalName){alert('請填入劇名（原文）');return}
+    name=musicalName;
+    orig=musicalName;
+  }else{
+    name=document.getElementById('f-name').value.trim();
+    if(!name){alert('請填入劇名');return}
+    orig=document.getElementById('f-orig').value.trim();
+  }
 
   // duplicate check (only when adding new, not editing)
   if(!editId){
@@ -1140,12 +1257,22 @@ function saveForm(){
     }
   }
 
-  const category=document.getElementById('f-category').value||'drama';
-  const genreInput=document.getElementById('f-genre').value.trim();
-  const genres=genreInput.split(',').map(g=>g.trim()).filter(Boolean);
+  // manual poster URL takes priority over TMDB-searched poster path
+  const posterUrl=document.getElementById('f-poster-url').value.trim();
+  const poster=posterUrl||document.getElementById('f-poster').value;
+
   let data;
   if(category==='musical'){
-    data={name,orig,category,status:'',rating:0,genre:genreInput,genres,platform:document.getElementById('f-platform').value.trim(),airDate:'',yearDone:'',actors:[],directors:[],director:'',writers:[],writer:'',note:document.getElementById('f-note').value.trim(),poster:document.getElementById('f-poster').value,namu:document.getElementById('f-namu').value.trim()};
+    const cast=[...document.querySelectorAll('#form-actor-checkbox-list input:checked')].map(c=>c.value);
+    data={
+      name,orig,category,
+      status:'',rating:0,genre:'',genres:[],
+      platform:'',viewMethod:document.getElementById('f-musical-method').value,
+      airDate:'',yearDone:'',season:document.getElementById('f-musical-season').value.trim(),
+      actors:cast,directors:[],director:'',writers:[],writer:'',
+      note:document.getElementById('f-note').value.trim(),
+      poster,namu:document.getElementById('f-namu').value.trim()
+    };
     if(editId){ // preserve existing viewing_history when editing a musical
       const existing=db.find(x=>x.id===editId);
       data.viewing_history=existing&&existing.viewing_history?existing.viewing_history:[];
@@ -1153,12 +1280,14 @@ function saveForm(){
       data.viewing_history=[];
     }
   }else{
+    const genreInput=document.getElementById('f-genre').value.trim();
+    const genres=genreInput.split(',').map(g=>g.trim()).filter(Boolean);
     const actors=document.getElementById('f-actors').value.split(',').map(s=>s.trim()).filter(Boolean);
     const rating=parseFloat(document.getElementById('f-rating').value)||0;
     const status=rating>0?'done':document.getElementById('f-status').value;
     const directors=document.getElementById('f-director').value.split(',').map(s=>s.trim()).filter(Boolean);
     const writers=document.getElementById('f-writer').value.split(',').map(s=>s.trim()).filter(Boolean);
-    data={name,orig,category,status,rating,genre:genreInput,genres,platform:document.getElementById('f-platform').value.trim(),airDate:document.getElementById('f-air').value,yearDone:document.getElementById('f-year').value,actors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:document.getElementById('f-note').value.trim(),poster:document.getElementById('f-poster').value,namu:document.getElementById('f-namu').value.trim()};
+    data={name,orig,category,status,rating,genre:genreInput,genres,platform:document.getElementById('f-platform').value.trim(),airDate:document.getElementById('f-air').value,yearDone:document.getElementById('f-year').value,actors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:document.getElementById('f-note').value.trim(),poster,namu:document.getElementById('f-namu').value.trim()};
   }
   if(editId){const i=db.findIndex(x=>x.id===editId);if(i>-1)db[i]={...db[i],...data}}
   else db.unshift({id:uid(),addedAt:Date.now(),...data});
