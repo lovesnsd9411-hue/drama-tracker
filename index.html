@@ -1108,23 +1108,6 @@ async function saveShow(dramaId){
   document.getElementById('musical-add-show-wrap').innerHTML='';
   openDetail(dramaId);
 }
-
-  const cast = Array.from(new Set(checkedActors));
-
-  const d=db.find(x=>x.id===dramaId);if(!d)return;
-  if(!d.viewing_history) d.viewing_history=[];
-  d.viewing_history.push({
-    id:uid(),
-    date,
-    time,
-    cast,
-    amount:amount?parseFloat(amount):null,
-    note
-  });
-  save();
-  document.getElementById('musical-add-show-wrap').innerHTML='';
-  openDetail(dramaId);
-}
 function deleteShow(dramaId,showId){
   if(isReadOnly)return;
   if(!confirm('確定要刪除這場紀錄嗎？'))return;
