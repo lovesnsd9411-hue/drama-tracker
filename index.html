@@ -984,7 +984,6 @@ async function openAddShowForm(dramaId){
   const wrap=document.getElementById('musical-add-show-wrap');
   if(musicalActors.length===0) await loadMusicalActors();
   
-  // 🎯 從全域 items 撈出當前這部劇的完整資料物件
   const currentItem = (typeof items !== 'undefined' ? items : []).find(d => String(d.id) === String(dramaId)) || {};
 
   wrap.innerHTML=`
@@ -1011,26 +1010,21 @@ async function openAddShowForm(dramaId){
       </div>
     </div>`;
   
-  // 🎯 呼叫渲染多刷紀錄專用的演員晶片
   renderHistoryActorChips(currentItem);
 }
 
-// 🎯 多刷紀錄專用：精準解析大劇目的 actors 字串並轉為晶片
 function renderHistoryActorChips(item) {
   const list = document.getElementById('actor-checkbox-list');
   if (!list || !item) return;
 
-  // 完美對齊：抓取大劇目的 actors 欄位
   let castString = item.actors || '';
-  
   if (Array.isArray(castString)) {
     castString = castString.join(', ');
   }
 
-  list.innerHTML = ''; // 先行清空容器
+  list.innerHTML = '';
 
   const uniqueNames = new Set();
-  // 用各式標點符號與逗號切開字串中的演員名字
   castString.split(/[,，/、\s]+/).forEach(n => {
     if (n.trim() && n.trim() !== 'undefined' && n.trim() !== 'null') {
       uniqueNames.add(n.trim());
@@ -1042,7 +1036,6 @@ function renderHistoryActorChips(item) {
     return;
   }
 
-  // 渲染出獨立分開的核取方塊晶片
   list.innerHTML = Array.from(uniqueNames).sort().map(name => {
     return `
       <label class="actor-chip" style="margin: 2px;">
@@ -1053,7 +1046,6 @@ function renderHistoryActorChips(item) {
   }).join('');
 }
 
-// 🎯 多刷紀錄專用：暫時不干涉大視窗的防呆新增
 function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   const input = document.getElementById(inputId);
   const name = input ? input.value.trim() : '';
@@ -1061,7 +1053,6 @@ function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   
   const list = document.getElementById(listId);
   if(list) {
-    // 檢查是不是已經存在一樣的名字晶片了
     const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
     if(exists) {
       alert('該演員已在清單中囉！');
@@ -1078,38 +1069,43 @@ function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   input.value = '';
 }
 
-// 🎯 大視窗恢復專用：徹底還原大視窗，不讓它被多刷邏輯蓋掉
-function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes'){
-  // 🎯 自動辨識：如果是大視窗內的純輸入框模式，完全不干涉，保障按鈕與輸入功能正常
-  let list = document.getElementById(listId) || document.getElementById('actor-checkbox-list');
-  if(!list) return;
-
-  if (list.tagName === 'INPUT' || list.querySelector('input[type="text"]')) {
-    return; 
+async function saveShow(dramaId){
+  if(isReadOnly)return;
+  const date=document.getElementById('show-date').value;
+  if(!date){alert('請選擇觀看日期');return}
+  const time=document.getElementById('show-time').value.trim();
+  const amount=document.getElementById('show-amount').value.trim();
+  const note=document.getElementById('show-note').value.trim();
+  
+  const checkedActors = [
+    ...document.querySelectorAll('#actor-checkbox-list input:checked'),
+    ...document.querySelectorAll('input[name="history-checked-actors"]:checked')
+  ].map(c => c.value);
+  
+  const fallbackInput = document.getElementById('new-actor-name');
+  if (fallbackInput && fallbackInput.value.trim()) {
+    const fallbackName = fallbackInput.value.trim();
+    if (!checkedActors.includes(fallbackName)) {
+      checkedActors.push(fallbackName);
+    }
   }
 
-  // 🎯 如果是晶片容器，才需要動態渲染晶片
-  const rawActors = window.musicalActors || [];
-  const uniqueNames = new Set();
-  rawActors.forEach(a => {
-    const nameStr = typeof a === 'object' ? (a.name || '') : String(a);
-    if (nameStr) {
-      nameStr.split(/[,，/、\s]+/).forEach(n => { if (n.trim()) uniqueNames.add(n.trim()); });
-    }
+  const cast = Array.from(new Set(checkedActors));
+
+  const d=db.find(x=>x.id===dramaId);if(!d)return;
+  if(!d.viewing_history) d.viewing_history=[];
+  d.viewing_history.push({
+    id:uid(),
+    date,
+    time,
+    cast,
+    amount:amount?parseFloat(amount):null,
+    note
   });
-
-  const sortedActors = Array.from(uniqueNames).sort();
-  list.innerHTML = sortedActors.map(name => {
-    const isChecked = selectedNames.includes(name);
-    return `
-      <label class="actor-chip${isChecked ? ' checked' : ''}">
-        <input type="checkbox" value="${esc(name)}" ${isChecked ? 'checked' : ''} onchange="this.closest('label').classList.toggle('checked', this.checked)">
-        ${esc(name)}
-      </label>
-    `;
-  }).join('');
+  save();
+  document.getElementById('musical-add-show-wrap').innerHTML='';
+  openDetail(dramaId);
 }
-
 function deleteShow(dramaId,showId){
   if(isReadOnly)return;
   if(!confirm('確定要刪除這場紀錄嗎？'))return;
