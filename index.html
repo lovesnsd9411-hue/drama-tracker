@@ -988,7 +988,7 @@ async function openAddShowForm(dramaId){
   const currentItem = (typeof items !== 'undefined' ? items : []).find(d => String(d.id) === String(dramaId)) || {};
 
   wrap.innerHTML=`
-    <div style="background:#fff;border:1px solid #E5E5F0;border-radius:12px;padding:1rem;margin-bottom:1rem">
+ <div id="actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
       <div class="row2">
         <div class="field"><label>觀看日期</label><input type="date" id="show-date"></div>
         <div class="field"><label>時間（可選）</label><input type="text" id="show-time" placeholder="例：14:00 / 晚場"></div>
@@ -1050,7 +1050,8 @@ function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes-list
 
 // ✨ 2. 多刷場次專屬：只撈出「這部劇的主演」供現場一鍵勾選！
 function renderHistoryActorChips(item) {
-  const list = document.getElementById('actor-checkboxes-list');
+  // 🎯 修正核心：精準對齊你原本 HTML 的 id "actor-checkbox-list"
+  const list = document.getElementById('actor-checkbox-list');
   if (!list || !item) return;
 
   // 撈出這部劇當初登記的主要演員字串
@@ -1075,28 +1076,23 @@ function renderHistoryActorChips(item) {
   }).join('');
 }
 
-// 💡 快速新增演員的防呆保底（多刷沒看到演員時可以打字臨時追加）
-async function quickAddActor(inputId='new-actor-name', listId='actor-checkboxes-list'){
+// 💡 快速新增演員的防呆保底
+async function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   const input = document.getElementById(inputId);
   const name = input ? input.value.trim() : '';
   if(!name) return;
   
+  // 🎯 這裡也同步對齊 "actor-checkbox-list"
   const list = document.getElementById(listId);
   if(list) {
     const newLabel = document.createElement('label');
     newLabel.className = 'actor-chip checked';
     newLabel.style.margin = '2px';
-    newLabel.innerHTML = `<input type="checkbox
-
-  // 拆解劇目中演員欄位的輔助函式（包含斷字去重）
-  function extractActorsFromItem(item, set) {
-    const castString = item.actors || item.cast || '';
-    if (castString) {
-      castString.split(/[,，/、\s]+/).forEach(n => {
-        if (n.trim()) set.add(n.trim());
-      });
-    }
+    newLabel.innerHTML = `<input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)"> ${esc(name)}`;
+    list.appendChild(newLabel);
   }
+  input.value = '';
+}
 
   // 💡 保底機制：如果這部劇在歷史紀錄是全新的，完全找不到演員，就拿全域的基礎清單當推薦
   if (suggestedActors.size === 0) {
