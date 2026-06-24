@@ -1205,8 +1205,21 @@ async function saveShow(dramaId){
   const time=document.getElementById('show-time').value.trim();
   const amount=document.getElementById('show-amount').value.trim();
   const note=document.getElementById('show-note').value.trim();
-  const cast=[...document.querySelectorAll('#actor-checkbox-list input:checked')].map(c=>c.value);
+  
+  // 🎯 修正核心：同時相容新舊 id (actor-checkbox-list 與 actor-checkboxes-list) 撈出打勾演員
+  const checkedActors = [...document.querySelectorAll('#actor-checkbox-list input:checked, #actor-checkboxes-list input:checked')].map(c=>c.value);
+  
+  // 💡 保底防呆：如果主人在打字框輸入了新演員名字，卻忘記按右邊的「+新增演員」，儲存時主動幫忙撈進去
+  const fallbackInput = document.getElementById('new-actor-name');
+  if (fallbackInput && fallbackInput.value.trim()) {
+    const fallbackName = fallbackInput.value.trim();
+    if (!checkedActors.includes(fallbackName)) {
+      checkedActors.push(fallbackName);
+    }
+  }
 
+  // 完美轉回你資料庫要的格式（如果是陣列就保留，如果是字串就用 join 串接。看你原本系統是陣列所以維持陣列）
+  const cast = checkedActors;
   const d=db.find(x=>x.id===dramaId);if(!d)return;
   if(!d.viewing_history) d.viewing_history=[];
   d.viewing_history.push({
