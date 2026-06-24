@@ -1049,29 +1049,31 @@ function renderHistoryActorChips(item) {
   const list = document.getElementById('actor-checkbox-list');
   if (!list || !item) return;
 
-  // 🎯 精準抓取欄位
-  let rawCast = item.actors || item.cast || item.actor || item.main_actors || '';
-  let uniqueNames = new Set();
-
-  // 💡 如果本來就是陣列，直接塞進 Set 裡
-  if (Array.isArray(rawCast)) {
-    rawCast.forEach(n => {
-      if (n && String(n).trim()) uniqueNames.add(String(n).trim());
-    });
-  } else if (typeof rawCast === 'string' && rawCast.trim()) {
-    // 如果是字串，用常見的各種標點符號切開
-    rawCast.split(/[,，/、\s]+/).forEach(n => {
-      if (n.trim()) uniqueNames.add(n.trim());
-    });
+  // 🎯 依據截圖核心結構：優先從大劇目的 actors、f-actors 欄位或 orig 欄位中撈出原始字串
+  let castString = item.actors || item['f-actors'] || item.orig || '';
+  
+  if (Array.isArray(castString)) {
+    castString = castString.join(', ');
   }
 
-  // 🎯 清除「此劇目尚未設定主要演員」的灰色字或舊殘留
+  // 清除舊有的「此劇目尚未設定主要演員」灰色提示
+  list.innerHTML = '';
+
+  const uniqueNames = new Set();
+  // 用逗號、斜線或空格精準切開韓文名字
+  castString.split(/[,，/、\s]+/).forEach(n => {
+    if (n.trim() && n.trim() !== 'undefined' && n.trim() !== 'null') {
+      uniqueNames.add(n.trim());
+    }
+  });
+
+  // 防呆：如果真的完全沒有演員資料，才顯示提示
   if (uniqueNames.size === 0) {
     list.innerHTML = `<span style="font-size:12px;color:#aaa">此劇目尚未設定主要演員</span>`;
     return;
   }
 
-  // 完美渲染個別獨立的晶片
+  // 🎯 畫出獨立分開的漂亮晶片
   list.innerHTML = Array.from(uniqueNames).sort().map(name => {
     return `
       <label class="actor-chip" style="margin: 2px;">
@@ -1082,22 +1084,20 @@ function renderHistoryActorChips(item) {
   }).join('');
 }
 
-async function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
+function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   const input = document.getElementById(inputId);
   const name = input ? input.value.trim() : '';
   if(!name) return;
   
-  // 🎯 1. 呼叫你原本核心的防呆機制！如果名字重複，它會自動觸發警示並回傳 false
+  // 保留你的核心防呆警示機制
   if (typeof addMusicalActor === 'function') {
-    const added = await addMusicalActor(name);
-    // 如果因為重複而被防呆攔截了，就直接結束，不重複塞進去
-    if (!added) {
+    const added = addMusicalActor(name);
+    if (added === false) {
       input.value = '';
       return;
     }
   }
   
-  // 🎯 2. 通過防呆檢查後，才動態塞入多刷勾選清單中
   const list = document.getElementById(listId);
   if(list) {
     const newLabel = document.createElement('label');
