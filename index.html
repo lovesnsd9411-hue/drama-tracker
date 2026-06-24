@@ -1055,8 +1055,8 @@ function quickAddActorInForm() {
   const name = input.value.trim();
   if (!name) return;
 
-  // 🎯 抓取大視窗存放主要演員晶片的容器（通常是 actor-checkboxes）
-  const list = document.getElementById('actor-checkboxes') || document.getElementById('actor-checkbox-list');
+  // 🎯 這次精準抓取大視窗真名叫做 form-actor-checkbox-list 的盒子！
+  const list = document.getElementById('form-actor-checkbox-list');
   if (list) {
     if (list.innerHTML.includes('暫無') || list.innerHTML.includes('尚未設定')) list.innerHTML = '';
     
