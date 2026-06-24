@@ -1064,7 +1064,7 @@ function quickAddActorInForm() {
     if (list.innerHTML.includes('暫無') || list.innerHTML.includes('尚未設定')) list.innerHTML = '';
     
     // 🎯 支援各種分隔符號（逗號、全形逗號、頓號、斜線、空白），把輸入的字串切成乾淨的陣列
-    const names = rawValue.split(/[,，/、\s]+/);
+    const names = rawValue.replace(/，/g, ',').replace(/、/g, ',').replace(/\//g, ',').split(/[\s,]+/);
     
     names.forEach(nameStr => {
       const name = nameStr.trim();
