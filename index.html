@@ -1017,16 +1017,20 @@ function renderHistoryActorChips(item) {
   const list = document.getElementById('actor-checkbox-list');
   if (!list || !item) return;
 
-  let castString = item.actors || '';
-  if (Array.isArray(castString)) {
-    castString = castString.join(', ');
-  }
-
   list.innerHTML = '';
 
+  // 🎯 完美相容：不論大視窗存進來的是陣列(Array)還是帶逗號的字串(String)，都通通轉成標準陣列
+  let actorsArray = [];
+  if (Array.isArray(item.actors)) {
+    actorsArray = item.actors;
+  } else if (typeof item.actors === 'string' && item.actors.trim()) {
+    actorsArray = item.actors.split(/[,，/、\s]+/);
+  }
+
+  // 過濾重複與無效欄位
   const uniqueNames = new Set();
-  castString.split(/[,，/、\s]+/).forEach(n => {
-    if (n.trim() && n.trim() !== 'undefined' && n.trim() !== 'null') {
+  actorsArray.forEach(n => {
+    if (n && n.trim() && n.trim() !== 'undefined' && n.trim() !== 'null') {
       uniqueNames.add(n.trim());
     }
   });
@@ -1036,6 +1040,7 @@ function renderHistoryActorChips(item) {
     return;
   }
 
+  // 🎯 渲染出可以打勾的卡司晶片，並綁定 name="history-checked-actors" 讓儲存場次功能認得
   list.innerHTML = Array.from(uniqueNames).sort().map(name => {
     return `
       <label class="actor-chip" style="margin: 2px;">
@@ -1048,35 +1053,37 @@ function renderHistoryActorChips(item) {
 function quickAddActorInForm() {
   if (isReadOnly) return;
 
-  // 🎯 精準抓取大視窗專用的輸入框
   const input = document.getElementById('form-new-actor-name');
   if (!input) return;
   
-  const name = input.value.trim();
-  if (!name) return;
+  const rawValue = input.value.trim();
+  if (!rawValue) return;
 
-  // 🎯 這次精準抓取大視窗真名叫做 form-actor-checkbox-list 的盒子！
   const list = document.getElementById('form-actor-checkbox-list');
   if (list) {
     if (list.innerHTML.includes('暫無') || list.innerHTML.includes('尚未設定')) list.innerHTML = '';
     
-    // 檢查大視窗現有晶片中，是不是已經有同名演員了
-    const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
-    if (exists) {
-      alert('該演員已在清單中囉！');
-      input.value = '';
-      return;
-    }
+    // 🎯 支援各種分隔符號（逗號、全形逗號、頓號、斜線、空白），把輸入的字串切成乾淨的陣列
+    const names = rawValue.split(/[,，/、\s]+/);
+    
+    names.forEach(nameStr => {
+      const name = nameStr.trim();
+      if (!name || name === 'undefined' || name === 'null') return;
 
-    // 建立大視窗專用的勾選晶片，使用大視窗儲存時認得的 name="checked-actors"
-    const label = document.createElement('label');
-    label.className = 'actor-chip checked';
-    label.style.margin = '2px';
-    label.innerHTML = `
-      <input type="checkbox" name="checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
-      ${esc(name)}
-    `;
-    list.appendChild(label);
+      // 檢查是不是已經有同名演員晶片了
+      const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
+      if (!exists) {
+        const label = document.createElement('label');
+        label.className = 'actor-chip checked';
+        label.style.margin = '2px';
+        label.innerHTML = `
+          <input type="checkbox" name="checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
+          ${esc(name)}
+        `;
+        list.appendChild(label);
+      }
+    `);
+    
     input.value = '';
   }
 }
