@@ -1502,7 +1502,7 @@ function renderActorsTotalList() {
     return;
   }
 
-  // 3. ✨ 核心修正：撈出每部劇的「多刷次數欄位」進行深度加總
+  // 3. ✨ 核心修正：完全不看劇目的主演是誰！改為逐一比對「多刷場次紀錄」內部填寫的演员
   const actorCounts = {};
   uniqueNames.forEach(name => { actorCounts[name] = 0; });
 
@@ -1511,31 +1511,37 @@ function renderActorsTotalList() {
   allItems.forEach(item => {
     if (!item) return;
 
-    // 取得這部劇的主演名單
-    const castString = item.actors || item.cast || '';
-    if (!castString) return;
-
-    // 🕵️‍♂️ 遍歷網頁資料庫，找出可能的「多刷場次數字」
-    let watchCount = 1; // 預設至少看過 1 場
+    // 擴大搜查所有可能儲存「多刷場次歷史」的欄位陣列
+    const historyArray = item.watchHistory || item.history || item.dates || item.records || item.historyRecords || [];
     
-    if (typeof item.watchCount !== 'undefined') watchCount = Number(item.watchCount);
-    else if (typeof item.count !== 'undefined') watchCount = Number(item.count);
-    else if (typeof item.times !== 'undefined') watchCount = Number(item.times);
-    else if (Array.isArray(item.history)) watchCount = item.history.length;
-    else if (Array.isArray(item.dates)) watchCount = item.dates.length;
-    else if (Array.isArray(item.records)) watchCount = item.records.length;
+    if (Array.isArray(historyArray) && historyArray.length > 0) {
+      // 遍歷這一齣劇的「每一場」觀看紀錄
+      historyArray.forEach(record => {
+        if (!record) return;
 
-    // 如果算出來是 0，且狀態是「看完」，那保底就是 1 場
-    if ((watchCount === 0 || isNaN(watchCount)) && item.status === '看完') {
-      watchCount = 1;
+        let recordActorsString = '';
+
+        // 偵測你的單場紀錄裡，演員字串是存在哪個屬性（常見為 record.actor, record.cast, record.actors 等）
+        if (typeof record === 'string') {
+          recordActorsString = record;
+        } else {
+          recordActorsString = record.actor || record.actors || record.cast || record.name || record.notes || '';
+          // 如果場次紀錄裡是用陣列存演員，就把它轉成字串
+          if (Array.isArray(recordActorsString)) {
+            recordActorsString = recordActorsString.join(',');
+          } else if (record.actors && Array.isArray(record.actors)) {
+            recordActorsString = record.actors.map(a => typeof a === 'object' ? (a.name || '') : a).join(',');
+          }
+        }
+
+        // 只有當這「特定的一場紀錄」裡真的有出現該演員名字，才算他一場！
+        uniqueNames.forEach(name => {
+          if (recordActorsString && recordActorsString.includes(name)) {
+            actorCounts[name]++;
+          }
+        });
+      });
     }
-
-    // 將這部劇的多刷場次，加給所有參與這部劇的主演
-    uniqueNames.forEach(name => {
-      if (castString.includes(name)) {
-        actorCounts[name] += watchCount;
-      }
-    });
   });
 
   // 4. 排序並渲染漂亮的圓角標籤按鈕
