@@ -1502,30 +1502,47 @@ function renderActorsTotalList() {
     return;
   }
 
-  // 找到網頁的搜尋框
+  // 找到網頁的搜尋框與顯示總筆數的按鈕/區塊
   const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
+  
+  // 試圖抓取畫面上顯示數字的那個核心按鈕（例如有 509、439 數字的標籤）
+  const filterBtn = document.getElementById('filterBtn') || document.querySelector('.filter-btn') || document.querySelector('.total-count') || document.querySelector('.stats');
+  
   const actorCounts = {};
 
-  // 3. 借刀殺人 + 精準範圍鎖定
+  // 3. ✨ 終極大絕：直接模擬搜尋並「複製」主畫面的正確統計數字！
   if (searchInput) {
     const originalValue = searchInput.value;
 
     uniqueNames.forEach(name => {
+      // 偷偷填入搜尋
       searchInput.value = name;
       searchInput.dispatchEvent(new Event('input', { bubbles: true }));
       
-      // ✨ 核心修正：只抓取海報牆/劇目列表區域內的卡片，徹底排除彈窗自己 (.modal) 或導覽列
-      // 我們先抓取可能的主內容區塊，如果找不到就限制排除 modal 內部
-      let cards = Array.from(document.querySelectorAll('.card, .movie-item, .item, [class*="card"]'));
+      let finalCount = 0;
       
-      // 防呆：過濾掉屬於人物總表彈窗 (#actors-modal-bg) 內部的任何東西
-      const visibleCards = cards.filter(card => {
-        const isInsideModal = card.closest('#actors-modal-bg') || card.closest('.modal');
-        const isVisible = card.style.display !== 'none' && !card.classList.contains('hidden') && card.offsetHeight > 0;
-        return !isInsideModal && isVisible;
-      });
+      // 如果有找到主畫面的數字按鈕，直接去拔它的數字文字（例如從 "509 / 1" 裡面切出 1）
+      if (filterBtn) {
+        const btnText = filterBtn.innerText || filterBtn.textContent || '';
+        // 用正規表達式抓出裡面的數字（例如 509/1 會抓出後面的 1）
+        const matches = btnText.match(/\/\s*(\d+)/) || btnText.match(/(\d+)\s*$/) || btnText.match(/(\d+)/);
+        if (matches && matches[1]) {
+          finalCount = parseInt(matches[1], 10);
+        }
+      } 
+      
+      // 防呆：如果抄按鈕數字失敗，就用最嚴格的卡片精準文字比對當備案
+      if (finalCount === 0) {
+        const visibleCards = Array.from(document.querySelectorAll('.card, .movie-item, .item, [class*="card"]')).filter(card => {
+          const isInsideModal = card.closest('#actors-modal-bg') || card.closest('.modal');
+          const isVisible = card.style.display !== 'none' && !card.classList.contains('hidden') && card.offsetHeight > 0;
+          const hasExactName = (card.innerText || card.textContent || '').includes(name);
+          return !isInsideModal && isVisible && hasExactName;
+        });
+        finalCount = visibleCards.length;
+      }
 
-      actorCounts[name] = visibleCards.length;
+      actorCounts[name] = finalCount;
     });
 
     // 還原搜尋框
