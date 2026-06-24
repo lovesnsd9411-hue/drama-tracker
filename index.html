@@ -1015,10 +1015,9 @@ async function openAddShowForm(dramaId){
   renderHistoryActorChips(currentItem);
 }
 
-function renderActorCheckboxes(selectedNames = [], listId='actor-checkbox-list'){
-  // 🎯 防呆：如果傳入預設的 id 找不到，就試著找你大視窗原本可能用的 id 名稱（例如 actor-checkboxes 或 list）
-  let list = document.getElementById(listId);
-  if(!list) list = document.getElementById('actor-checkboxes'); // 👈 如果你大視窗的 id 叫別的，可以補在這裡
+function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes'){
+  // 優先找大視窗原本的容器 id
+  let list = document.getElementById(listId) || document.getElementById('actor-checkbox-list');
   if(!list) return;
 
   const rawActors = window.musicalActors || [];
@@ -1026,7 +1025,11 @@ function renderActorCheckboxes(selectedNames = [], listId='actor-checkbox-list')
   rawActors.forEach(a => {
     const nameStr = typeof a === 'object' ? (a.name || '') : String(a);
     if (nameStr) {
-      nameStr.split(/[,，/、\s]+/).forEach(n => { if (n.trim()) uniqueNames.add(n.trim()); });
+      if (Array.isArray(a)) {
+        a.forEach(n => uniqueNames.add(String(n).trim()));
+      } else {
+        nameStr.split(/[,，/、\s]+/).forEach(n => { if (n.trim()) uniqueNames.add(n.trim()); });
+      }
     }
   });
 
@@ -1046,31 +1049,29 @@ function renderHistoryActorChips(item) {
   const list = document.getElementById('actor-checkbox-list');
   if (!list || !item) return;
 
-  // 🎯 自動探測大劇目到底把演員存在哪一個欄位（把常見的 actors, cast, actor, main_actors 通通測試一遍）
-  let castString = item.actors || item.cast || item.actor || item.main_actors || '';
-  
-  // 💡 如果抓出來的是陣列格式，就把它轉成字串來處理
-  if (Array.isArray(castString)) {
-    castString = castString.join(', ');
+  // 🎯 精準抓取欄位
+  let rawCast = item.actors || item.cast || item.actor || item.main_actors || '';
+  let uniqueNames = new Set();
+
+  // 💡 如果本來就是陣列，直接塞進 Set 裡
+  if (Array.isArray(rawCast)) {
+    rawCast.forEach(n => {
+      if (n && String(n).trim()) uniqueNames.add(String(n).trim());
+    });
+  } else if (typeof rawCast === 'string' && rawCast.trim()) {
+    // 如果是字串，用常見的各種標點符號切開
+    rawCast.split(/[,，/、\s]+/).forEach(n => {
+      if (n.trim()) uniqueNames.add(n.trim());
+    });
   }
 
-  if (!castString) {
-    list.innerHTML = `<span style="font-size:12px;color:#aaa">此劇目尚未設定主要演員</span>`;
-    return;
-  }
-
-  const uniqueNames = new Set();
-  castString.split(/[,，/、\s]+/).forEach(n => { 
-    if (n.trim() && n.trim() !== 'undefined' && n.trim() !== 'null') {
-      uniqueNames.add(n.trim()); 
-    }
-  });
-
+  // 🎯 清除「此劇目尚未設定主要演員」的灰色字或舊殘留
   if (uniqueNames.size === 0) {
     list.innerHTML = `<span style="font-size:12px;color:#aaa">此劇目尚未設定主要演員</span>`;
     return;
   }
 
+  // 完美渲染個別獨立的晶片
   list.innerHTML = Array.from(uniqueNames).sort().map(name => {
     return `
       <label class="actor-chip" style="margin: 2px;">
