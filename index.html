@@ -1502,52 +1502,40 @@ function renderActorsTotalList() {
     return;
   }
 
-  // 3. ✨ 核心修正：從全域 items 劇目資料庫中，深入統計「多刷紀錄」裡的演員場次！
+  // 3. ✨ 核心修正：撈出每部劇的「多刷次數欄位」進行深度加總
   const actorCounts = {};
-  
-  // 初始化計數器
   uniqueNames.forEach(name => { actorCounts[name] = 0; });
 
-  // 取得全域劇目陣列
   const allItems = typeof items !== 'undefined' ? items : [];
 
   allItems.forEach(item => {
-    // 檢查這部劇有沒有多刷紀錄歷史 (通常叫 history, dates, 或 records)
-    // 這裡把常見的陣列名稱都納入防呆比對
-    const historyRecords = item.history || item.dates || item.records || [];
-    
-    if (Array.isArray(historyRecords) && historyRecords.length > 0) {
-      historyRecords.forEach(record => {
-        // 狀況 A：多刷紀錄內有註記該場演員 (例如 record.actor 或 record.cast)
-        const recordCast = record.actor || record.cast || record.name || '';
-        
-        // 狀況 B：如果多刷紀錄沒個別寫演員，代表就是該劇的主要演員 (item.actors 或 item.cast)
-        const mainCast = item.actors || item.cast || '';
+    if (!item) return;
 
-        uniqueNames.forEach(name => {
-          if (recordCast) {
-            // 如果這一場有單獨記錄演員，且包含該演員名字，算一場！
-            if (recordCast.includes(name)) {
-              actorCounts[name]++;
-            }
-          } else if (mainCast && mainCast.includes(name)) {
-            // 如果這一場沒單獨記，但這部劇的主演員有他，這場多刷也算他一場！
-            actorCounts[name]++;
-          }
-        });
-      });
-    } else {
-      // 防呆：如果完全沒有多刷歷史紀錄陣列，但該劇本身算作「看過 1 場」，且主演員有他
-      const mainCast = item.actors || item.cast || '';
-      uniqueNames.forEach(name => {
-        if (mainCast && mainCast.includes(name)) {
-          // 只有當狀態是看過、或者是計算單場時才保底加一（可依需求微調）
-          if (item.status === '看完' || item.status === '觀看中') {
-            // 如果你的系統多刷陣列為空時代表 0 場，此處可不加。若代表預設 1 場則留著。
-          }
-        }
-      });
+    // 取得這部劇的主演名單
+    const castString = item.actors || item.cast || '';
+    if (!castString) return;
+
+    // 🕵️‍♂️ 遍歷網頁資料庫，找出可能的「多刷場次數字」
+    let watchCount = 1; // 預設至少看過 1 場
+    
+    if (typeof item.watchCount !== 'undefined') watchCount = Number(item.watchCount);
+    else if (typeof item.count !== 'undefined') watchCount = Number(item.count);
+    else if (typeof item.times !== 'undefined') watchCount = Number(item.times);
+    else if (Array.isArray(item.history)) watchCount = item.history.length;
+    else if (Array.isArray(item.dates)) watchCount = item.dates.length;
+    else if (Array.isArray(item.records)) watchCount = item.records.length;
+
+    // 如果算出來是 0，且狀態是「看完」，那保底就是 1 場
+    if ((watchCount === 0 || isNaN(watchCount)) && item.status === '看完') {
+      watchCount = 1;
     }
+
+    // 將這部劇的多刷場次，加給所有參與這部劇的主演
+    uniqueNames.forEach(name => {
+      if (castString.includes(name)) {
+        actorCounts[name] += watchCount;
+      }
+    });
   });
 
   // 4. 排序並渲染漂亮的圓角標籤按鈕
@@ -1558,7 +1546,6 @@ function renderActorsTotalList() {
     btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px; transition: all 0.15s;';
     btn.innerHTML = '🎭 ' + name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
 
-    // 點擊進行主頁篩選
     btn.addEventListener('click', () => {
       closeActorsModal();
       const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
