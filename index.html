@@ -459,14 +459,38 @@ async function addMusicalActor(name){
     musicalActors.push(local);
     return local;
   }
-  try{
-    const {data,error}=await sb.from('musical_actors').insert({name}).select('id,name').single();
-    if(error) throw error;
-    musicalActors.push(data);
-    musicalActors.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
-    return data;
-  }catch(e){
-    console.error('Failed to add musical actor',e);
+ try {
+    // 1. 同時支援英文逗號「,」和中文逗號「，」切開名字，變成陣列
+    const namesArray = name.split(/[,，]/).map(n => n.trim()).filter(n => n !== '');
+    
+    if (namesArray.length === 0) return null;
+
+    // 2. 把名字打包成 Supabase 接受的陣列格式
+    const actorsToInsert = namesArray.map(n => ({ name: n }));
+
+    // 3. 一口氣寫入 Supabase，注意這裡不要用 .single()，因為會回傳多筆資料！
+    const { data, error } = await sb
+      .from('musical_actors')
+      .insert(actorsToInsert)
+      .select('id, name');
+
+    if (error) throw error;
+
+    // 4. 把新增加進去的演員們，一筆一筆 push 進你原本的網頁變數 musicalActors 裡
+    if (data && data.length > 0) {
+      data.forEach(actor => {
+        musicalActors.push(actor);
+      });
+    }
+
+    // 5. 重新按照韓文字首排序
+    musicalActors.sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+
+    // 6. 回傳最後一筆，或整個陣列（為了不讓呼叫這個函式的其他地方出錯，回傳第一筆或 data 即可）
+    return data ? data[0] : null;
+
+  } catch (e) {
+    console.error('Failed to add musical actor', e);
     alert('新增演員失敗，請檢查網路連線');
     return null;
   }
