@@ -1480,10 +1480,10 @@ function renderActorsTotalList() {
   if (!listContainer) return;
   listContainer.innerHTML = '';
 
-  // 1. 取得演員名單
+  // 1. 取得全域演員名單
   let rawActors = window.musicalActors || (typeof musicalActors !== 'undefined' ? musicalActors : []);
 
-  // 2. 自動拆解名字並去重
+  // 2. 名字拆解與去重
   const uniqueNames = new Set();
   rawActors.forEach(actor => {
     if (actor && actor.name) {
@@ -1502,32 +1502,18 @@ function renderActorsTotalList() {
     return;
   }
 
-  // 3. ✨ 終極大絕招：全自動偵測網頁上「所有可能」的劇目資料來源！
+  // 3. 安全無害的場次計算（只檢查最安全、最可能存在的全域變數）
+  const actorCounts = {};
   let dbItems = [];
+  
   if (typeof items !== 'undefined' && Array.isArray(items)) dbItems = items;
   else if (typeof movies !== 'undefined' && Array.isArray(movies)) dbItems = movies;
   else if (typeof data !== 'undefined' && Array.isArray(data)) dbItems = data;
   else if (typeof musicalData !== 'undefined' && Array.isArray(musicalData)) dbItems = musicalData;
-  else {
-    // 如果上面的變數都沒對中，直接去抓網頁上其他任何名字的陣列
-    const possibleArrays = Object.keys(window).filter(key => {
-      try { return Array.isArray(window[key]) && key !== 'musicalActors' && key !== 'webpackChunk'; } catch(e) { return false; }
-    });
-    // 找出含有最多物件的那個陣列（通常就是你的劇目資料庫）
-    let maxLen = 0;
-    possibleArrays.forEach(key => {
-      if (window[key].length > maxLen) {
-        maxLen = window[key].length;
-        dbItems = window[key];
-      }
-    });
-  }
 
-  // 4. 精確統計每位演員的看戲場次
-  const actorCounts = {};
+  // 開始比對場次
   dbItems.forEach(item => {
     if (!item) return;
-    // 同時支援多種常見的欄位名稱（actors、cast、actor、角色、卡司）
     const castString = item.actors || item.cast || item.actor || item.character || '';
     if (castString && typeof castString === 'string') {
       const names = castString.split(/[,，/、\s]+/).map(n => n.trim());
@@ -1539,7 +1525,7 @@ function renderActorsTotalList() {
     }
   });
 
-  // 5. 排序並畫出按鈕
+  // 4. 渲染圓角按鈕
   Array.from(uniqueNames).sort().forEach(name => {
     const count = actorCounts[name] || 0;
     const btn = document.createElement('button');
@@ -1547,28 +1533,6 @@ function renderActorsTotalList() {
     btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px; transition: all 0.15s;';
     btn.innerHTML = '🎭 ' + name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
 
-    btn.addEventListener('click', () => {
-      closeActorsModal();
-      const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
-      if (searchInput) {
-        searchInput.value = name;
-        searchInput.dispatchEvent(new Event('input', { bubbles: true }));
-        searchInput.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    });
-
-    listContainer.appendChild(btn);
-  });
-}
-  // 5. 排序並畫出一個個獨立漂亮的圓角標籤按鈕
-  Array.from(uniqueNames).sort().forEach(name => {
-    const count = actorCounts[name] || 0;
-    const btn = document.createElement('button');
-    btn.className = 'icon-btn';
-    btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px; transition: all 0.15s;';
-    btn.innerHTML = '🎭 ' + name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
-
-    // 點擊單一演員，自動填入搜尋框並觸發篩選
     btn.addEventListener('click', () => {
       closeActorsModal();
       const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
@@ -1583,14 +1547,14 @@ function renderActorsTotalList() {
   });
 }
 // =========================================================
-// 程式碼結束，以下補回網頁必備的 HTML 彈窗結構與結尾標籤
+// 補回 HTML 結構與閉合標籤
 // =========================================================
 </script>
 
 <div id="actors-modal-bg" class="modal-bg">
   <div class="modal" style="width: min(650px, 95vw);">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-      <h3 class="modal-title" style="margin-bottom: 0;">🎭 演員大英博物館（人物總表）</h3>
+      <h3 class="modal-title" style="margin-bottom: 0;">🎭 人物總表</h3>
       <button onclick="closeActorsModal()" style="background: none; border: none; cursor: pointer; font-size: 20px; color: #888;">×</button>
     </div>
     <p style="color: #888; font-size: 12px; margin-top: -10px; margin-bottom: 15px;">點擊演員名字可直接篩選作品，括號內為該演員的「總觀看場次」</p>
