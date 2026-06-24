@@ -984,18 +984,18 @@ async function openAddShowForm(dramaId){
   const wrap=document.getElementById('musical-add-show-wrap');
   if(musicalActors.length===0) await loadMusicalActors();
   
-  // 💡 自動從全域的 items 清單中撈出當前這部劇的資料物件
+  // 自動從全域的 items 清單中撈出當前這部劇的資料物件
   const currentItem = (typeof items !== 'undefined' ? items : []).find(d => String(d.id) === String(dramaId)) || {};
 
   wrap.innerHTML=`
- <div id="actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+    <div style="background:#fff;border:1px solid #E5E5F0;border-radius:12px;padding:1rem;margin-bottom:1rem">
       <div class="row2">
         <div class="field"><label>觀看日期</label><input type="date" id="show-date"></div>
         <div class="field"><label>時間（可選）</label><input type="text" id="show-time" placeholder="例：14:00 / 晚場"></div>
       </div>
       <div class="field">
         <label>卡司（勾選這場演出的演員）</label>
-        <div id="actor-checkboxes-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+        <div id="actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
         <div style="display:flex;gap:8px">
           <input type="text" id="new-actor-name" placeholder="沒看到的演員？打名字按新增" style="flex:1">
           <button class="icon-btn" onclick="quickAddActor()" style="flex-shrink:0"><i class="ti ti-plus"></i> 新增演員</button>
@@ -1003,7 +1003,6 @@ async function openAddShowForm(dramaId){
       </div>
       <div class="row2">
         <div class="field"><label>金額（可選）</label><input type="text" id="show-amount" placeholder="例：1800" inputmode="numeric"></div>
-        <!-- 🎯 這裡已完美幫你把文字改成最清爽的「活動」 -->
         <div class="field"><label>活動（可選）</label><input type="text" id="show-note" placeholder="例：謝幕拍照、簽名會"></div>
       </div>
       <div class="mfooter" style="margin-top:.5rem">
@@ -1012,21 +1011,13 @@ async function openAddShowForm(dramaId){
       </div>
     </div>`;
   
-  // 💡 核心魔法：改為呼叫專屬函式，只把這部劇的主演畫成勾選標籤！
-  if (typeof renderHistoryActorChips === 'function') {
-    renderHistoryActorChips(currentItem);
-  } else {
-    // 保底相容
-    renderActorCheckboxes([]);
-  }
+  // 只把這部劇的主演畫成勾選標籤
+  renderHistoryActorChips(currentItem);
 }
 
-// ✨ 終極智慧聯動：依據輸入的劇名與季度，自動撈出歷史匹配的演員，告別大雜燴
-// ✨ 1. 新增劇目用的勾選框（保持全域去重名單，讓新增大劇目時正常運作）
-function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes-list'){
+function renderActorCheckboxes(selectedNames = [], listId='actor-checkbox-list'){
   const list = document.getElementById(listId);
   if(!list) return;
-
   const rawActors = window.musicalActors || [];
   const uniqueNames = new Set();
   rawActors.forEach(a => {
@@ -1035,7 +1026,6 @@ function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes-list
       nameStr.split(/[,，/、\s]+/).forEach(n => { if (n.trim()) uniqueNames.add(n.trim()); });
     }
   });
-
   const sortedActors = Array.from(uniqueNames).sort();
   list.innerHTML = sortedActors.map(name => {
     const isChecked = selectedNames.includes(name);
@@ -1048,24 +1038,19 @@ function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes-list
   }).join('');
 }
 
-// ✨ 2. 多刷場次專屬：只撈出「這部劇的主演」供現場一鍵勾選！
 function renderHistoryActorChips(item) {
-  // 🎯 修正核心：精準對齊你原本 HTML 的 id "actor-checkbox-list"
   const list = document.getElementById('actor-checkbox-list');
   if (!list || !item) return;
 
-  // 撈出這部劇當初登記的主要演員字串
   const castString = item.actors || item.cast || '';
   if (!castString) {
     list.innerHTML = `<span style="font-size:12px;color:#aaa">此劇目尚未設定主要演員</span>`;
     return;
   }
 
-  // 拆解出單個演員名字並去重
   const uniqueNames = new Set();
   castString.split(/[,，/、\s]+/).forEach(n => { if (n.trim()) uniqueNames.add(n.trim()); });
 
-  // 渲染成多刷彈窗裡的專屬勾選晶片
   list.innerHTML = Array.from(uniqueNames).sort().map(name => {
     return `
       <label class="actor-chip" style="margin: 2px;">
@@ -1076,13 +1061,11 @@ function renderHistoryActorChips(item) {
   }).join('');
 }
 
-// 💡 快速新增演員的防呆保底
-async function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
+function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   const input = document.getElementById(inputId);
   const name = input ? input.value.trim() : '';
   if(!name) return;
   
-  // 🎯 這裡也同步對齊 "actor-checkbox-list"
   const list = document.getElementById(listId);
   if(list) {
     const newLabel = document.createElement('label');
@@ -1094,106 +1077,6 @@ async function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-li
   input.value = '';
 }
 
-  // 💡 保底機制：如果這部劇在歷史紀錄是全新的，完全找不到演員，就拿全域的基礎清單當推薦
-  if (suggestedActors.size === 0) {
-    const rawActors = window.musicalActors || [];
-    rawActors.forEach(a => {
-      const n = typeof a === 'object' ? a.name : a;
-      if (n) n.split(/[,，/、\s]+/).forEach(name => { if(name.trim()) suggestedActors.add(name.trim()); });
-    });
-  }
-
-  // 轉回陣列排序
-  const sortedActors = Array.from(suggestedActors).sort();
-
-  // 完美融合你原本系統的渲染樣式、isChecked 判定與點擊勾選事件
-  const currentSelected = window.currentModalSelectedActors || []; 
-  
-  listContainer.innerHTML = sortedActors.map(name => {
-    const isChecked = currentSelected.includes(name);
-    return `
-      <label class="actor-chip${isChecked ? ' checked' : ''}">
-        <input type="checkbox" value="${esc(name)}" ${isChecked ? 'checked' : ''} onchange="
-          this.closest('label').classList.toggle('checked', this.checked);
-          if(!window.currentModalSelectedActors) window.currentModalSelectedActors = [];
-          if(this.checked) {
-            if(!window.currentModalSelectedActors.includes(this.value)) window.currentModalSelectedActors.push(this.value);
-          } else {
-            window.currentModalSelectedActors = window.currentModalSelectedActors.filter(v => v !== this.value);
-          }
-        ">
-        ${esc(name)}
-      </label>
-    `;
-  }).join('');
-}
-
-// 監聽器初始化：讓劇名和季度輸入框一邊打字，下方演員一邊跳出來
-function initAutocompleteEvents() {
-  const nameInput = document.getElementById('add-item-name') || document.querySelector('input[placeholder*="原文劇名"]');
-  const seasonInput = document.getElementById('add-item-season') || document.querySelector('input[placeholder*="季度"]');
-  
-  if (nameInput && !nameInput.dataset.listenerAttached) {
-    nameInput.addEventListener('input', updateActorCheckboxesByContext);
-    nameInput.dataset.listenerAttached = "true";
-  }
-  if (seasonInput && !seasonInput.dataset.listenerAttached) {
-    seasonInput.addEventListener('input', updateActorCheckboxesByContext);
-    seasonInput.dataset.listenerAttached = "true";
-  }
-}
-
-// 覆寫原本系統開窗時會呼叫的接口，確保無縫接軌
-function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes-list') {
-  window.currentModalSelectedActors = Array.isArray(selectedNames) ? [...selectedNames] : [];
-  updateActorCheckboxesByContext();
-  initAutocompleteEvents();
-}
-
-async function quickAddActor(inputId='new-actor-name',listId='actor-checkbox-list'){
-  const input=document.getElementById(inputId);
-  const name=input.value.trim();
-  if(!name)return;
-  const added=await addMusicalActor(name);
-  if(added){
-    input.value='';
-    // preserve currently checked actors while re-rendering the list with the new one included
-    const checked=[...document.querySelectorAll('#'+listId+' input:checked')].map(c=>c.value);
-    renderActorCheckboxes([...checked,added.name],listId);
-  }
-}
-
-// Wrappers used by the "新增劇目" form (separate container IDs from the "add show" form)
-function renderFormActorCheckboxes(selectedNames){
-  renderActorCheckboxes(selectedNames,'form-actor-checkbox-list');
-}
-async function quickAddActorInForm(){
-  await quickAddActor('form-new-actor-name','form-actor-checkbox-list');
-}
-
-// Musical-category name field: mirror into f-name/f-orig (hidden) so existing
-// search/dup-check/save logic keeps working without rewriting everything.
-function onMusicalNameInput(){
-  const val=document.getElementById('f-musical-name').value;
-  document.getElementById('f-name').value=val;
-  document.getElementById('f-orig').value=val;
-  document.getElementById('f-poster-q').value=val;
-  checkDuplicate();
-  debouncePosterSearch();
-}
-
-// Manual poster URL field: when filled, it takes priority over TMDB-searched poster
-function onPosterUrlInput(){
-  const url=document.getElementById('f-poster-url').value.trim();
-  if(url){
-    document.getElementById('f-poster').value=url;
-    document.querySelectorAll('.poster-opt').forEach(e=>e.classList.remove('selected'));
-    const prev=document.getElementById('poster-preview');
-    prev.innerHTML=`<div class="poster-opt selected"><img src="${esc(url)}" onerror="this.style.opacity=0.3"><div class="po-title">自訂網址</div></div>`;
-  }
-}
-
-
 async function saveShow(dramaId){
   if(isReadOnly)return;
   const date=document.getElementById('show-date').value;
@@ -1202,10 +1085,8 @@ async function saveShow(dramaId){
   const amount=document.getElementById('show-amount').value.trim();
   const note=document.getElementById('show-note').value.trim();
   
-  // 🎯 修正核心：同時相容新舊 id (actor-checkbox-list 與 actor-checkboxes-list) 撈出打勾演員
-  const checkedActors = [...document.querySelectorAll('#actor-checkbox-list input:checked, #actor-checkboxes-list input:checked')].map(c=>c.value);
+  const checkedActors = [...document.querySelectorAll('#actor-checkbox-list input:checked')].map(c=>c.value);
   
-  // 💡 保底防呆：如果主人在打字框輸入了新演員名字，卻忘記按右邊的「+新增演員」，儲存時主動幫忙撈進去
   const fallbackInput = document.getElementById('new-actor-name');
   if (fallbackInput && fallbackInput.value.trim()) {
     const fallbackName = fallbackInput.value.trim();
@@ -1214,8 +1095,8 @@ async function saveShow(dramaId){
     }
   }
 
-  // 完美轉回你資料庫要的格式（如果是陣列就保留，如果是字串就用 join 串接。看你原本系統是陣列所以維持陣列）
   const cast = checkedActors;
+
   const d=db.find(x=>x.id===dramaId);if(!d)return;
   if(!d.viewing_history) d.viewing_history=[];
   d.viewing_history.push({
@@ -1228,7 +1109,7 @@ async function saveShow(dramaId){
   });
   save();
   document.getElementById('musical-add-show-wrap').innerHTML='';
-  openDetail(dramaId); // re-render detail with updated timeline
+  openDetail(dramaId);
 }
 
 function deleteShow(dramaId,showId){
