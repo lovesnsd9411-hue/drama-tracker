@@ -983,6 +983,10 @@ async function openAddShowForm(dramaId){
   if(isReadOnly)return;
   const wrap=document.getElementById('musical-add-show-wrap');
   if(musicalActors.length===0) await loadMusicalActors();
+  
+  // 💡 自動從全域的 items 清單中撈出當前這部劇的資料物件
+  const currentItem = (typeof items !== 'undefined' ? items : []).find(d => String(d.id) === String(dramaId)) || {};
+
   wrap.innerHTML=`
     <div style="background:#fff;border:1px solid #E5E5F0;border-radius:12px;padding:1rem;margin-bottom:1rem">
       <div class="row2">
@@ -991,7 +995,7 @@ async function openAddShowForm(dramaId){
       </div>
       <div class="field">
         <label>卡司（勾選這場演出的演員）</label>
-        <div id="actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+        <div id="actor-checkboxes-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
         <div style="display:flex;gap:8px">
           <input type="text" id="new-actor-name" placeholder="沒看到的演員？打名字按新增" style="flex:1">
           <button class="icon-btn" onclick="quickAddActor()" style="flex-shrink:0"><i class="ti ti-plus"></i> 新增演員</button>
@@ -999,56 +1003,90 @@ async function openAddShowForm(dramaId){
       </div>
       <div class="row2">
         <div class="field"><label>金額（可選）</label><input type="text" id="show-amount" placeholder="例：1800" inputmode="numeric"></div>
-        <div class="field"><label>現場活動/福利（可選）</label><input type="text" id="show-note" placeholder="例：謝幕拍照、簽名會"></div>
+        <!-- 🎯 這裡已完美幫你把文字改成最清爽的「活動」 -->
+        <div class="field"><label>活動（可選）</label><input type="text" id="show-note" placeholder="例：謝幕拍照、簽名會"></div>
       </div>
       <div class="mfooter" style="margin-top:.5rem">
         <button class="icon-btn" onclick="document.getElementById('musical-add-show-wrap').innerHTML=''">取消</button>
         <button class="btn-primary" onclick="saveShow('${dramaId}')">儲存場次</button>
       </div>
     </div>`;
-  renderActorCheckboxes([]);
+  
+  // 💡 核心魔法：改為呼叫專屬函式，只把這部劇的主演畫成勾選標籤！
+  if (typeof renderHistoryActorChips === 'function') {
+    renderHistoryActorChips(currentItem);
+  } else {
+    // 保底相容
+    renderActorCheckboxes([]);
+  }
 }
 
 // ✨ 終極智慧聯動：依據輸入的劇名與季度，自動撈出歷史匹配的演員，告別大雜燴
-function updateActorCheckboxesByContext() {
-  const nameInput = document.getElementById('add-item-name') || document.querySelector('input[placeholder*="原文劇名"]');
-  const seasonInput = document.getElementById('add-item-season') || document.querySelector('input[placeholder*="季度"]');
-  const listContainer = document.getElementById('actor-checkboxes-list');
-  
-  if (!listContainer) return;
-  
-  const currentTitle = nameInput ? nameInput.value.trim() : '';
-  const currentSeason = seasonInput ? seasonInput.value.trim() : '';
-  
-  // 💡 如果連劇名都還沒輸入，就顯示提示訊息引導填寫
-  if (!currentTitle) {
-    listContainer.innerHTML = `<span style="font-size:12px;color:#aaa">請先輸入劇名，系統將自動偵測該劇卡司（打字時會即時更新）</span>`;
+// ✨ 1. 新增劇目用的勾選框（保持全域去重名單，讓新增大劇目時正常運作）
+function renderActorCheckboxes(selectedNames = [], listId='actor-checkboxes-list'){
+  const list = document.getElementById(listId);
+  if(!list) return;
+
+  const rawActors = window.musicalActors || [];
+  const uniqueNames = new Set();
+  rawActors.forEach(a => {
+    const nameStr = typeof a === 'object' ? (a.name || '') : String(a);
+    if (nameStr) {
+      nameStr.split(/[,，/、\s]+/).forEach(n => { if (n.trim()) uniqueNames.add(n.trim()); });
+    }
+  });
+
+  const sortedActors = Array.from(uniqueNames).sort();
+  list.innerHTML = sortedActors.map(name => {
+    const isChecked = selectedNames.includes(name);
+    return `
+      <label class="actor-chip${isChecked ? ' checked' : ''}">
+        <input type="checkbox" value="${esc(name)}" ${isChecked ? 'checked' : ''} onchange="this.closest('label').classList.toggle('checked', this.checked)">
+        ${esc(name)}
+      </label>
+    `;
+  }).join('');
+}
+
+// ✨ 2. 多刷場次專屬：只撈出「這部劇的主演」供現場一鍵勾選！
+function renderHistoryActorChips(item) {
+  const list = document.getElementById('actor-checkboxes-list');
+  if (!list || !item) return;
+
+  // 撈出這部劇當初登記的主要演員字串
+  const castString = item.actors || item.cast || '';
+  if (!castString) {
+    list.innerHTML = `<span style="font-size:12px;color:#aaa">此劇目尚未設定主要演員</span>`;
     return;
   }
 
-  const allItems = typeof items !== 'undefined' ? items : [];
-  const suggestedActors = new Set();
+  // 拆解出單個演員名字並去重
+  const uniqueNames = new Set();
+  castString.split(/[,，/、\s]+/).forEach(n => { if (n.trim()) uniqueNames.add(n.trim()); });
 
-  // 遍歷所有歷史劇目資料
-  allItems.forEach(item => {
-    if (!item) return;
-    
-    // 檢查劇名是否相符（支援大小寫模糊比對）
-    const itemTitle = item.name || item.title || '';
-    if (itemTitle.toLowerCase().includes(currentTitle.toLowerCase()) || currentTitle.toLowerCase().includes(itemTitle.toLowerCase())) {
-      
-      const itemSeason = item.season || item.period || '';
-      // 如果連「季度」都填了，就啟動最高等級精準比對：只抓這部劇「該季度」的演員
-      if (currentSeason) {
-        if (itemSeason.toLowerCase().includes(currentSeason.toLowerCase())) {
-          extractActorsFromItem(item, suggestedActors);
-        }
-      } else {
-        // 如果還沒填季度，就先撈出這部劇「所有演出過」的演員當作候選
-        extractActorsFromItem(item, suggestedActors);
-      }
-    }
-  });
+  // 渲染成多刷彈窗裡的專屬勾選晶片
+  list.innerHTML = Array.from(uniqueNames).sort().map(name => {
+    return `
+      <label class="actor-chip" style="margin: 2px;">
+        <input type="checkbox" name="history-checked-actors" value="${esc(name)}" onchange="this.closest('label').classList.toggle('checked', this.checked)">
+        ${esc(name)}
+      </label>
+    `;
+  }).join('');
+}
+
+// 💡 快速新增演員的防呆保底（多刷沒看到演員時可以打字臨時追加）
+async function quickAddActor(inputId='new-actor-name', listId='actor-checkboxes-list'){
+  const input = document.getElementById(inputId);
+  const name = input ? input.value.trim() : '';
+  if(!name) return;
+  
+  const list = document.getElementById(listId);
+  if(list) {
+    const newLabel = document.createElement('label');
+    newLabel.className = 'actor-chip checked';
+    newLabel.style.margin = '2px';
+    newLabel.innerHTML = `<input type="checkbox
 
   // 拆解劇目中演員欄位的輔助函式（包含斷字去重）
   function extractActorsFromItem(item, set) {
