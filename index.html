@@ -1475,20 +1475,14 @@ if(shareMode==='expired'){
 </html>
 </body>
 </html>
-// ==========================================
-// 🎭 演員大英博物館（人物總表）核心邏輯
-// ==========================================
-
-// 1. 打開人物總表彈窗
 function openActorsModal() {
   const modalBg = document.getElementById('actors-modal-bg');
   if (modalBg) {
     modalBg.classList.add('open');
-    renderActorsTotalList(); // 打開時立刻計算場次並渲染名單
+    renderActorsTotalList();
   }
 }
 
-// 2. 關閉人物總表彈窗
 function closeActorsModal() {
   const modalBg = document.getElementById('actors-modal-bg');
   if (modalBg) {
@@ -1496,7 +1490,6 @@ function closeActorsModal() {
   }
 }
 
-// 3. 點擊彈窗外部空白處自動關閉
 document.addEventListener('click', function(e) {
   const modalBg = document.getElementById('actors-modal-bg');
   if (modalBg && e.target === modalBg) {
@@ -1504,34 +1497,22 @@ document.addEventListener('click', function(e) {
   }
 });
 
-// 4. 核心：計算觀看次數並渲染名單
 function renderActorsTotalList() {
   const listContainer = document.getElementById('actors-total-list');
   if (!listContainer) return;
-
-  // 清空舊的內容
   listContainer.innerHTML = '';
 
-  // 如果目前沒有演員資料，顯示提示文字
-  if (!musicalActors || musicalActors.length === 0) {
-    listContainer.innerHTML = '<p style="color: #999; font-size: 13px;">目前尚未建立任何演員資料</p>';
+  if (!window.musicalActors || window.musicalActors.length === 0) {
+    listContainer.innerHTML = '<p style="color: #999; font-size: 13px; padding: 10px;">目前尚未建立任何演員資料</p>';
     return;
   }
 
-  // 💡 第一步：統計每位演員的場次
-  // 建立一個對照表來存次數，例如 { "고상호": 3, "김재범": 5 }
   const actorCounts = {};
-
-  // 檢查你原本儲存所有劇目的全域變數（通常叫 data 或是 movies、musicals，這裡我們先嘗試從全域資料或 DOM 中計算）
-  // 為了最安全的作法，我們直接去爬畫面上或全域儲存的劇目資料庫
-  // 這裡假設你的全域變數叫做 items 或是資料儲存在各個卡片中，我們先寫一個相容性最高的統計邏輯：
   const allItems = typeof items !== 'undefined' ? items : []; 
 
   allItems.forEach(item => {
-    // 檢查這部劇有沒有演員名單（可能存在 item.actors 或 item.cast 中）
     const castString = item.actors || item.cast || '';
     if (castString) {
-      // 拆開演員名字
       const names = castString.split(/[,，]/).map(n => n.trim());
       names.forEach(name => {
         if (name) {
@@ -1541,38 +1522,23 @@ function renderActorsTotalList() {
     }
   });
 
-  // 💡 第二步：開始把每個演員畫成漂亮的標籤按鈕
-  musicalActors.forEach(actor => {
-    // 取得該演員的總場次，如果沒看過就是 0
+  window.musicalActors.forEach(actor => {
     const count = actorCounts[actor.name] || 0;
-
-    // 建立一個按鈕元素
     const btn = document.createElement('button');
-    // 使用你原本網頁就有的標籤樣式，讓外觀完美統一！
     btn.className = 'icon-btn'; 
-    btn.style.cssText = 'padding: 6px 12px; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.15s;';
-    btn.innerHTML = `<i class="ti ti-user"></i> ${actor.name} <span style="color: #8B86D4; font-weight: 700; margin-left: 4px;">(${count})</span>`;
+    btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; transition: all 0.15s; background: #fff; border: .5px solid #E0E0EE; display: flex; align-items: center; gap: 4px; margin-bottom: 4px;';
+    btn.innerHTML = '🎭 ' + actor.name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
 
-    // 💡 第三步：點擊演員名字，直接觸發首頁篩選！
     btn.addEventListener('click', () => {
-      // 關閉總表彈窗
       closeActorsModal();
-      
-      // 尋找你首頁的搜尋輸入框（通常 id 是 search）
-      const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input');
+      const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
       if (searchInput) {
-        searchInput.value = actor.name; // 把演員名字填入搜尋框
-        
-        // 觸發輸入事件，讓網頁自動去跑你原本寫好的篩選海報牆邏輯
+        searchInput.value = actor.name;
         searchInput.dispatchEvent(new Event('input', { bubbles: true }));
         searchInput.dispatchEvent(new Event('change', { bubbles: true }));
-      } else if (typeof setFilterPerson === 'function') {
-        // 如果你原本有關聯標籤的篩選函式，就直接呼叫它
-        setFilterPerson(actor.name);
       }
     });
 
-    // 塞進容器裡
     listContainer.appendChild(btn);
   });
 }
