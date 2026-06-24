@@ -1502,22 +1502,32 @@ function renderActorsTotalList() {
     return;
   }
 
-  // 3. ✨ 終極大絕招：直接從目前網頁畫面上的「所有卡片」文字裡去統計場次！
+  // 找到網頁的搜尋框
+  const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
   const actorCounts = {};
-  
-  // 抓取畫面上所有的卡片（包含藏在海報牆、列表裡的文字區塊）
-  const allCards = document.querySelectorAll('.card, .movie-item, .item, [class*="card"], [class*="item"]');
-  
-  if (allCards.length > 0) {
-    allCards.forEach(card => {
-      const cardText = card.innerText || card.textContent || '';
-      // 檢查每一個去重後的演員名字是否有出現在這張卡片裡
-      uniqueNames.forEach(name => {
-        if (cardText.includes(name)) {
-          actorCounts[name] = (actorCounts[name] || 0) + 1;
-        }
+
+  // 3. ✨ 借刀殺人核心邏輯：如果能正常搜尋，我們就用搜尋的結果來算數量！
+  if (searchInput) {
+    // 先備份原本搜尋框裡輸入到一半的字，避免打擾使用者
+    const originalValue = searchInput.value;
+
+    uniqueNames.forEach(name => {
+      // 模擬使用者在搜尋框輸入演員名字
+      searchInput.value = name;
+      searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+      
+      // 數數看這時畫面上亮起來、顯示出來的卡片有多少張
+      // 排除掉被設定為 display: none 或隱藏的卡片
+      const visibleCards = Array.from(document.querySelectorAll('.card, .movie-item, .item, [class*="card"], [class*="item"]')).filter(card => {
+        return card.style.display !== 'none' && !card.classList.contains('hidden') && card.offsetHeight > 0;
       });
+
+      actorCounts[name] = visibleCards.length;
     });
+
+    // 全部偷偷算完後，把搜尋框還原成原本的字，並重整回原本的畫面
+    searchInput.value = originalValue;
+    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
   // 4. 排序並渲染漂亮的圓角標籤按鈕
@@ -1528,10 +1538,9 @@ function renderActorsTotalList() {
     btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px; transition: all 0.15s;';
     btn.innerHTML = '🎭 ' + name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
 
-    // 點擊單一演員，自動填入搜尋框進行篩選
+    // 點擊單一演員，填入搜尋框正式進行篩選
     btn.addEventListener('click', () => {
       closeActorsModal();
-      const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
       if (searchInput) {
         searchInput.value = name;
         searchInput.dispatchEvent(new Event('input', { bubbles: true }));
