@@ -1502,30 +1502,25 @@ function renderActorsTotalList() {
     return;
   }
 
-  // 3. 安全無害的場次計算（只檢查最安全、最可能存在的全域變數）
+  // 3. ✨ 終極大絕招：直接從目前網頁畫面上的「所有卡片」文字裡去統計場次！
   const actorCounts = {};
-  let dbItems = [];
   
-  if (typeof items !== 'undefined' && Array.isArray(items)) dbItems = items;
-  else if (typeof movies !== 'undefined' && Array.isArray(movies)) dbItems = movies;
-  else if (typeof data !== 'undefined' && Array.isArray(data)) dbItems = data;
-  else if (typeof musicalData !== 'undefined' && Array.isArray(musicalData)) dbItems = musicalData;
-
-  // 開始比對場次
-  dbItems.forEach(item => {
-    if (!item) return;
-    const castString = item.actors || item.cast || item.actor || item.character || '';
-    if (castString && typeof castString === 'string') {
-      const names = castString.split(/[,，/、\s]+/).map(n => n.trim());
-      names.forEach(name => {
-        if (name) {
+  // 抓取畫面上所有的卡片（包含藏在海報牆、列表裡的文字區塊）
+  const allCards = document.querySelectorAll('.card, .movie-item, .item, [class*="card"], [class*="item"]');
+  
+  if (allCards.length > 0) {
+    allCards.forEach(card => {
+      const cardText = card.innerText || card.textContent || '';
+      // 檢查每一個去重後的演員名字是否有出現在這張卡片裡
+      uniqueNames.forEach(name => {
+        if (cardText.includes(name)) {
           actorCounts[name] = (actorCounts[name] || 0) + 1;
         }
       });
-    }
-  });
+    });
+  }
 
-  // 4. 渲染圓角按鈕
+  // 4. 排序並渲染漂亮的圓角標籤按鈕
   Array.from(uniqueNames).sort().forEach(name => {
     const count = actorCounts[name] || 0;
     const btn = document.createElement('button');
@@ -1533,6 +1528,7 @@ function renderActorsTotalList() {
     btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px; transition: all 0.15s;';
     btn.innerHTML = '🎭 ' + name + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + ')</span>';
 
+    // 點擊單一演員，自動填入搜尋框進行篩選
     btn.addEventListener('click', () => {
       closeActorsModal();
       const searchInput = document.getElementById('search') || document.querySelector('.search-wrap input') || document.querySelector('input[placeholder*="搜尋"]');
