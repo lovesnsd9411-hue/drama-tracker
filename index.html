@@ -994,7 +994,7 @@ async function openAddShowForm(dramaId){
       </div>
       <div class="field">
         <label>卡司（勾選這場演出的演員）</label>
-        <div id="form-actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+        <div id="actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px">
           <input type="text" id="new-actor-name" placeholder="沒看到的演員？打名字按新增" style="flex:1">
           <button class="icon-btn" onclick="quickAddActor()" style="flex-shrink:0"><i class="ti ti-plus"></i> 新增演員</button>
@@ -1013,85 +1013,33 @@ async function openAddShowForm(dramaId){
   renderHistoryActorChips(dramaId);
 }
 
-function renderHistoryActorChips(item) {
-  // 🎯 這是「執行一次看看」的功能
-  function doRender() {
-    const list = document.getElementById('actor-checkbox-list');
-    if (!list) return false; // 如果紅框還沒長出來，先回報「沒看到」
+function renderHistoryActorChips(dramaId) {
+  const list = document.getElementById('actor-checkbox-list');
+  if (!list) return;
 
-    // ... (原本中間抓演員的邏輯都不變) ...
-    const topActorChips = document.querySelectorAll('.app .actor-chip, #detail-modal .actor-chip, .main-actors .actor-chip, .actor-chip');
-    let actorsArr = [];
-    topActorChips.forEach(chip => {
-      const name = chip.textContent.replace('🔍', '').trim();
-      if (name && !actorsArr.includes(name) && !chip.closest('#actor-checkbox-list')) {
-        actorsArr.push(name);
-      }
-    });
-
-    if (actorsArr.length === 0) {
-      list.innerHTML = '<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>';
-      return true;
-    }
-
-    list.innerHTML = actorsArr.map(name => `
-      <label class="actor-chip checked" style="margin: 2px;">
-        <input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
-        ${esc(name)}
-      </label>
-    `).join('');
-    return true; // 成功畫好了！
-  }
-
-  // 1. 先試著畫一次
-  if (doRender()) return;
-
-  // 2. 如果沒畫成功（紅框還沒出），就啟動「盯梢機制」
-  const targetContainer = document.getElementById('detail-content') || document.body;
-  const observer = new MutationObserver((mutations, obs) => {
-    if (doRender()) {
-      obs.disconnect(); // 一旦紅框長出來並畫好演員，就立刻停止盯梢，避免浪費效能
+  const topActorChips = document.querySelectorAll('.actor-chip');
+  let actorsArr = [];
+  topActorChips.forEach(chip => {
+    const name = chip.textContent.replace('🔍', '').trim();
+    if (name && !actorsArr.includes(name)) {
+      actorsArr.push(name);
     }
   });
-  observer.observe(targetContainer, { childList: true, subtree: true });
-}
-function quickAddActorInForm() {
-  if (isReadOnly) return;
 
-  const input = document.getElementById('form-new-actor-name');
-  if (!input) return;
-  
-  const rawValue = input.value.trim();
-  if (!rawValue) return;
-
-  const list = document.getElementById('form-actor-checkbox-list');
-  if (list) {
-    if (list.innerHTML.includes('暫無') || list.innerHTML.includes('尚未設定')) list.innerHTML = '';
-    
-    // 🎯 最安全作法：先把全形逗號、頓號、斜線全部統一代換成英文半形逗號，再用逗號切開！
-    let cleanValue = rawValue.replace(/，/g, ',').replace(/、/g, ',').replace(/\//g, ',');
-    const names = cleanValue.split(',');
-    
-    names.forEach(nameStr => {
-      const name = nameStr.trim();
-      if (!name || name === 'undefined' || name === 'null') return;
-
-      // 檢查是不是已經有同名演員晶片了
-      const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
-      if (!exists) {
-        const label = document.createElement('label');
-        label.className = 'actor-chip checked';
-        label.style.margin = '2px';
-        label.innerHTML = `
-          <input type="checkbox" name="checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
-          ${esc(name)}
-        `;
-        list.appendChild(label);
-      }
-    });
-    
-    input.value = '';
+  if (actorsArr.length === 0) {
+    list.innerHTML = '<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>';
+    return;
   }
+
+  list.innerHTML = '';
+  actorsArr.forEach(name => {
+    const label = document.createElement('label');
+    label.className = 'actor-chip checked';
+    label.style.margin = '2px';
+    // 用 + 號連接字串，避開反引號可能造成的語法錯誤
+    label.innerHTML = '<input type="checkbox" name="history-checked-actors" value="' + name + '" checked> ' + name;
+    list.appendChild(label);
+  });
 }
 function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
   const input = document.getElementById(inputId);
