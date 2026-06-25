@@ -36,23 +36,21 @@ input,select,textarea,button{font-family:inherit}
 .search-wrap input{width:100%;padding-right:32px}
 .search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#bbb;font-size:14px;padding:4px;display:flex;align-items:center;border-radius:50%}
 .search-clear:hover{color:#666;background:#F0F0F5}
-  /* 演員晶片排版修正 */
-.actor-chip-wrapper {
-    display: flex !important;
-    flex-wrap: wrap;
-    align-items: center;
-    margin-bottom: 10px;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 5px;
-}
-.actor-role { font-weight: bold; min-width: 80px; }
-.actor-pill { 
-    border: 1px solid #aaa; 
-    border-radius: 15px; 
-    padding: 2px 10px; 
-    margin: 2px; 
-    font-size: 0.9em; 
+ /* 確保所有顯示演員的晶片都長一樣 */
+.actor-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    margin: 4px;
+    border: 1px solid #aaa;
+    border-radius: 15px;
+    font-size: 0.85em;
     background-color: #f9f9f9;
+}
+.actor-list-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
 }
 .view-toggle{display:flex;gap:4px;background:#E8E8F0;border-radius:10px;padding:3px}
 .view-btn{background:none;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;color:#888;font-size:15px;transition:all .15s}
@@ -965,8 +963,25 @@ function renderMusicalDetail(d){
       </div>
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
-    ${d.actors&&d.actors.length?`<div style="margin-bottom:1rem"><div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.35rem">主要演員</div><div>${d.actors.map(a=>`<span class="ppill" onclick="setPerson('${esc(a)}','actor')">${esc(a)} 🔍</span>`).join('')}</div></div>`:''}
-    ${d.note?`<div style="background:#F8F8FB;border-radius:12px;padding:.85rem;font-size:13px;line-height:1.7;margin-bottom:1rem;font-weight:500;color:#444">${esc(d.note)}</div>`:''}
+   ${d.actors && d.actors.length ? `
+    <div style="margin-bottom:1rem">
+        <div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.5rem">主要演員</div>
+        ${d.actors.map(a => {
+            if (a.includes('：')) {
+                const [role, names] = a.split('：');
+                const actorArr = names.split(/[、,，|]/).map(n => n.trim());
+                return `
+                    <div style="margin-bottom:8px;">
+                        <strong style="display:block; font-size:13px; margin-bottom:4px;">${role}：</strong>
+                        ${actorArr.map(n => `<span class="badge" onclick="filterByActor('${esc(n)}')">${esc(n)}</span>`).join('')}
+                    </div>
+                `;
+            } else {
+                return `<span class="badge" onclick="filterByActor('${esc(a)}')">${esc(a)}</span>`;
+            }
+        }).join('')}
+    </div>
+` : ''}
 
     <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">
       <span>多刷紀錄（共 ${totalShows} 場${totalSpent>0?' · 共花費 '+totalSpent.toLocaleString():''}）</span>
