@@ -1014,32 +1014,43 @@ async function openAddShowForm(dramaId){
 }
 
 function renderHistoryActorChips(item) {
- const list = document.getElementById('actor-checkbox-list');
-  if (!list || !item) return;
+  // 🎯 1. 檢查格子到底有沒有在畫面上
+  const list = document.getElementById('actor-checkbox-list'); 
+  console.log("【檢查1】找到的格子元素是：", list);
+  console.log("【檢查2】傳進來的劇目資料是：", item);
+
+  if (!list) {
+    console.log("【警告】因為找不到 actor-checkbox-list 格子，程式提早結束了！");
+    return;
+  }
+  if (!item) {
+    console.log("【警告】因為傳進來的劇目資料是空的，程式提早結束了！");
+    return;
+  }
 
   let actorsArr = [];
   if (Array.isArray(item.actors)) {
     actorsArr = item.actors;
   } else if (typeof item.actors === 'string' && item.actors.trim()) {
-    // 🎯 相容各種分隔符號切開
     actorsArr = item.actors.split(/[,，、/]+/);
   }
 
-  // 過濾掉空字串
   actorsArr = actorsArr.map(n => n.trim()).filter(n => n);
+  console.log("【檢查3】最後切出來的演員陣列是：", actorsArr);
 
   if (actorsArr.length === 0) {
     list.innerHTML = `<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>`;
     return;
   }
 
-  // 🎯 渲染出打勾的演員晶片
   list.innerHTML = actorsArr.map(name => `
     <label class="actor-chip checked" style="margin: 2px;">
       <input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
-      ${esc(name)}
+      \${esc(name)}
     </label>
   `).join('');
+  
+  console.log("【檢查4】HTML 成功塞入格子中了！");
 }
 function quickAddActorInForm() {
   if (isReadOnly) return;
