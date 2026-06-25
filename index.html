@@ -1634,28 +1634,31 @@ function quickAddActor(inputId, listId) {
     let val = input.value.trim();
     if (!val) return;
 
-    // 1. 建立一個包裝容器 (用來整齊擺放角色與晶片)
+    // 1. 為了讓「讀取卡司」抓得到，我們在頁面背景直接建立原始的 .actor-chip
+    // 這裡我模擬了你原本卡片頁面上的結構
+    const actorsToProcess = val.includes('：') ? val.split('：')[1].split(/[、,，|]/) : [val];
+    
+    actorsToProcess.forEach(name => {
+        const cleanName = name.trim();
+        if (!cleanName) return;
+
+        // 建立隱形的 chip，讓 manualFetchActors 讀取
+        const hiddenChip = document.createElement('span');
+        hiddenChip.className = "actor-chip"; // 確保這是小視窗搜尋的 class
+        hiddenChip.style.display = "none";
+        hiddenChip.textContent = cleanName + " 🔍";
+        document.body.appendChild(hiddenChip);
+    });
+
+    // 2. 顯示給編輯視窗看 (格式化)
     const row = document.createElement('div');
     row.style.cssText = "display:flex; align-items:center; margin:8px 0; gap:8px;";
-
-    // 2. 解析輸入文字 (處理「角色：演員A, 演員B」)
+    
     if (val.includes('：')) {
         const parts = val.split('：');
-        const role = parts[0].trim();
-        const actors = parts[1].split(/[、,，|]/).map(n => n.trim()).filter(n => n);
-
-        // 插入角色名稱
-        row.innerHTML = `<strong style="min-width:60px;">${role}：</strong>`;
-        
-        // 插入演員晶片
-        actors.forEach(name => {
-            const span = document.createElement('span');
-            span.style.cssText = "padding:2px 10px; border:1px solid #aaa; border-radius:15px; font-size:0.9em; cursor:pointer;";
-            span.textContent = name;
-            row.appendChild(span);
-        });
+        row.innerHTML = `<strong style="min-width:60px;">${parts[0].trim()}：</strong>` + 
+            actorsToProcess.map(n => `<span style="padding:2px 10px; border:1px solid #aaa; border-radius:15px; font-size:0.9em;">${n.trim()}</span>`).join('');
     } else {
-        // 單純新增演員的情況
         row.innerHTML = `<span style="padding:2px 10px; border:1px solid #aaa; border-radius:15px; font-size:0.9em;">${val}</span>`;
     }
 
