@@ -997,7 +997,7 @@ async function openAddShowForm(dramaId){
       <div class="field">
         <label>卡司（勾選這場演出的演員）</label>
         <div id="actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
-<button type="button" onclick="manualFetchActors()" style="margin-left:5px; padding:2px 8px; cursor:pointer;">📥 讀取卡司</button>
+<button type="button" onclick="renderHistoryActorChips()" style="margin-left:5px; padding:2px 8px; cursor:pointer;">📥 讀取卡司</button>
         <div style="display:flex;gap:8px">
           <input type="text" id="new-actor-name" placeholder="沒看到的演員？打名字按新增" style="flex:1">
           <button class="icon-btn" onclick="quickAddActor()" style="flex-shrink:0"><i class="ti ti-plus"></i> 新增演員</button>
@@ -1598,49 +1598,53 @@ function renderActorsTotalList() {
 </div>
 
 <script>
-// 全新的進化版：自動偵測上下文
+// --- 1. 專門給「新增場次小視窗」用的：抓取頁面演員 ---
+function renderHistoryActorChips(dramaId) {
+    const list = document.getElementById('actor-checkbox-list');
+    // 這裡我們直接抓頁面上的 .ppill (原本的邏輯)
+    const actorElements = document.querySelectorAll('.ppill');
+    let names = [];
+    actorElements.forEach(el => {
+        const name = el.textContent.replace('🔍', '').trim();
+        if (name && !names.includes(name)) names.push(name);
+    });
+
+    if (names.length === 0) {
+        alert("沒抓到耶，請確認頁面上有演員晶片嗎？");
+        return;
+    }
+
+    list.innerHTML = names.map(name => `
+        <label style="margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;">
+            <input type="checkbox" name="history-checked-actors" value="${name}"> ${name}
+        </label>
+    `).join('');
+}
+
+// --- 2. 專門給「大視窗」用的：智慧解析輸入框 ---
 function quickAddActor(inputId, listId) {
     const input = document.getElementById(inputId);
     const list = document.getElementById(listId);
-    
-    if (!input || !list) {
-        console.error("找不到輸入框或列表！", { inputId, listId });
-        return;
-    }
+    if (!input || !list) return;
 
     let inputVal = input.value.trim();
     if (!inputVal) return;
 
-    // 負責把單一名字加到列表的內部小幫手
-    const addActorToDOM = (name) => {
-        name = name.trim();
-        if (!name) return;
-        
-        // 檢查是否重複
-        const exists = Array.from(list.querySelectorAll('input')).some(i => i.value === name);
-        if (exists) return;
-
+    const addActor = (name) => {
         const label = document.createElement('label');
         label.style.cssText = "margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;";
         label.innerHTML = `<input type="checkbox" name="actor" value="${name}" checked> ${name}`;
         list.appendChild(label);
     };
 
-    // --- 這裡就是關鍵的智慧解析 ---
+    // 智慧解析：如果有冒號，切開取後面；沒有就直接加
     if (inputVal.includes('：')) {
-        // 如果偵測到冒號，只取冒號後面的內容 (演員名單)
         const parts = inputVal.split('：');
-        const actorString = parts[1] || parts[0];
-        
-        // 用逗號或頓號拆開
-        const names = actorString.split(/[、,，]/);
-        names.forEach(n => addActorToDOM(n));
+        const names = (parts[1] || parts[0]).split(/[、,，]/);
+        names.forEach(n => addActor(n.trim()));
     } else {
-        // 單純輸入名字
-        addActorToDOM(inputVal);
+        addActor(inputVal);
     }
-
-    // 清空輸入框
     input.value = '';
 }
 </script>
