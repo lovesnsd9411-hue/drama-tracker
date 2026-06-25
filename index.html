@@ -1597,3 +1597,33 @@ function renderActorsTotalList() {
 
 </body>
 </html>
+// 確保當執行 renderHistoryActorChips 時，給予視窗 0.3 秒的長出來時間
+// 確保當執行 renderHistoryActorChips 時，給予視窗 0.3 秒的長出來時間
+function renderHistoryActorChips(dramaId) {
+    setTimeout(function() {
+        const list = document.getElementById('actor-checkbox-list');
+        if (!list) return;
+
+        const actorElements = document.querySelectorAll('.ppill');
+        let names = [];
+
+        actorElements.forEach(el => {
+            const name = el.textContent.replace('🔍', '').trim();
+            if (name && !names.includes(name)) {
+                names.push(name);
+            }
+        });
+
+        if (names.length === 0) {
+            console.log("還沒抓到，等等看...");
+            return;
+        }
+
+        list.innerHTML = names.map(name => `
+            <label style="margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;">
+                <input type="checkbox" name="history-checked-actors" value="${name}" checked> ${name}
+            </label>
+        `).join('');
+    }, 300); 
+} // <--- 這裡是 setTimeout 的結尾
+// <--- 這裡再補上一個 } 來關閉 renderHistoryActorChips 這個 function
