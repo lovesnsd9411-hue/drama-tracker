@@ -1013,22 +1013,37 @@ async function openAddShowForm(dramaId){
   renderHistoryActorChips(dramaId);
 }
 
-function renderHistoryActorChips(item) {
-  // 🎯 這是「執行一次看看」的功能
-  function doRender() {
-    const list = document.getElementById('actor-checkbox-list');
-    if (!list) return false; // 如果紅框還沒長出來，先回報「沒看到」
+function renderHistoryActorChips(dramaId) {
+  const list = document.getElementById('actor-checkbox-list');
+  if (!list) return;
 
-    // ... (原本中間抓演員的邏輯都不變) ...
-   // 請把這行改成下面這樣，這會把所有可能的演員晶片全部一網打盡
-const topActorChips = document.querySelectorAll('.actor-chip, .name-tag, .actor-name, .cast-item'); .actor-chip');
-    let actorsArr = [];
-    topActorChips.forEach(chip => {
-      const name = chip.textContent.replace('🔍', '').trim();
-      if (name && !actorsArr.includes(name) && !chip.closest('#actor-checkbox-list')) {
-        actorsArr.push(name);
-      }
-    });
+  // 使用最寬鬆的選擇器，保證抓得到
+  const topActorChips = document.querySelectorAll('.actor-chip, .name-tag, .actor-name, .cast-item');
+  let actorsArr = [];
+
+  topActorChips.forEach(chip => {
+    const name = chip.textContent.replace('🔍', '').trim();
+    if (name && !actorsArr.includes(name)) {
+      actorsArr.push(name);
+    }
+  });
+
+  if (actorsArr.length === 0) {
+    list.innerHTML = '<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>';
+    return;
+  }
+
+  // 🎯 這是最安全的寫法：不用反引號，直接用字串拼接
+  list.innerHTML = '';
+  actorsArr.forEach(name => {
+    const label = document.createElement('label');
+    label.className = 'actor-chip checked';
+    label.style.margin = '2px';
+    // 這裡我們用最基礎的字串加法，就不會再報 Uncaught SyntaxError 了
+    label.innerHTML = '<input type="checkbox" name="history-checked-actors" value="' + name + '" checked onchange="this.closest(\'label\').classList.toggle(\'checked\', this.checked)"> ' + name;
+    list.appendChild(label);
+  });
+}
 
     if (actorsArr.length === 0) {
       list.innerHTML = '<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>';
