@@ -1601,23 +1601,34 @@ function renderActorsTotalList() {
 // --- 1. 小視窗專用：修復讀取邏輯 ---
 function manualFetchActors() {
     const list = document.getElementById('actor-checkbox-list');
-    // 關鍵：這裡要檢查你頁面目前是用什麼 class 來放演員的（檢查你的 HTML 原始碼，看是 .actor-chip 還是 .ppill）
-    // 我這裡先用你截圖裡常用的 .actor-chip
-    const allChips = document.querySelectorAll('.actor-chip');
+    
+    // 關鍵修正：直接去掃描「編輯區 (form-actor-checkbox-list)」裡的每一個 span 或標籤
+    // 這樣不管你編輯區怎麼顯示，它都能讀到剛剛新增的演員
+    const editorList = document.getElementById('form-actor-checkbox-list');
+    if (!editorList) {
+        alert("找不到編輯區，無法讀取卡司");
+        return;
+    }
+
+    // 抓取編輯區內所有的演員名字 (無論它是 label 還是 span)
+    const elements = editorList.querySelectorAll('span, label');
     let names = [];
 
-    allChips.forEach(chip => {
-        const name = chip.textContent.replace('🔍', '').trim();
+    elements.forEach(el => {
+        // 過濾掉粗體字的角色名，只抓演員名
+        if (el.querySelector('strong')) return; 
+        const name = el.textContent.trim();
         if (name && !names.includes(name)) {
             names.push(name);
         }
     });
 
     if (names.length === 0) {
-        alert("找不到演員標籤，請確認頁面上有 .actor-chip 元素");
+        alert("沒抓到演員，請確認編輯區已有演員顯示");
         return;
     }
 
+    // 填入小視窗
     list.innerHTML = names.map(name => `
         <label style="margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;">
             <input type="checkbox" name="history-checked-actors" value="${name}"> ${name}
