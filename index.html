@@ -994,7 +994,7 @@ async function openAddShowForm(dramaId){
       </div>
       <div class="field">
         <label>卡司（勾選這場演出的演員）</label>
-        <div id="actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
+        <div id="form-actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
         <div style="display:flex;gap:8px">
           <input type="text" id="new-actor-name" placeholder="沒看到的演員？打名字按新增" style="flex:1">
           <button class="icon-btn" onclick="quickAddActor()" style="flex-shrink:0"><i class="ti ti-plus"></i> 新增演員</button>
@@ -1014,7 +1014,6 @@ async function openAddShowForm(dramaId){
 }
 
 function renderHistoryActorChips(item) {
-  // 🎯 重點修正：小視窗的演員容器 ID 其實是 'form-actor-checkbox-list' 喔！
   const list = document.getElementById('form-actor-checkbox-list');
   if (!list || !item) return;
 
@@ -1022,26 +1021,25 @@ function renderHistoryActorChips(item) {
   if (Array.isArray(item.actors)) {
     actorsArr = item.actors;
   } else if (typeof item.actors === 'string' && item.actors.trim()) {
+    // 🎯 相容各種分隔符號切開
     actorsArr = item.actors.split(/[,，、/]+/);
   }
 
-  // 如果真的沒有演員
+  // 過濾掉空字串
+  actorsArr = actorsArr.map(n => n.trim()).filter(n => n);
+
   if (actorsArr.length === 0) {
     list.innerHTML = `<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>`;
     return;
   }
 
-  // 🎯 成功對接！把這齣劇的主要演員通通畫到小視窗裡
-  list.innerHTML = actorsArr.map(name => {
-    const cleanName = name.trim();
-    if (!cleanName) return '';
-    return `
-      <label class="actor-chip checked" style="margin: 2px;">
-        <input type="checkbox" name="history-checked-actors" value="${esc(cleanName)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
-        ${esc(cleanName)}
-      </label>
-    `;
-  }).join('');
+  // 🎯 渲染出打勾的演員晶片
+  list.innerHTML = actorsArr.map(name => `
+    <label class="actor-chip checked" style="margin: 2px;">
+      <input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
+      ${esc(name)}
+    </label>
+  `).join('');
 }
 function quickAddActorInForm() {
   if (isReadOnly) return;
