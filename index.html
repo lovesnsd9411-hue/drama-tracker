@@ -1008,11 +1008,9 @@ async function openAddShowForm(dramaId){
         <button class="icon-btn" onclick="document.getElementById('musical-add-show-wrap').innerHTML=''">取消</button>
         <button class="btn-primary" onclick="saveShow('${dramaId}')">儲存場次</button>
       </div>
-    </div>`;
-  
-</div>
-  </div>`;
+   </div>\`;
 
+  // 🎯 這是呼叫大師的正確位置
   renderHistoryActorChips(currentItem);
 }
 
