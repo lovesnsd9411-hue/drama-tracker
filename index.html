@@ -1094,10 +1094,13 @@ function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
     }
 
     const newLabel = document.createElement('label');
-    newLabel.className = 'actor-chip checked';
-    newLabel.style.margin = '2px';
-    newLabel.innerHTML = `<input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)"> ${esc(name)}`;
-    list.appendChild(newLabel);
+newLabel.className = 'actor-chip checked';
+newLabel.style.margin = '2px';
+newLabel.innerHTML = `
+  <input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
+  \${esc(name)}
+`;
+list.appendChild(newLabel);
   }
   input.value = '';
 }
