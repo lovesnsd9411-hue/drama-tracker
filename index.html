@@ -1015,40 +1015,31 @@ async function openAddShowForm(dramaId){
 }
 
 // 1. 這是負責顯示演員晶片的函式 (已修復偵測機制)
-// 這是專門抓取 ppill 標籤的函式
-function renderHistoryActorChips(dramaId) {
+function manualFetchActors() {
     const list = document.getElementById('actor-checkbox-list');
-    if (!list) return;
-
-    // 🎯 關鍵在這裡：直接抓取 class="ppill" 的所有元素
-    const actorElements = document.querySelectorAll('.ppill');
+    const allChips = document.querySelectorAll('.actor-chip'); // 頁面最上方的按鈕
     let names = [];
 
-    actorElements.forEach(el => {
-        // 抓取文字，並過濾掉後面那個「🔍」圖示
-        const name = el.textContent.replace('🔍', '').trim();
-        if (name && !names.includes(name)) {
+    allChips.forEach(chip => {
+        // 抓取名字，並過濾掉重複的
+        const name = chip.textContent.replace('🔍', '').trim();
+        if (name && !names.includes(name) && !chip.closest('#actor-checkbox-list')) {
             names.push(name);
         }
     });
 
     if (names.length === 0) {
-        alert("還是沒抓到，請確認頁面上有 class='ppill' 的演員標籤！");
+        alert("沒抓到耶，請確認頁面上方真的有演員晶片嗎？");
         return;
     }
 
-    // 生成勾選框
+    // 直接生成勾選框
     list.innerHTML = names.map(name => `
         <label style="margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px;">
-            <input type="checkbox" name="history-checked-actors" value="${name}" checked> ${name}
+            <input type="checkbox" name="checked-actors" value="${name}" checked> ${name}
         </label>
     `).join('');
-    
-    console.log("成功抓到演員列表：", names);
 }
-
-// 為了讓它被正確呼叫，我們確保它在全域環境中
-window.manualFetchActors = manualFetchActors;
 
 async function saveShow(dramaId){
   if(isReadOnly) return;
