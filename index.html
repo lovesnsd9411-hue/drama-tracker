@@ -964,17 +964,9 @@ function renderMusicalDetail(d){
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
 ${d.actors && d.actors.length ? `
-    <div style="margin:10px 0;">
-        <div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:5px;">主要演員</div>
-        ${d.actors.map(a => {
-            // 只要有「：」就拆解，沒有就直接顯示
-            const parts = a.split('：');
-            if (parts.length > 1) {
-                return `<div><strong>${parts[0]}：</strong> ${parts[1].split(/[、,，|]/).map(n => `<span class="badge">${n.trim()}</span>`).join(' ')}</div>`;
-            } else {
-                return `<span class="badge">${a}</span>`;
-            }
-        }).join('')}
+    <div style="margin-bottom:1rem">
+        <div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.5rem">主要演員</div>
+        ${d.actors.map(a => `<span class="badge">${a}</span>`).join('')}
     </div>
 ` : ''}
 
