@@ -1015,43 +1015,41 @@ async function openAddShowForm(dramaId){
 
 // 1. 這是負責顯示演員晶片的函式 (已修復偵測機制)
 function renderHistoryActorChips(dramaId) {
-  const list = document.getElementById('actor-checkbox-list');
-  if (!list) return;
-
-  // 1. 強制抓取頁面上所有看起來像演員晶片的按鈕
-  // 這裡我們把範圍擴大，只要是有 actor-chip class 的全部抓回來
-  const chips = document.querySelectorAll('.actor-chip');
-  let actors = [];
-  chips.forEach(chip => {
-    // 排除掉我們剛剛新建的那個輸入框裡面的內容，只抓上方的主要演員
-    if (!chip.closest('#actor-checkbox-list')) {
-      const name = chip.textContent.replace('🔍', '').trim();
-      if (name && !actors.includes(name)) actors.push(name);
-    }
-  });
-
-  // 2. 如果真的抓不到，才顯示沒演員
-  if (actors.length === 0) {
-    list.innerHTML = '<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員 (請確認上方是否有演員資訊)</span>';
-    return;
-  }
-
-  // 3. 注入 HTML：直接把抓到的名字生成 checkbox
-  list.innerHTML = '';
-  actors.forEach(name => {
-    const label = document.createElement('label');
-    label.style.display = 'inline-block';
-    label.style.margin = '4px';
-    label.style.padding = '4px 8px';
-    label.style.border = '1px solid #ddd';
-    label.style.borderRadius = '4px';
-    label.style.cursor = 'pointer';
+    // 1. 找到目標盒子 (ID 必須要精準)
+    const list = document.getElementById('actor-checkbox-list');
     
-    label.innerHTML = `
-      <input type="checkbox" name="history-checked-actors" value="${name}" checked> ${name}
-    `;
-    list.appendChild(label);
-  });
+    // 2. 找到頁面上原本就有的所有演員按鈕
+    // 這裡我們直接抓所有 class 含有 actor-chip 的元素
+    const allActors = document.querySelectorAll('.actor-chip');
+    
+    if (!list) {
+        console.log("找不到演員列表的盒子！請檢查 HTML ID 是否為 actor-checkbox-list");
+        return;
+    }
+
+    // 3. 過濾並填入
+    let actorNames = [];
+    allActors.forEach(el => {
+        const name = el.textContent.replace('🔍', '').trim();
+        // 確保名字不重複，且排除掉我們自己寫進去的 (避免重複抓取)
+        if (name && !actorNames.includes(name) && !el.closest('#actor-checkbox-list')) {
+            actorNames.push(name);
+        }
+    });
+
+    if (actorNames.length === 0) {
+        list.innerHTML = '還是找不到演員耶，確認一下上方是否有這些標籤？';
+        return;
+    }
+
+    // 把名字變成勾選框
+    list.innerHTML = actorNames.map(name => `
+        <label style="margin:5px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px;">
+            <input type="checkbox" value="${name}" checked> ${name}
+        </label>
+    `).join('');
+    
+    console.log("成功抓到演員：", actorNames);
 }
 // 2. 這是負責「新增演員」按鈕的邏輯 (避開了反引號語法錯誤)
 function quickAddActor(inputId = 'new-actor-name', listId = 'actor-checkbox-list') {
