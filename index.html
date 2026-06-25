@@ -585,7 +585,7 @@ async function setFormCategory(cat){
 
   if(isMusical){
     if(musicalActors.length===0) await loadMusicalActors();
-    renderFormActorCheckboxes([]);
+  if (typeof renderHistoryActorChips === 'function') renderHistoryActorChips({ actors: [] });
   }
 }
 
@@ -1303,7 +1303,9 @@ function openEdit(id){
   setFormCategory(d.category||'drama');
   if((d.category||'drama')==='musical'){
     // wait for actor list load (setFormCategory awaits it) before checking boxes
-    setTimeout(()=>renderFormActorCheckboxes(d.actors||[]),350);
+    setTimeout(()=> {
+  if (typeof renderHistoryActorChips === 'function') renderHistoryActorChips({ actors: d.actors || [] });
+}, 350);
   }
   openModal('form-modal');
 }
