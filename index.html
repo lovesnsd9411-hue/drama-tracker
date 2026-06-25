@@ -1017,7 +1017,7 @@ function renderHistoryActorChips(dramaId) {
   const list = document.getElementById('actor-checkbox-list');
   if (!list) return;
 
-  const topActorChips = document.querySelectorAll('.actor-chip');
+  const topActorChips = document.querySelectorAll('.actor-chip, .name-tag, .actor-name');
   let actorsArr = [];
   topActorChips.forEach(chip => {
     const name = chip.textContent.replace('🔍', '').trim();
