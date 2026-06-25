@@ -1577,22 +1577,40 @@ function renderActorsTotalList() {
 // =========================================================
 // 補回 HTML 結構與閉合標籤
 // =========================================================
-<script>
-// 1. 小視窗專用：讀取頁面上的 .ppill (給「讀取卡司」按鈕用)
-function renderHistoryActorChips() {
-    const list = document.getElementById('actor-checkbox-list');
-    if (!list) return;
+</script>
 
+<div id="actors-modal-bg" class="modal-bg">
+  <div class="modal" style="width: min(650px, 95vw);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <h3 class="modal-title" style="margin-bottom: 0;">🎭 人物總表</h3>
+      <button onclick="closeActorsModal()" style="background: none; border: none; cursor: pointer; font-size: 20px; color: #888;">×</button>
+    </div>
+    <p style="color: #888; font-size: 12px; margin-top: -10px; margin-bottom: 15px;">點擊演員名字可直接篩選作品，括號內為該演員的「總觀看場次」</p>
+    <hr style="border: none; border-top: .5px solid #F0F0F5; margin-bottom: 15px;">
+    
+    <div id="actors-total-list" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 50vh; overflow-y: auto; padding: 5px;">
+      </div>
+    
+    <div class="mfooter">
+      <button class="icon-btn" onclick="closeActorsModal()">關閉</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- 1. 專門給「新增場次小視窗」用的：抓取頁面演員 ---
+function renderHistoryActorChips(dramaId) {
+    const list = document.getElementById('actor-checkbox-list');
+    // 這裡我們直接抓頁面上的 .ppill (原本的邏輯)
     const actorElements = document.querySelectorAll('.ppill');
     let names = [];
     actorElements.forEach(el => {
-        // 確保只抓名字，去掉那個搜尋圖示
         const name = el.textContent.replace('🔍', '').trim();
         if (name && !names.includes(name)) names.push(name);
     });
 
     if (names.length === 0) {
-        alert("沒抓到耶，請確認頁面上有演員標籤 (ppill)");
+        alert("沒抓到耶，請確認頁面上有演員晶片嗎？");
         return;
     }
 
@@ -1603,41 +1621,31 @@ function renderHistoryActorChips() {
     `).join('');
 }
 
-// 2. 大視窗專用：智慧解析輸入框 (給「新增演員」按鈕用)
+// --- 2. 專門給「大視窗」用的：智慧解析輸入框 ---
 function quickAddActor(inputId, listId) {
     const input = document.getElementById(inputId);
     const list = document.getElementById(listId);
     if (!input || !list) return;
 
-    let val = input.value.trim();
-    if (!val) return;
+    let inputVal = input.value.trim();
+    if (!inputVal) return;
 
-    // 真正的拆解核心
-    const namesToAdd = [];
-    if (val.includes('：')) {
-        // 把冒號後面的內容切開
-        const parts = val.split('：');
-        const rawNames = parts[1] || parts[0];
-        // 支援逗號、頓號分割
-        rawNames.split(/[、,，]/).forEach(n => {
-            if(n.trim()) namesToAdd.push(n.trim());
-        });
-    } else {
-        namesToAdd.push(val);
-    }
-
-    // 新增到列表
-    namesToAdd.forEach(name => {
-        const exists = Array.from(list.querySelectorAll('input')).some(i => i.value === name);
-        if (exists) return;
-        
+    const addActor = (name) => {
         const label = document.createElement('label');
         label.style.cssText = "margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;";
         label.innerHTML = `<input type="checkbox" name="actor" value="${name}" checked> ${name}`;
         list.appendChild(label);
-    });
+    };
 
-    input.value = ''; // 清空輸入框
+    // 智慧解析：如果有冒號，切開取後面；沒有就直接加
+    if (inputVal.includes('：')) {
+        const parts = inputVal.split('：');
+        const names = (parts[1] || parts[0]).split(/[、,，]/);
+        names.forEach(n => addActor(n.trim()));
+    } else {
+        addActor(inputVal);
+    }
+    input.value = '';
 }
 </script>
 </body>
