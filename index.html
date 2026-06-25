@@ -1014,25 +1014,32 @@ async function openAddShowForm(dramaId){
 }
 
 function renderHistoryActorChips(item) {
-  // 🎯 正確的格子名字叫做 form-actor-checkbox-list
+  // 🎯 1. 認領紅框框裡那個放打勾演員的容器
   const list = document.getElementById('actor-checkbox-list'); 
-  if (!list || !item) return;
+  if (!list) return;
 
+  // 🎯 2. 直接去抓網頁上「藍色圈圈」裡所有的主要演員按鈕！
+  const topActorChips = document.querySelectorAll('.app .actor-chip, #detail-modal .actor-chip, .main-actors .actor-chip');
   let actorsArr = [];
-  if (Array.isArray(item.actors)) {
-    actorsArr = item.actors;
-  } else if (typeof item.actors === 'string' && item.actors.trim()) {
-    actorsArr = item.actors.split(/[,，、/]+/);
+
+  // 🎯 3. 把藍色按鈕裡面的名字（姜燦、金鎮旭...）一個個抄下來
+  if (topActorChips.length > 0) {
+    topActorChips.forEach(chip => {
+      // 去掉放大鏡 🔍 圖示和空白，只拿乾淨的名字
+      const name = chip.textContent.replace('🔍', '').trim();
+      if (name && !actorsArr.includes(name)) {
+        actorsArr.push(name);
+      }
+    });
   }
 
-  actorsArr = actorsArr.map(n => n.trim()).filter(n => n);
-
+  // 🎯 4. 如果真的完全沒抓到任何演員，就顯示提示字
   if (actorsArr.length === 0) {
     list.innerHTML = '<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>';
     return;
   }
 
-  // 🎯 渲染出打勾的演員晶片，並拿掉所有多餘的反斜線
+  // 🎯 5. 把抄下來的名字，全部做成可以打勾的晶片，塞進紅框框裡！
   list.innerHTML = actorsArr.map(name => `
     <label class="actor-chip checked" style="margin: 2px;">
       <input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
