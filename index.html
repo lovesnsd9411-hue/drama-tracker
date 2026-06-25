@@ -1010,7 +1010,9 @@ async function openAddShowForm(dramaId){
       </div>
     </div>`;
   
+ setTimeout(() => {
   renderHistoryActorChips(currentItem);
+}, 100);
 }
 
 function renderHistoryActorChips(item) {
