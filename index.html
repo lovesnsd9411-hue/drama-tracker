@@ -1014,10 +1014,10 @@ async function openAddShowForm(dramaId){
 }
 
 function renderHistoryActorChips(item) {
-  const list = document.getElementById('actor-checkbox-list');
+  // 🎯 重點修正：小視窗的演員容器 ID 其實是 'form-actor-checkbox-list' 喔！
+  const list = document.getElementById('form-actor-checkbox-list');
   if (!list || !item) return;
 
-  // 🎯 確保不管是字串還是陣列，都能轉成乾淨的陣列處理
   let actorsArr = [];
   if (Array.isArray(item.actors)) {
     actorsArr = item.actors;
@@ -1025,13 +1025,13 @@ function renderHistoryActorChips(item) {
     actorsArr = item.actors.split(/[,，、/]+/);
   }
 
-  // 如果真的沒有半個演員，就顯示提示字
+  // 如果真的沒有演員
   if (actorsArr.length === 0) {
     list.innerHTML = `<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>`;
     return;
   }
 
-  // 有演員的話，渲染出可以勾選的晶片
+  // 🎯 成功對接！把這齣劇的主要演員通通畫到小視窗裡
   list.innerHTML = actorsArr.map(name => {
     const cleanName = name.trim();
     if (!cleanName) return '';
