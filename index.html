@@ -1598,19 +1598,21 @@ function renderActorsTotalList() {
 </div>
 
 <script>
-// --- 1. 專門給「新增場次小視窗」用的：抓取頁面演員 ---
-function renderHistoryActorChips(dramaId) {
+// 1. 小視窗專用：恢復原本的讀取演員邏輯
+function manualFetchActors() {
     const list = document.getElementById('actor-checkbox-list');
-    // 這裡我們直接抓頁面上的 .ppill (原本的邏輯)
-    const actorElements = document.querySelectorAll('.ppill');
+    const allChips = document.querySelectorAll('.actor-chip');
     let names = [];
-    actorElements.forEach(el => {
-        const name = el.textContent.replace('🔍', '').trim();
-        if (name && !names.includes(name)) names.push(name);
+
+    allChips.forEach(chip => {
+        const name = chip.textContent.replace('🔍', '').trim();
+        if (name && !names.includes(name) && !chip.closest('#actor-checkbox-list')) {
+            names.push(name);
+        }
     });
 
     if (names.length === 0) {
-        alert("沒抓到耶，請確認頁面上有演員晶片嗎？");
+        alert("沒抓到耶，請確認頁面上有演員標籤嗎？");
         return;
     }
 
@@ -1621,31 +1623,39 @@ function renderHistoryActorChips(dramaId) {
     `).join('');
 }
 
-// --- 2. 專門給「大視窗」用的：智慧解析輸入框 ---
+// 2. 大視窗專用：升級版智慧拆解邏輯
 function quickAddActor(inputId, listId) {
     const input = document.getElementById(inputId);
     const list = document.getElementById(listId);
     if (!input || !list) return;
 
-    let inputVal = input.value.trim();
-    if (!inputVal) return;
+    let val = input.value.trim();
+    if (!val) return;
 
-    const addActor = (name) => {
+    // 負責新增單個演員的函數
+    const createCheckbox = (name) => {
+        name = name.trim();
+        if (!name) return;
+        // 防止重複
+        if (Array.from(list.querySelectorAll('input')).some(i => i.value === name)) return;
+        
         const label = document.createElement('label');
         label.style.cssText = "margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;";
         label.innerHTML = `<input type="checkbox" name="actor" value="${name}" checked> ${name}`;
         list.appendChild(label);
     };
 
-    // 智慧解析：如果有冒號，切開取後面；沒有就直接加
-    if (inputVal.includes('：')) {
-        const parts = inputVal.split('：');
-        const names = (parts[1] || parts[0]).split(/[、,，]/);
-        names.forEach(n => addActor(n.trim()));
+    // 智慧拆解：檢查是否有冒號 (表示 角色：演員A, 演員B)
+    if (val.includes('：')) {
+        const parts = val.split('：');
+        const actorPart = parts[1] || parts[0];
+        // 支援多種分隔符號
+        actorPart.split(/[、,，|]/).forEach(n => createCheckbox(n));
     } else {
-        addActor(inputVal);
+        createCheckbox(val);
     }
-    input.value = '';
+
+    input.value = ''; // 清空輸入框
 }
 </script>
 </body>
