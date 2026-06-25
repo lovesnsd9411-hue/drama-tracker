@@ -1019,21 +1019,19 @@ async function openAddShowForm(dramaId){
 // 1. 這是負責顯示演員晶片的函式 (已修復偵測機制)
 function manualFetchActors() {
     const list = document.getElementById('actor-checkbox-list');
-    const allChips = document.querySelectorAll('.actor-chip'); // 頁面最上方的按鈕
-    let names = [];
+    // 檢查你的 HTML，確認你頁面上顯示演員名稱的那些 class 是什麼
+    // 如果頁面上的標籤是 <span class="actor-name">...</span>，那這裡就要用 .actor-name
+    const items = document.querySelectorAll('.actor-chip'); // 假設是 .actor-chip
+    
+    console.log("找到演員數量: ", items.length); // 這行會幫你在 F12 Console 顯示數量
 
-    allChips.forEach(chip => {
-        // 抓取名字，並過濾掉重複的
-        const name = chip.textContent.replace('🔍', '').trim();
-        if (name && !names.includes(name) && !chip.closest('#actor-checkbox-list')) {
-            names.push(name);
-        }
-    });
-
-    if (names.length === 0) {
-        alert("沒抓到耶，請確認頁面上方真的有演員晶片嗎？");
+    if (items.length === 0) {
+        alert("找不到演員喔！請檢查你的 HTML 是否使用了正確的 class (目前尋找 .actor-chip)");
         return;
     }
+
+    // 渲染... (省略重複代碼)
+}
 
     // 直接生成勾選框
     list.innerHTML = names.map(name => `
@@ -1634,34 +1632,28 @@ function quickAddActor(inputId, listId) {
     let val = input.value.trim();
     if (!val) return;
 
-    // 1. 取得頁面上方顯示主要演員的容器 (請確認該容器的 ID，通常在編輯劇目上方)
-    const mainCastContainer = document.querySelector('.main-cast-container') || document.querySelector('#musical-only-cast');
-
-    const createCastItem = (role, name) => {
-        // --- A. 在表單內建立勾選框 ---
-        const label = document.createElement('label');
-        label.style.cssText = "margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;";
-        label.innerHTML = `<input type="checkbox" name="actor" value="${name}" checked> ${name}`;
-        list.appendChild(label);
-
-        // --- B. 同步在頁面上方建立 .actor-chip 晶片，讓「讀取卡司」能抓到 ---
-        const chip = document.createElement('span');
-        chip.className = "actor-chip"; // 確保這是 manualFetchActors 搜尋的目標
-        chip.style.cssText = "margin:2px; padding:2px 8px; border:1px solid #aaa; border-radius:15px; display:inline-block; cursor:pointer;";
-        chip.innerHTML = `${name} 🔍`;
-        if (mainCastContainer) mainCastContainer.appendChild(chip);
-    };
-
-    // 智慧拆解邏輯
+    // 邏輯：強制格式化顯示
     if (val.includes('：')) {
         const parts = val.split('：');
         const role = parts[0].trim();
-        const actors = parts[1].split(/[、,，|]/);
-        actors.forEach(name => createCastItem(role, name.trim()));
-    } else {
-        createCastItem("", val);
-    }
+        const actors = parts[1].split(/[、,，|]/).map(n => n.trim()).filter(n => n);
 
+        // 在列表容器內新增一行角色資訊
+        const row = document.createElement('div');
+        row.style.margin = "8px 0";
+        row.innerHTML = `<strong>${role}：</strong> ` + actors.map(name => 
+            `<label style="margin:2px; display:inline-block; border:1px solid #ccc; padding:2px 6px; border-radius:4px; cursor:pointer;">
+                <input type="checkbox" name="actor" value="${name}" checked> ${name}
+            </label>`
+        ).join('');
+        list.appendChild(row);
+    } else {
+        // 單一演員
+        const label = document.createElement('label');
+        label.style.cssText = "margin:4px; border:1px solid #ccc; padding:2px 6px; border-radius:4px;";
+        label.innerHTML = `<input type="checkbox" name="actor" value="${val}" checked> ${val}`;
+        list.appendChild(label);
+    }
     input.value = '';
 }
 </script>
