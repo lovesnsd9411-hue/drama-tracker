@@ -1014,7 +1014,7 @@ async function openAddShowForm(dramaId){
 }
 
 function renderHistoryActorChips(item) {
-  const list = document.getElementById('form-actor-checkbox-list');
+ const list = document.getElementById('actor-checkbox-list');
   if (!list || !item) return;
 
   let actorsArr = [];
@@ -1112,7 +1112,7 @@ async function saveShow(dramaId){
 
   const checkedActors = [
     ...document.querySelectorAll('#actor-checkbox-list input:checked'),
-    ...document.querySelectorAll('input[name="history-checked-actors"]:checked')
+  ...document.querySelectorAll('input[name="history-checked-actors"]:checked')
   ].map(c => c.value);
 
   const fallbackInput = document.getElementById('new-actor-name');
