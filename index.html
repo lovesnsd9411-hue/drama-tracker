@@ -36,6 +36,24 @@ input,select,textarea,button{font-family:inherit}
 .search-wrap input{width:100%;padding-right:32px}
 .search-clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#bbb;font-size:14px;padding:4px;display:flex;align-items:center;border-radius:50%}
 .search-clear:hover{color:#666;background:#F0F0F5}
+  /* 演員晶片排版修正 */
+.actor-chip-wrapper {
+    display: flex !important;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+.actor-role { font-weight: bold; min-width: 80px; }
+.actor-pill { 
+    border: 1px solid #aaa; 
+    border-radius: 15px; 
+    padding: 2px 10px; 
+    margin: 2px; 
+    font-size: 0.9em; 
+    background-color: #f9f9f9;
+}
 .view-toggle{display:flex;gap:4px;background:#E8E8F0;border-radius:10px;padding:3px}
 .view-btn{background:none;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;color:#888;font-size:15px;transition:all .15s}
 .view-btn.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
@@ -1645,41 +1663,30 @@ function quickAddActor(inputId, listId) {
     let val = input.value.trim();
     if (!val) return;
 
-    // 1. 為了存檔：把演員們拆出來，產生個別的 checkbox (這是為了維持系統存檔的兼容性)
-    const parts = val.split('：');
-    const actors = parts.length > 1 ? parts[1].split(/[、,，|]/) : [val];
-    
-    actors.forEach(name => {
-        const cleanName = name.trim();
-        if (!cleanName) return;
+    // 建立一個容器，套用剛剛定義的 CSS class
+    const wrapper = document.createElement('div');
+    wrapper.className = "actor-chip-wrapper";
+
+    if (val.includes('：')) {
+        const [role, actors] = val.split('：');
+        const actorList = actors.split(/[、,，|]/);
         
-        // 這是系統存檔要用的欄位，一定要留著
-        const hiddenInput = document.createElement('input');
-        hiddenInput.type = "checkbox";
-        hiddenInput.name = "actor"; 
-        hiddenInput.value = cleanName;
-        hiddenInput.checked = true;
-        hiddenInput.style.display = "none";
-        list.appendChild(hiddenInput);
-    });
+        // 顯示 角色名稱 + 演員晶片
+        wrapper.innerHTML = `<span class="actor-role">${role.trim()}：</span>` + 
+            actorList.map(name => `<span class="actor-pill">${name.trim()}</span>`).join('');
+    } else {
+        wrapper.innerHTML = `<span class="actor-pill">${val}</span>`;
+    }
 
-    // 2. 為了顯示：我們只在顯示層做手腳，不要動到上面的 hiddenInput
-    const displayContainer = document.createElement('div');
-    displayContainer.style.margin = "8px 0";
-
-    // 這裡我們直接把輸入的字串塞進一個 label，維持你原本系統看得懂的格式
-    // 這樣系統存檔會以為它是一個普通的項目，不會報錯
-    const label = document.createElement('label');
-    label.style.display = "block";
-    label.innerHTML = `<input type="checkbox" name="actor" value="${val}" checked style="display:none;"> ${val}`;
+    list.appendChild(wrapper);
     
-    // 註：如果這行寫法跟原本一樣，顯示在一起，代表系統存檔格式有固定規範
-    // 我們改用純「顯示用」的 span 來欺騙視覺：
-    displayContainer.innerHTML = val.includes('：') 
-        ? `<strong style="font-weight:bold;">${parts[0]}：</strong> <span>${parts[1]}</span>`
-        : `<span>${val}</span>`;
+    // 關鍵：產生隱藏的 input，確保系統存檔抓得到演員資料
+    const hidden = document.createElement('input');
+    hidden.type = "hidden";
+    hidden.name = "actor";
+    hidden.value = val;
+    list.appendChild(hidden);
 
-    list.appendChild(displayContainer);
     input.value = '';
 }
 </script>
