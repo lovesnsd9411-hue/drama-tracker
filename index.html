@@ -1013,17 +1013,16 @@ async function openAddShowForm(dramaId){
   renderHistoryActorChips(dramaId);
 }
 
+// 1. 這是負責顯示演員晶片的函式 (已修復偵測機制)
 function renderHistoryActorChips(dramaId) {
   const list = document.getElementById('actor-checkbox-list');
   if (!list) return;
 
-  const topActorChips = document.querySelectorAll('.actor-chip, .name-tag, .actor-name');
+  const topActorChips = document.querySelectorAll('.actor-chip');
   let actorsArr = [];
   topActorChips.forEach(chip => {
     const name = chip.textContent.replace('🔍', '').trim();
-    if (name && !actorsArr.includes(name)) {
-      actorsArr.push(name);
-    }
+    if (name && !actorsArr.includes(name)) actorsArr.push(name);
   });
 
   if (actorsArr.length === 0) {
@@ -1036,33 +1035,33 @@ function renderHistoryActorChips(dramaId) {
     const label = document.createElement('label');
     label.className = 'actor-chip checked';
     label.style.margin = '2px';
-    // 用 + 號連接字串，避開反引號可能造成的語法錯誤
     label.innerHTML = '<input type="checkbox" name="history-checked-actors" value="' + name + '" checked> ' + name;
     list.appendChild(label);
   });
 }
-function quickAddActor(inputId='new-actor-name', listId='actor-checkbox-list'){
+
+// 2. 這是負責「新增演員」按鈕的邏輯 (避開了反引號語法錯誤)
+function quickAddActor(inputId = 'new-actor-name', listId = 'actor-checkbox-list') {
   const input = document.getElementById(inputId);
   const name = input ? input.value.trim() : '';
-  if(!name) return;
+  if (!name) return;
 
   const list = document.getElementById(listId);
-  if(list) {
+  if (list) {
+    // 檢查是否重複
     const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
-    if(exists) {
+    if (exists) {
       alert('該演員已在清單中囉！');
       input.value = '';
       return;
     }
 
-    const newLabel = document.createElement('label');
-newLabel.className = 'actor-chip checked';
-newLabel.style.margin = '2px';
-newLabel.innerHTML = `
-  <input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
-  \${esc(name)}
-`;
-list.appendChild(newLabel);
+    const label = document.createElement('label');
+    label.className = 'actor-chip checked';
+    label.style.margin = '2px';
+    // 用最保險的加號串接，不再使用可能出錯的反引號
+    label.innerHTML = '<input type="checkbox" name="history-checked-actors" value="' + name + '" checked> ' + name;
+    list.appendChild(label);
   }
   input.value = '';
 }
