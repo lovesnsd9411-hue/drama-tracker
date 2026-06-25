@@ -319,11 +319,13 @@ body.read-only-mode .fav-badge{display:none}
     <!-- ── 音樂劇專用：主演勾選清單 ── -->
     <div class="field" id="musical-only-cast" style="display:none">
       <label>主要演員（勾選這一季的主演）</label>
-      <div id="form-actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px"></div>
-      <div style="display:flex;gap:8px">
-        <input type="text" id="form-new-actor-name" placeholder="沒看到的演員？打名字按新增" style="flex:1">
-        <button class="icon-btn" onclick="quickAddActorInForm()" style="flex-shrink:0"><i class="ti ti-plus"></i> 新增演員</button>
-      </div>
+     <div id="form-actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+<div style="display:flex;gap:8px;">
+    <input type="text" id="form-new-actor-name" placeholder="輸入名字或『角色：演員A, 演員B』" style="flex:1">
+    <button class="icon-btn" onclick="quickAddActor('form-new-actor-name', 'form-actor-checkbox-list')" style="flex-shrink:0">
+        <i class="ti ti-plus"></i> 新增演員
+    </button>
+</div>
     </div>
 
     <div class="field"><label>筆記 / 心得</label><textarea id="f-note" placeholder="想記錄什麼都可以…"></textarea></div>
@@ -1596,33 +1598,45 @@ function renderActorsTotalList() {
 </div>
 
 <script>
-// 確保當執行 renderHistoryActorChips 時，給予視窗 0.3 秒的長出來時間
+// --- 這裡是你已經有的 renderHistoryActorChips 函式 ---
 function renderHistoryActorChips(dramaId) {
-    setTimeout(function() {
-        const list = document.getElementById('actor-checkbox-list');
-        if (!list) return;
+    // ... (原本的內容) ...
+}
 
-        const actorElements = document.querySelectorAll('.ppill');
-        let names = [];
+// --- 在這裡貼上進化版的 quickAddActor ---
+function quickAddActor(inputId = 'new-actor-name', listId = 'actor-checkbox-list') {
+    const input = document.getElementById(inputId);
+    let inputVal = input ? input.value.trim() : '';
+    if (!inputVal) return;
 
-        actorElements.forEach(el => {
-            const name = el.textContent.replace('🔍', '').trim();
-            if (name && !names.includes(name)) {
-                names.push(name);
-            }
-        });
+    const list = document.getElementById(listId);
+    if (!list) return;
 
-        if (names.length === 0) {
-            console.log("還沒抓到，等等看...");
-            return;
-        }
+    const addSingleActor = (name) => {
+        name = name.trim();
+        if (!name) return;
+        const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
+        if (exists) return;
 
-        list.innerHTML = names.map(name => `
-            <label style="margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;">
-               <input type="checkbox" name="history-checked-actors" value="${name}"> ${name}
-            </label>
-        `).join('');
-    }, 300); 
+        const newLabel = document.createElement('label');
+        newLabel.style.margin = '4px';
+        newLabel.style.display = 'inline-block';
+        newLabel.style.border = '1px solid #ccc';
+        newLabel.style.padding = '3px';
+        newLabel.style.borderRadius = '4px';
+        newLabel.style.cursor = 'pointer';
+        newLabel.innerHTML = `<input type="checkbox" name="history-checked-actors" value="${name}"> ${name}`;
+        list.appendChild(newLabel);
+    };
+
+    if (inputVal.includes('：')) {
+        const parts = inputVal.split('：');
+        const actors = parts[1].split(/[、,]/);
+        actors.forEach(actor => addSingleActor(actor));
+    } else {
+        addSingleActor(inputVal);
+    }
+    input.value = '';
 }
 </script>
 </body>
