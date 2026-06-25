@@ -1634,32 +1634,32 @@ function quickAddActor(inputId, listId) {
     let val = input.value.trim();
     if (!val) return;
 
-    // 解析邏輯
+    // 1. 取得頁面上方顯示主要演員的容器 (請確認該容器的 ID，通常在編輯劇目上方)
+    const mainCastContainer = document.querySelector('.main-cast-container') || document.querySelector('#musical-only-cast');
+
+    const createCastItem = (role, name) => {
+        // --- A. 在表單內建立勾選框 ---
+        const label = document.createElement('label');
+        label.style.cssText = "margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;";
+        label.innerHTML = `<input type="checkbox" name="actor" value="${name}" checked> ${name}`;
+        list.appendChild(label);
+
+        // --- B. 同步在頁面上方建立 .actor-chip 晶片，讓「讀取卡司」能抓到 ---
+        const chip = document.createElement('span');
+        chip.className = "actor-chip"; // 確保這是 manualFetchActors 搜尋的目標
+        chip.style.cssText = "margin:2px; padding:2px 8px; border:1px solid #aaa; border-radius:15px; display:inline-block; cursor:pointer;";
+        chip.innerHTML = `${name} 🔍`;
+        if (mainCastContainer) mainCastContainer.appendChild(chip);
+    };
+
+    // 智慧拆解邏輯
     if (val.includes('：')) {
         const parts = val.split('：');
         const role = parts[0].trim();
         const actors = parts[1].split(/[、,，|]/);
-
-        // 建立一個容器來放「角色名：[晶片1][晶片2]...」
-        const container = document.createElement('div');
-        container.style.marginBottom = "10px";
-        container.innerHTML = `<strong>${role}：</strong>`;
-        
-        actors.forEach(name => {
-            const trimmedName = name.trim();
-            if (!trimmedName) return;
-            const span = document.createElement('span');
-            span.style.cssText = "margin:2px; padding:2px 5px; border:1px solid #aaa; border-radius:4px; font-size:0.9em; display:inline-block;";
-            span.textContent = trimmedName;
-            container.appendChild(span);
-        });
-        list.appendChild(container);
+        actors.forEach(name => createCastItem(role, name.trim()));
     } else {
-        // 單純新增演員 (維持原樣)
-        const label = document.createElement('label');
-        label.style.cssText = "margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;";
-        label.innerHTML = `<input type="checkbox" name="actor" value="${val}" checked> ${val}`;
-        list.appendChild(label);
+        createCastItem("", val);
     }
 
     input.value = '';
