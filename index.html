@@ -1619,7 +1619,7 @@ function renderHistoryActorChips(dramaId) {
 
         list.innerHTML = names.map(name => `
             <label style="margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;">
-                <input type="checkbox" name="history-checked-actors" value="${name}" checked> ${name}
+               <input type="checkbox" name="history-checked-actors" value="${name}"> ${name}
             </label>
         `).join('');
     }, 300); 
