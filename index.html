@@ -1595,9 +1595,7 @@ function renderActorsTotalList() {
   </div>
 </div>
 
-</body>
-</html>
-// 確保當執行 renderHistoryActorChips 時，給予視窗 0.3 秒的長出來時間
+<script>
 // 確保當執行 renderHistoryActorChips 時，給予視窗 0.3 秒的長出來時間
 function renderHistoryActorChips(dramaId) {
     setTimeout(function() {
@@ -1625,5 +1623,7 @@ function renderHistoryActorChips(dramaId) {
             </label>
         `).join('');
     }, 300); 
-} // <--- 這裡是 setTimeout 的結尾
-// <--- 這裡再補上一個 } 來關閉 renderHistoryActorChips 這個 function
+}
+</script>
+</body>
+</html>
