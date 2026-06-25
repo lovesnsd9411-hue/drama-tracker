@@ -1598,21 +1598,23 @@ function renderActorsTotalList() {
 </div>
 
 <script>
-// 1. 小視窗專用：恢復原本的讀取演員邏輯
+// --- 1. 小視窗專用：修復讀取邏輯 ---
 function manualFetchActors() {
     const list = document.getElementById('actor-checkbox-list');
+    // 關鍵：這裡要檢查你頁面目前是用什麼 class 來放演員的（檢查你的 HTML 原始碼，看是 .actor-chip 還是 .ppill）
+    // 我這裡先用你截圖裡常用的 .actor-chip
     const allChips = document.querySelectorAll('.actor-chip');
     let names = [];
 
     allChips.forEach(chip => {
         const name = chip.textContent.replace('🔍', '').trim();
-        if (name && !names.includes(name) && !chip.closest('#actor-checkbox-list')) {
+        if (name && !names.includes(name)) {
             names.push(name);
         }
     });
 
     if (names.length === 0) {
-        alert("沒抓到耶，請確認頁面上有演員標籤嗎？");
+        alert("找不到演員標籤，請確認頁面上有 .actor-chip 元素");
         return;
     }
 
@@ -1623,7 +1625,7 @@ function manualFetchActors() {
     `).join('');
 }
 
-// 2. 大視窗專用：升級版智慧拆解邏輯
+// --- 2. 大視窗專用：結構化顯示 (角色名 + 演員) ---
 function quickAddActor(inputId, listId) {
     const input = document.getElementById(inputId);
     const list = document.getElementById(listId);
@@ -1632,30 +1634,35 @@ function quickAddActor(inputId, listId) {
     let val = input.value.trim();
     if (!val) return;
 
-    // 負責新增單個演員的函數
-    const createCheckbox = (name) => {
-        name = name.trim();
-        if (!name) return;
-        // 防止重複
-        if (Array.from(list.querySelectorAll('input')).some(i => i.value === name)) return;
-        
-        const label = document.createElement('label');
-        label.style.cssText = "margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;";
-        label.innerHTML = `<input type="checkbox" name="actor" value="${name}" checked> ${name}`;
-        list.appendChild(label);
-    };
-
-    // 智慧拆解：檢查是否有冒號 (表示 角色：演員A, 演員B)
+    // 解析邏輯
     if (val.includes('：')) {
         const parts = val.split('：');
-        const actorPart = parts[1] || parts[0];
-        // 支援多種分隔符號
-        actorPart.split(/[、,，|]/).forEach(n => createCheckbox(n));
+        const role = parts[0].trim();
+        const actors = parts[1].split(/[、,，|]/);
+
+        // 建立一個容器來放「角色名：[晶片1][晶片2]...」
+        const container = document.createElement('div');
+        container.style.marginBottom = "10px";
+        container.innerHTML = `<strong>${role}：</strong>`;
+        
+        actors.forEach(name => {
+            const trimmedName = name.trim();
+            if (!trimmedName) return;
+            const span = document.createElement('span');
+            span.style.cssText = "margin:2px; padding:2px 5px; border:1px solid #aaa; border-radius:4px; font-size:0.9em; display:inline-block;";
+            span.textContent = trimmedName;
+            container.appendChild(span);
+        });
+        list.appendChild(container);
     } else {
-        createCheckbox(val);
+        // 單純新增演員 (維持原樣)
+        const label = document.createElement('label');
+        label.style.cssText = "margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;";
+        label.innerHTML = `<input type="checkbox" name="actor" value="${val}" checked> ${val}`;
+        list.appendChild(label);
     }
 
-    input.value = ''; // 清空輸入框
+    input.value = '';
 }
 </script>
 </body>
