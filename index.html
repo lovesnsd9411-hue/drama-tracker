@@ -1598,52 +1598,51 @@ function renderActorsTotalList() {
 </div>
 
 <script>
-// --- 這裡是你已經有的 renderHistoryActorChips 函式 ---
-function renderHistoryActorChips(dramaId) {
-    // ... (原本的內容) ...
-}
-
-// --- 在這裡貼上進化版的 quickAddActor ---
-function quickAddActor(inputId = 'new-actor-name', listId = 'actor-checkbox-list') {
+// 全新的進化版：自動偵測上下文
+function quickAddActor(inputId, listId) {
     const input = document.getElementById(inputId);
-    let inputVal = input ? input.value.trim() : '';
+    const list = document.getElementById(listId);
+    
+    if (!input || !list) {
+        console.error("找不到輸入框或列表！", { inputId, listId });
+        return;
+    }
+
+    let inputVal = input.value.trim();
     if (!inputVal) return;
 
-    const list = document.getElementById(listId);
-    if (!list) return;
-
-    const addSingleActor = (name) => {
+    // 負責把單一名字加到列表的內部小幫手
+    const addActorToDOM = (name) => {
         name = name.trim();
         if (!name) return;
-        const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
+        
+        // 檢查是否重複
+        const exists = Array.from(list.querySelectorAll('input')).some(i => i.value === name);
         if (exists) return;
 
-        const newLabel = document.createElement('label');
-        newLabel.style.margin = '4px';
-        newLabel.style.display = 'inline-block';
-        newLabel.style.border = '1px solid #ccc';
-        newLabel.style.padding = '3px';
-        newLabel.style.borderRadius = '4px';
-        newLabel.style.cursor = 'pointer';
-        newLabel.innerHTML = `<input type="checkbox" name="history-checked-actors" value="${name}"> ${name}`;
-        list.appendChild(newLabel);
+        const label = document.createElement('label');
+        label.style.cssText = "margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px; cursor:pointer;";
+        label.innerHTML = `<input type="checkbox" name="actor" value="${name}" checked> ${name}`;
+        list.appendChild(label);
     };
 
-   // 🔍 升級版切割邏輯
+    // --- 這裡就是關鍵的智慧解析 ---
     if (inputVal.includes('：')) {
-        // 先用冒號切開，取後面那段（演員名字部分）
+        // 如果偵測到冒號，只取冒號後面的內容 (演員名單)
         const parts = inputVal.split('：');
-        const actorPart = parts[1] || parts[0]; // 如果冒號後面沒東西，就用整串
+        const actorString = parts[1] || parts[0];
         
-        // 再用逗號或頓號把每個名字切成陣列
-        const actors = actorPart.split(/[、,]/); 
-        
-        // 針對拆出來的每一個名字執行新增
-        actors.forEach(name => addSingleActor(name.trim()));
+        // 用逗號或頓號拆開
+        const names = actorString.split(/[、,，]/);
+        names.forEach(n => addActorToDOM(n));
     } else {
-        // 沒有冒號就維持原樣
-        addSingleActor(inputVal);
+        // 單純輸入名字
+        addActorToDOM(inputVal);
     }
+
+    // 清空輸入框
+    input.value = '';
+}
 </script>
 </body>
 </html>
