@@ -1018,28 +1018,41 @@ function renderHistoryActorChips(dramaId) {
   const list = document.getElementById('actor-checkbox-list');
   if (!list) return;
 
-  const topActorChips = document.querySelectorAll('.actor-chip');
-  let actorsArr = [];
-  topActorChips.forEach(chip => {
-    const name = chip.textContent.replace('🔍', '').trim();
-    if (name && !actorsArr.includes(name)) actorsArr.push(name);
+  // 1. 強制抓取頁面上所有看起來像演員晶片的按鈕
+  // 這裡我們把範圍擴大，只要是有 actor-chip class 的全部抓回來
+  const chips = document.querySelectorAll('.actor-chip');
+  let actors = [];
+  chips.forEach(chip => {
+    // 排除掉我們剛剛新建的那個輸入框裡面的內容，只抓上方的主要演員
+    if (!chip.closest('#actor-checkbox-list')) {
+      const name = chip.textContent.replace('🔍', '').trim();
+      if (name && !actors.includes(name)) actors.push(name);
+    }
   });
 
-  if (actorsArr.length === 0) {
-    list.innerHTML = '<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>';
+  // 2. 如果真的抓不到，才顯示沒演員
+  if (actors.length === 0) {
+    list.innerHTML = '<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員 (請確認上方是否有演員資訊)</span>';
     return;
   }
 
+  // 3. 注入 HTML：直接把抓到的名字生成 checkbox
   list.innerHTML = '';
-  actorsArr.forEach(name => {
+  actors.forEach(name => {
     const label = document.createElement('label');
-    label.className = 'actor-chip checked';
-    label.style.margin = '2px';
-    label.innerHTML = '<input type="checkbox" name="history-checked-actors" value="' + name + '" checked> ' + name;
+    label.style.display = 'inline-block';
+    label.style.margin = '4px';
+    label.style.padding = '4px 8px';
+    label.style.border = '1px solid #ddd';
+    label.style.borderRadius = '4px';
+    label.style.cursor = 'pointer';
+    
+    label.innerHTML = `
+      <input type="checkbox" name="history-checked-actors" value="${name}" checked> ${name}
+    `;
     list.appendChild(label);
   });
 }
-
 // 2. 這是負責「新增演員」按鈕的邏輯 (避開了反引號語法錯誤)
 function quickAddActor(inputId = 'new-actor-name', listId = 'actor-checkbox-list') {
   const input = document.getElementById(inputId);
