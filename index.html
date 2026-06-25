@@ -995,6 +995,7 @@ async function openAddShowForm(dramaId){
       <div class="field">
         <label>卡司（勾選這場演出的演員）</label>
         <div id="actor-checkbox-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;"></div>
+<button type="button" onclick="manualFetchActors()" style="margin-left:5px; padding:2px 8px; cursor:pointer;">📥 讀取上方卡司</button>
         <div style="display:flex;gap:8px">
           <input type="text" id="new-actor-name" placeholder="沒看到的演員？打名字按新增" style="flex:1">
           <button class="icon-btn" onclick="quickAddActor()" style="flex-shrink:0"><i class="ti ti-plus"></i> 新增演員</button>
@@ -1014,67 +1015,30 @@ async function openAddShowForm(dramaId){
 }
 
 // 1. 這是負責顯示演員晶片的函式 (已修復偵測機制)
-function renderHistoryActorChips(dramaId) {
-    // 1. 找到目標盒子 (ID 必須要精準)
+function manualFetchActors() {
     const list = document.getElementById('actor-checkbox-list');
-    
-    // 2. 找到頁面上原本就有的所有演員按鈕
-    // 這裡我們直接抓所有 class 含有 actor-chip 的元素
-    const allActors = document.querySelectorAll('.actor-chip');
-    
-    if (!list) {
-        console.log("找不到演員列表的盒子！請檢查 HTML ID 是否為 actor-checkbox-list");
-        return;
-    }
+    const allChips = document.querySelectorAll('.actor-chip'); // 頁面最上方的按鈕
+    let names = [];
 
-    // 3. 過濾並填入
-    let actorNames = [];
-    allActors.forEach(el => {
-        const name = el.textContent.replace('🔍', '').trim();
-        // 確保名字不重複，且排除掉我們自己寫進去的 (避免重複抓取)
-        if (name && !actorNames.includes(name) && !el.closest('#actor-checkbox-list')) {
-            actorNames.push(name);
+    allChips.forEach(chip => {
+        // 抓取名字，並過濾掉重複的
+        const name = chip.textContent.replace('🔍', '').trim();
+        if (name && !names.includes(name) && !chip.closest('#actor-checkbox-list')) {
+            names.push(name);
         }
     });
 
-    if (actorNames.length === 0) {
-        list.innerHTML = '還是找不到演員耶，確認一下上方是否有這些標籤？';
+    if (names.length === 0) {
+        alert("沒抓到耶，請確認頁面上方真的有演員晶片嗎？");
         return;
     }
 
-    // 把名字變成勾選框
-    list.innerHTML = actorNames.map(name => `
-        <label style="margin:5px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px;">
-            <input type="checkbox" value="${name}" checked> ${name}
+    // 直接生成勾選框
+    list.innerHTML = names.map(name => `
+        <label style="margin:4px; display:inline-block; border:1px solid #ccc; padding:3px; border-radius:4px;">
+            <input type="checkbox" name="checked-actors" value="${name}" checked> ${name}
         </label>
     `).join('');
-    
-    console.log("成功抓到演員：", actorNames);
-}
-// 2. 這是負責「新增演員」按鈕的邏輯 (避開了反引號語法錯誤)
-function quickAddActor(inputId = 'new-actor-name', listId = 'actor-checkbox-list') {
-  const input = document.getElementById(inputId);
-  const name = input ? input.value.trim() : '';
-  if (!name) return;
-
-  const list = document.getElementById(listId);
-  if (list) {
-    // 檢查是否重複
-    const exists = [...list.querySelectorAll('input')].some(c => c.value === name);
-    if (exists) {
-      alert('該演員已在清單中囉！');
-      input.value = '';
-      return;
-    }
-
-    const label = document.createElement('label');
-    label.className = 'actor-chip checked';
-    label.style.margin = '2px';
-    // 用最保險的加號串接，不再使用可能出錯的反引號
-    label.innerHTML = '<input type="checkbox" name="history-checked-actors" value="' + name + '" checked> ' + name;
-    list.appendChild(label);
-  }
-  input.value = '';
 }
 
 async function saveShow(dramaId){
