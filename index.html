@@ -1020,7 +1020,8 @@ function renderHistoryActorChips(item) {
     if (!list) return false; // 如果紅框還沒長出來，先回報「沒看到」
 
     // ... (原本中間抓演員的邏輯都不變) ...
-    const topActorChips = document.querySelectorAll('.app .actor-chip, #detail-modal .actor-chip, .main-actors .actor-chip, .actor-chip');
+   // 請把這行改成下面這樣，這會把所有可能的演員晶片全部一網打盡
+const topActorChips = document.querySelectorAll('.actor-chip, .name-tag, .actor-name, .cast-item'); .actor-chip');
     let actorsArr = [];
     topActorChips.forEach(chip => {
       const name = chip.textContent.replace('🔍', '').trim();
