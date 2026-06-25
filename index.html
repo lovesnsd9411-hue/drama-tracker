@@ -1017,35 +1017,28 @@ function renderHistoryActorChips(item) {
   const list = document.getElementById('actor-checkbox-list');
   if (!list || !item) return;
 
-  list.innerHTML = '';
-
-  // 🎯 完美相容：不論大視窗存進來的是陣列(Array)還是帶逗號的字串(String)，都通通轉成標準陣列
-  let actorsArray = [];
+  // 🎯 確保不管是字串還是陣列，都能轉成乾淨的陣列處理
+  let actorsArr = [];
   if (Array.isArray(item.actors)) {
-    actorsArray = item.actors;
+    actorsArr = item.actors;
   } else if (typeof item.actors === 'string' && item.actors.trim()) {
-    actorsArray = item.actors.split(/[,，/、\s]+/);
+    actorsArr = item.actors.split(/[,，、/]+/);
   }
 
-  // 過濾重複與無效欄位
-  const uniqueNames = new Set();
-  actorsArray.forEach(n => {
-    if (n && n.trim() && n.trim() !== 'undefined' && n.trim() !== 'null') {
-      uniqueNames.add(n.trim());
-    }
-  });
-
-  if (uniqueNames.size === 0) {
-    list.innerHTML = `<span style="font-size:12px;color:#aaa">此劇目尚未設定主要演員</span>`;
+  // 如果真的沒有半個演員，就顯示提示字
+  if (actorsArr.length === 0) {
+    list.innerHTML = `<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>`;
     return;
   }
 
-  // 🎯 渲染出可以打勾的卡司晶片，並綁定 name="history-checked-actors" 讓儲存場次功能認得
-  list.innerHTML = Array.from(uniqueNames).sort().map(name => {
+  // 有演員的話，渲染出可以勾選的晶片
+  list.innerHTML = actorsArr.map(name => {
+    const cleanName = name.trim();
+    if (!cleanName) return '';
     return `
-      <label class="actor-chip" style="margin: 2px;">
-        <input type="checkbox" name="history-checked-actors" value="${esc(name)}" onchange="this.closest('label').classList.toggle('checked', this.checked)">
-        ${esc(name)}
+      <label class="actor-chip checked" style="margin: 2px;">
+        <input type="checkbox" name="history-checked-actors" value="${esc(cleanName)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
+        ${esc(cleanName)}
       </label>
     `;
   }).join('');
