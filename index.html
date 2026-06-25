@@ -1015,7 +1015,7 @@ async function openAddShowForm(dramaId){
 
 function renderHistoryActorChips(item) {
   // 🎯 1. 檢查格子到底有沒有在畫面上
-  const list = document.getElementById('actor-checkbox-list'); 
+ const list = document.getElementById('form-actor-checkbox-list');
   console.log("【檢查1】找到的格子元素是：", list);
   console.log("【檢查2】傳進來的劇目資料是：", item);
 
@@ -1046,7 +1046,7 @@ function renderHistoryActorChips(item) {
   list.innerHTML = actorsArr.map(name => `
     <label class="actor-chip checked" style="margin: 2px;">
       <input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
-      \${esc(name)}
+     ${esc(name)}
     </label>
   `).join('');
   
