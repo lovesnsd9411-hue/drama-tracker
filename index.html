@@ -1014,40 +1014,46 @@ async function openAddShowForm(dramaId){
 }
 
 function renderHistoryActorChips(item) {
-  const list = document.getElementById('actor-checkbox-list'); 
-  if (!list) {
-    console.log("❌ 【大師回報】在畫面上根本找不到 actor-checkbox-list 這個紅框容器！");
-    return;
-  }
+  // 🎯 這是「執行一次看看」的功能
+  function doRender() {
+    const list = document.getElementById('actor-checkbox-list');
+    if (!list) return false; // 如果紅框還沒長出來，先回報「沒看到」
 
-  // 🎯 拿放大鏡去網頁上抓所有的演員晶片
-  const topActorChips = document.querySelectorAll('.app .actor-chip, #detail-modal .actor-chip, .main-actors .actor-chip, .actor-chip');
-  console.log("🔍 【大師回報】我現在在網頁畫面上，總共看到了幾個演員晶片？", topActorChips.length);
-
-  let actorsArr = [];
-  if (topActorChips.length > 0) {
-    topActorChips.forEach((chip, index) => {
+    // ... (原本中間抓演員的邏輯都不變) ...
+    const topActorChips = document.querySelectorAll('.app .actor-chip, #detail-modal .actor-chip, .main-actors .actor-chip, .actor-chip');
+    let actorsArr = [];
+    topActorChips.forEach(chip => {
       const name = chip.textContent.replace('🔍', '').trim();
-      console.log(`  👉 第 ${index + 1} 個晶片的文字是: "${chip.textContent}" -> 去除雜質後認出名字: "${name}"`);
-      if (name && !actorsArr.includes(name)) {
+      if (name && !actorsArr.includes(name) && !chip.closest('#actor-checkbox-list')) {
         actorsArr.push(name);
       }
     });
+
+    if (actorsArr.length === 0) {
+      list.innerHTML = '<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>';
+      return true;
+    }
+
+    list.innerHTML = actorsArr.map(name => `
+      <label class="actor-chip checked" style="margin: 2px;">
+        <input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
+        ${esc(name)}
+      </label>
+    `).join('');
+    return true; // 成功畫好了！
   }
 
-  console.log("📋 【大師回報】我最後決定要塞進紅框的演員陣列是：", actorsArr);
+  // 1. 先試著畫一次
+  if (doRender()) return;
 
-  if (actorsArr.length === 0) {
-    list.innerHTML = '<span style="font-size:12px;color:#aaa;">此劇目尚未設定主要演員</span>';
-    return;
-  }
-
-  list.innerHTML = actorsArr.map(name => `
-    <label class="actor-chip checked" style="margin: 2px;">
-      <input type="checkbox" name="history-checked-actors" value="${esc(name)}" checked onchange="this.closest('label').classList.toggle('checked', this.checked)">
-      ${esc(name)}
-    </label>
-  `).join('');
+  // 2. 如果沒畫成功（紅框還沒出），就啟動「盯梢機制」
+  const targetContainer = document.getElementById('detail-content') || document.body;
+  const observer = new MutationObserver((mutations, obs) => {
+    if (doRender()) {
+      obs.disconnect(); // 一旦紅框長出來並畫好演員，就立刻停止盯梢，避免浪費效能
+    }
+  });
+  observer.observe(targetContainer, { childList: true, subtree: true });
 }
 function quickAddActorInForm() {
   if (isReadOnly) return;
