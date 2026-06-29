@@ -1085,7 +1085,26 @@ async function saveShow(dramaId) {
     const cast = Array.from(new Set([...checked, ...chips]));
 
     // 確保我們是用這部戲的名字來尋找資料庫中的物件
-const d = db.find(x => x.id === dramaId) || db.find(x => x.name === document.querySelector('.modal-title')?.textContent.trim());
+// 1. 嘗試根據 dramaId 尋找
+    let d = db.find(x => x.id === dramaId);
+
+    // 2. 如果找不到，嘗試根據目前編輯視窗的標題尋找 (更保險)
+    if (!d) {
+        const title = document.querySelector('.modal-title')?.textContent.trim();
+        d = db.find(x => x.name === title);
+    }
+
+    // 3. 確保 d 有值才繼續存檔
+    if (!d) {
+        console.error("錯誤：找不到對應的劇目資料，無法儲存演員！");
+        return;
+    }
+
+    // 4. 強制寫入演員資料
+    d.actors = cast;
+    
+    // 在 Console 留下紀錄，方便你確認有沒有存進去
+    console.log("已成功更新演員陣列為:", d.actors);
     if(!d) return;
 
     // 將資料存入戲劇本身的 actors 欄位
