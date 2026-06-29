@@ -939,7 +939,7 @@ function filterByStatus(val){
 
 // ── Musical detail view: viewing history timeline + add-show form ──
 function renderMusicalDetail(d){
-  const genreList=d.genres&&d.genres.length?d.genres:(d.genre?d.genre.split(',').map(g=>g.trim()).filter(Boolean):[]);
+ console.log("現在處理的劇目物件 d:", d); const genreList=d.genres&&d.genres.length?d.genres:(d.genre?d.genre.split(',').map(g=>g.trim()).filter(Boolean):[]);
   const posterUrl=posterSrc(d);
   const posterHtml=posterUrl
     ?`<img src="${esc(posterUrl)}" style="width:110px;height:165px;object-fit:cover;border-radius:12px;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,.15)" loading="lazy">`
@@ -1070,14 +1070,15 @@ async function saveShow(dramaId) {
     if(isReadOnly) return;
     
     // 關鍵修正：強制掃描編輯頁面所有演員標籤，不論它是 input 還是 span
-    const actorElements = document.querySelectorAll('#form-actor-checkbox-list span, #form-actor-checkbox-list input[type="checkbox"]:checked');
-    const checkedActors = Array.from(actorElements)
-        .map(el => el.textContent || el.value)
-        .filter(val => val && val.trim() !== "")
-        .map(val => val.trim());
-    
-    // 使用 Set 移除重複資料
-    const cast = Array.from(new Set(checkedActors));
+   // 替換這段程式碼
+const container = document.getElementById('form-actor-checkbox-list');
+const actorSpans = container ? Array.from(container.querySelectorAll('span, input:checked')) : [];
+const checkedActors = actorSpans.map(el => el.textContent.trim() || el.value.trim()).filter(v => v);
+
+const cast = Array.from(new Set(checkedActors));
+// 確保 cast 陣列不為空，如果為空可能是抓取範圍有錯
+console.log("存檔抓到的演員陣列:", cast); 
+d.actors = cast;
     
     // 以下保持原有的存檔邏輯不變
     const d = db.find(x => x.id === dramaId);
