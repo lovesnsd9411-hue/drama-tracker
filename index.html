@@ -965,21 +965,8 @@ function renderMusicalDetail(d){
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
  ${d.actors && d.actors.length ? `
     <div style="margin-bottom:1rem">
-        <div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.5rem">主要演員</div>
-        ${d.actors.map(a => {
-            if (a.includes('：')) {
-                const [role, names] = a.split('：');
-                const actorArr = names.split(/[、,，|]/).map(n => n.trim());
-                return `
-                    <div style="margin-bottom:8px;">
-                        <strong style="font-size:13px; margin-right:5px;">${role}：</strong>
-                        ${actorArr.map(n => `<span class="badge" onclick="filterByActor('${esc(n)}')">${esc(n)}</span>`).join(' ')}
-                    </div>
-                `;
-            } else {
-                return `<span class="badge" onclick="filterByActor('${esc(a)}')">${esc(a)}</span>`;
-            }
-        }).join('')}
+        <div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.5rem">主要演員測試</div>
+        ${JSON.stringify(d.actors)}
     </div>
 ` : ''}
 
