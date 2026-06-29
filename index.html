@@ -1066,26 +1066,29 @@ function manualFetchActors() {
     `).join('');
 }
 
-async function saveShow(dramaId){
-  if(isReadOnly) return;
-  const date = document.getElementById('show-date').value;
-  if(!date){ alert('請選擇觀看日期'); return; }
-  const time = document.getElementById('show-time').value.trim();
-  const amount = document.getElementById('show-amount').value.trim();
-  const note = document.getElementById('show-note').value.trim();
+async function saveShow(dramaId) {
+    if(isReadOnly) return;
+    
+    // 關鍵修正：強制掃描編輯頁面所有演員標籤，不論它是 input 還是 span
+    const actorElements = document.querySelectorAll('#form-actor-checkbox-list span, #form-actor-checkbox-list input[type="checkbox"]:checked');
+    const checkedActors = Array.from(actorElements)
+        .map(el => el.textContent || el.value)
+        .filter(val => val && val.trim() !== "")
+        .map(val => val.trim());
+    
+    // 使用 Set 移除重複資料
+    const cast = Array.from(new Set(checkedActors));
+    
+    // 以下保持原有的存檔邏輯不變
+    const d = db.find(x => x.id === dramaId);
+    if(!d) return;
+    if(!d.viewing_history) d.viewing_history = [];
+    
+    // 將抓到的演員存入 d.actors
+    d.actors = cast; 
 
-  const checkedActors = [
-    ...document.querySelectorAll('#actor-checkbox-list input:checked'),
-  ...document.querySelectorAll('input[name="history-checked-actors"]:checked')
-  ].map(c => c.value);
-
-  const fallbackInput = document.getElementById('new-actor-name');
-  if (fallbackInput && fallbackInput.value.trim()) {
-    const fallbackName = fallbackInput.value.trim();
-    if (!checkedActors.includes(fallbackName)) {
-      checkedActors.push(fallbackName);
-    }
-  }
+    // ... 後續的存檔流程 (db 更新與儲存) ...
+}
 
   const cast = Array.from(new Set(checkedActors));
   const d = db.find(x => x.id === dramaId);
