@@ -964,15 +964,12 @@ function renderMusicalDetail(d){
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
 ${
-  console.log("當前劇目資料:", d), 
-  (d.actors && d.actors.length > 0) ? `
-    <div style="margin-bottom:1rem; padding:10px; border:1px dashed #ccc;">
-        <div style="font-size:12px;color:red;font-weight:600;margin-bottom:.5rem">主要演員偵測中...</div>
-        <div>資料總數: ${d.actors.length}</div>
-        <div>內容: ${JSON.stringify(d.actors)}</div>
+ ${d.actors && d.actors.length > 0 ? `
+    <div style="margin-bottom:1rem">
+        <div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.5rem">主要演員</div>
+        ${d.actors.map(a => `<span class="badge" onclick="filterByActor('${esc(a)}')">${esc(a)}</span>`).join('')}
     </div>
-` : `<div style="margin-bottom:1rem; color:#aaa; font-size:12px;">(沒有偵測到演員資料)</div>`
-}
+` : ''}
     <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">
       <span>多刷紀錄（共 ${totalShows} 場${totalSpent>0?' · 共花費 '+totalSpent.toLocaleString():''}）</span>
       ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
@@ -1066,26 +1063,27 @@ function manualFetchActors() {
     `).join('');
 }
 
-async function saveShow(dramaId){
-  if(isReadOnly) return;
-  const date = document.getElementById('show-date').value;
-  if(!date){ alert('請選擇觀看日期'); return; }
-  const time = document.getElementById('show-time').value.trim();
-  const amount = document.getElementById('show-amount').value.trim();
-  const note = document.getElementById('show-note').value.trim();
-
-  const checkedActors = [
-    ...document.querySelectorAll('#actor-checkbox-list input:checked'),
-  ...document.querySelectorAll('input[name="history-checked-actors"]:checked')
-  ].map(c => c.value);
-
-  const fallbackInput = document.getElementById('new-actor-name');
-  if (fallbackInput && fallbackInput.value.trim()) {
-    const fallbackName = fallbackInput.value.trim();
-    if (!checkedActors.includes(fallbackName)) {
-      checkedActors.push(fallbackName);
-    }
-  }
+async function saveShow(dramaId) {
+    if(isReadOnly) return;
+    
+    // 取得所有勾選的演員
+    const checkedInputs = Array.from(document.querySelectorAll('#form-actor-checkbox-list input:checked'));
+    const checkedActors = checkedInputs.map(c => c.value);
+    
+    // 取得所有顯示出來的手動演員標籤 (span)
+    const spanActors = Array.from(document.querySelectorAll('#form-actor-checkbox-list span.badge'));
+    const manualActors = spanActors.map(s => s.textContent.trim());
+    
+    // 合併並去重
+    const cast = Array.from(new Set([...checkedActors, ...manualActors]));
+    
+    const d = db.find(x => x.id === dramaId);
+    if(!d) return;
+    
+    d.actors = cast; // 將處理好的陣列存入資料物件
+    
+    save(); // 執行全域存檔
+}
 
   const cast = Array.from(new Set(checkedActors));
   const d = db.find(x => x.id === dramaId);
