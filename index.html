@@ -1076,26 +1076,37 @@ async function saveShow(dramaId) {
     if(isReadOnly) return;
     // ... 前面的日期、時間等變數保持不變 ...
     
-   // === 徹底修復：抓取 UI 上所有演員名字並存檔 ===
-    const container = document.getElementById('form-actor-checkbox-list');
-    
-    // 1. 抓取勾選的 input 值
-    const checked = Array.from(container.querySelectorAll('input:checked')).map(i => i.value);
-    
-    // 2. 抓取所有晶片 span 的文字 (關鍵修復：確保抓到手動輸入的內容)
-    const chips = Array.from(container.querySelectorAll('.badge')).map(s => s.textContent.trim());
-    
-    // 3. 合併並去重
-    const cast = Array.from(new Set([...checked, ...chips])).filter(x => x && x.length > 0);
-    console.log("偵錯：存檔前抓到的演員 cast 陣列:", cast);
+  // === 請用這段代碼替換原有的演員抓取與存檔邏輯 ===
 
-    // 4. 尋找目標劇目
-    let d = db.find(x => x.id === dramaId) || db.find(x => x.name === document.querySelector('.modal-title')?.textContent.trim());
+// 1. 抓取所有勾選的 checkbox
+const container = document.getElementById('form-actor-checkbox-list');
+const checkedInputs = Array.from(container.querySelectorAll('input:checked')).map(i => i.value);
+
+// 2. 抓取所有編輯頁面上生成的 badge 文字 (關鍵：這裡要確保抓到新增的演員)
+// 1. 強制抓取編輯頁面所有的演員（包括勾選的和手動輸入的）
+    const container = document.getElementById('form-actor-checkbox-list');
+    const checked = Array.from(container.querySelectorAll('input:checked')).map(i => i.value);
+    const badges = Array.from(container.querySelectorAll('.badge')).map(s => s.textContent.trim());
+    const cast = Array.from(new Set([...checked, ...badges])).filter(x => x && x.length > 0);
+
+    // 2. 找到目標劇目 (使用名稱比對，避免 ID 不匹配的問題)
+    const title = document.querySelector('.modal-title')?.textContent.trim();
+    let d = db.find(x => x.id === dramaId) || db.find(x => x.name === title);
     
     if (!d) {
-        console.error("錯誤：找不到對應的劇目資料，無法儲存演員！");
+        console.error("找不到劇目，無法存檔！");
         return;
     }
+
+    // 3. 關鍵動作：直接把 cast 賦值給 d.actors
+    d.actors = cast;
+    console.log("存檔成功，目前該劇演員為:", d.actors);
+    console.log("成功將演員儲存至資料庫:", d.actors);
+    save(); // 呼叫全域存檔
+    openDetail(d.id); // 重新打開詳細頁面以重新渲染
+} else {
+    console.error("找不到該劇目，無法儲存！");
+}
 
     // 5. 強制寫入並儲存
     d.actors = cast;
