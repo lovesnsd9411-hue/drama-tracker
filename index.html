@@ -973,10 +973,10 @@ function renderMusicalDetail(d){
       </div>
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
-<div>
-  <div style="margin-top:10px; display:flex; flex-wrap:wrap; gap:5px;">
-    ${(d.actors || []).map(a => `<span class="badge" style="background:#f0f0f0; border:1px solid #ccc; padding:2px 6px; border-radius:4px; font-size:12px;">${esc(a)}</span>`).join('')}
-</div>
+<div id="actors-display-area" style="margin-top:10px; display:flex; flex-wrap:wrap; gap:5px;">
+    ${(d.actors && d.actors.length > 0) 
+        ? d.actors.map(a => `<span class="badge" style="background:#f0f0f0; border:1px solid #ccc; padding:2px 6px; border-radius:4px; font-size:12px;">${esc(a)}</span>`).join('') 
+        : '<div style="font-size:12px; color:#aaa;">尚無主要演員資料</div>'}
 </div>
 </div>
     <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">
@@ -1084,7 +1084,8 @@ async function saveShow(dramaId) {
     // 合併並去重
     const cast = Array.from(new Set([...checked, ...chips]));
 
-    const d = db.find(x => x.id === dramaId);
+    // 確保我們是用這部戲的名字來尋找資料庫中的物件
+const d = db.find(x => x.id === dramaId) || db.find(x => x.name === document.querySelector('.modal-title')?.textContent.trim());
     if(!d) return;
 
     // 將資料存入戲劇本身的 actors 欄位
