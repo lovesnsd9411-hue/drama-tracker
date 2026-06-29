@@ -318,6 +318,7 @@ body.read-only-mode .fav-badge{display:none}
 <div class="field">
   <label>類型</label>
  <select id="f-genre" onchange="checkGenreOther()">
+    </select>
     <option value="音樂劇">音樂劇</option>
     <option value="懸疑">懸疑</option>
     <option value="愛情">愛情</option>
@@ -450,6 +451,13 @@ const TMDB_IMG='https://image.tmdb.org/t/p/w300';
 const TMDB_SEARCH='https://api.themoviedb.org/3/search/tv';
 const RATINGS=[5.0,4.8,4.5,4.2,4.0,3.8,3.5,3.0,2.5,2.0,1.5,1.0,0.0];
 const NY=new Date().getFullYear();
+ // 這是專門用來處理「其他」選項的開關
+function checkGenreOther() {
+    const sel = document.getElementById('f-genre');
+    const input = document.getElementById('f-genre-other');
+    // 如果選「其他」就顯示 (block)，否則隱藏 (none)
+    input.style.display = (sel.value === "其他") ? "block" : "none";
+}
 let db=[],editId=null,aFilter={type:'',val:''},aSort='rating-year',pFilter=null,viewMode='gallery';
 let isReadOnly=false;
 let mainCategory=''; // '' = all, 'drama', 'musical'
