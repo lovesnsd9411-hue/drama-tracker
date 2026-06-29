@@ -315,15 +315,11 @@ body.read-only-mode .fav-badge{display:none}
       <div class="field"><label>看完年度</label><select id="f-year"><option value="">—</option></select></div>
     </div>
    <div class="row2" id="drama-only-genre-platform">
-  <div class="field">
-    <label>類型</label>
-    <select id="f-genre">
-      <option value="音樂劇">音樂劇</option>
-      <option value="懸疑">懸疑</option>
-      <option value="愛情">愛情</option>
-      <option value="治癒">治癒</option>
+ <div class="field">
+  <label>類型</label>
+  <select id="f-genre">
     </select>
-  </div>
+</div>
   <div class="field">
     <label>平台</label>
     <select id="f-platform">
@@ -424,6 +420,24 @@ body.read-only-mode .fav-badge{display:none}
 </div>
 
 <script>
+ // 你可以在這裡隨意新增或刪除，不用管 HTML
+const MY_GENRES = ["音樂劇", "懸疑", "愛情", "治癒", "喜劇", "動作", "歷史", "科幻", "驚悚", "日常"];
+const MY_PLATFORMS = ["Netflix", "Disney+", "現場觀劇", "Friday", "Apple TV+", "YouTube"];
+
+// 初始化選單的函式
+function initSelectOptions() {
+    const gSel = document.getElementById('f-genre');
+    const pSel = document.getElementById('f-platform');
+    
+    if(gSel) {
+        gSel.innerHTML = '<option value="">請選擇類型</option>' + 
+                         MY_GENRES.map(g => `<option value="${g}">${g}</option>`).join('');
+    }
+    if(pSel) {
+        pSel.innerHTML = '<option value="">請選擇平台</option>' + 
+                         MY_PLATFORMS.map(p => `<option value="${p}">${p}</option>`).join('');
+    }
+}
 const KEY='drama-tracker-v7';
 const TMDB_KEY='a59aa4d8cffed270ea811d3b2fd0d77a';
 const TMDB_IMG='https://image.tmdb.org/t/p/w300';
@@ -1217,18 +1231,30 @@ function filterByGenre(g){
 }
 
 function openAdd(){
-  if(isReadOnly)return;
-  editId=null;document.getElementById('form-title').textContent='新增劇目';
-  ['f-name','f-orig','f-genre','f-platform','f-actors','f-director','f-writer','f-note','f-poster','f-poster-q','f-namu','f-musical-name','f-poster-url','f-musical-season'].forEach(k=>document.getElementById(k).value='');
-  document.getElementById('poster-preview').innerHTML='';
-  document.getElementById('dup-warning').style.display='none';
-  document.getElementById('dup-warning-musical').style.display='none';
-  document.getElementById('f-musical-method').value='現場觀劇';
-  document.getElementById('f-status').value='ongoing';
-  fillRatingSel('f-rating',0);document.getElementById('f-air').value='';
-  fillYearSel('f-year','');
-  setFormCategory('drama');
-  openModal('form-modal');
+    if(isReadOnly)return;
+    editId=null;document.getElementById('form-title').textContent='新增劇目';
+    ['f-name','f-orig','f-genre','f-platform','f-actors','f-director','f-writer','f-note','f-poster','f-poster-url'].forEach(id=>{
+        const el = document.getElementById(id);
+        if(el) el.value = '';
+    });
+    // 新增：確保集數也是空的
+    document.getElementById('f-episode').value = '';
+    
+    document.getElementById('poster-preview').innerHTML='';
+    document.getElementById('dup-warning').style.display='none';
+    document.getElementById('dup-warning-musical').style.display='none';
+    document.getElementById('f-musical-method').value='現場觀劇';
+    document.getElementById('f-status').value='ongoing';
+    fillRatingSel('f-rating',0);
+    document.getElementById('f-air').value='';
+    fillYearSel('f-year','');
+    setFormCategory('drama');
+    
+    // 選單重置
+    document.getElementById('f-genre').value = '';
+    document.getElementById('f-platform').value = '';
+    
+    openModal('form-modal');
 }
 function openEdit(id){
   if(isReadOnly)return;
@@ -1241,8 +1267,9 @@ function openEdit(id){
   document.getElementById('f-status').value=d.status||'ongoing';
   fillRatingSel('f-rating',d.rating||0);
   document.getElementById('f-air').value=d.airDate||'';
-  document.getElementById('f-genre').value=(d.genres&&d.genres.length?d.genres.join(', '):(d.genre||''));document.getElementById('f-platform').value=d.platform||'';
-  document.getElementById('f-musical-season').value=d.season||'';
+// 第 1258 行替換為：
+document.getElementById('f-genre').value = d.genre || '';
+document.getElementById('f-platform').value = d.platform || '';  document.getElementById('f-musical-season').value=d.season||'';
   document.getElementById('f-musical-method').value=d.viewMethod||'現場觀劇';
   document.getElementById('f-namu').value=d.namu||'';
   document.getElementById('f-actors').value=(d.actors||[]).join(', ');
