@@ -52,6 +52,16 @@ input,select,textarea,button{font-family:inherit}
     gap: 5px;
     margin-top: 8px;
 }
+ .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    background-color: #eee; /* 淺灰色底 */
+    border-radius: 4px;    /* 圓角 */
+    font-size: 12px;
+    color: #333;
+    border: 1px solid #ddd;
+    margin-right: 5px;
+}
 .view-toggle{display:flex;gap:4px;background:#E8E8F0;border-radius:10px;padding:3px}
 .view-btn{background:none;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;color:#888;font-size:15px;transition:all .15s}
 .view-btn.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
@@ -963,14 +973,15 @@ function renderMusicalDetail(d){
       </div>
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
-${d.actors && d.actors.length > 0 ? `
-    <div style="margin-bottom:1rem">
-        <div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.5rem">主要演員</div>
-        <div style="display:flex; flex-wrap:wrap; gap:5px;">
-            ${d.actors.map(a => `<span class="badge" onclick="filterByActor('${esc(a)}')">${esc(a)}</span>`).join('')}
-        </div>
-    </div>
-` : ''}
+<div>
+   <div>
+    <div style="color:blue; font-size:10px;">偵錯資訊：d.actors 為 ${JSON.stringify(d.actors)}</div>
+    ${(d.actors && d.actors.length > 0) ? 
+        `<div style="margin-top:5px;">${d.actors.map(a => `<span class="badge">${esc(a)}</span>`).join('')}</div>` 
+        : '<div style="font-size:12px; color:#aaa;">沒有偵測到任何陣列資料</div>'
+    }
+</div>
+</div>
     <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">
       <span>多刷紀錄（共 ${totalShows} 場${totalSpent>0?' · 共花費 '+totalSpent.toLocaleString():''}）</span>
       ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
