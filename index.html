@@ -1073,16 +1073,22 @@ function manualFetchActors() {
 }
 
 async function saveShow(dramaId) {
-    if(isReadOnly) return;
-    // ... 前面的日期、時間等變數保持不變 ...
+    if (isReadOnly) return;
     
-// 1. 抓取演員清單
+    // 1. 抓取表單基礎資料
+    const date = document.getElementById('show-date').value;
+    if (!date) { alert('請選擇觀看日期'); return; }
+    const time = document.getElementById('show-time').value.trim();
+    const amount = document.getElementById('show-amount').value.trim();
+    const note = document.getElementById('show-note').value.trim();
+
+    // 2. 抓取演員清單 (包含勾選與手動輸入)
     const container = document.getElementById('form-actor-checkbox-list');
     const checked = Array.from(container.querySelectorAll('input:checked')).map(i => i.value);
     const badges = Array.from(container.querySelectorAll('.badge')).map(s => s.textContent.trim());
     const cast = Array.from(new Set([...checked, ...badges])).filter(x => x && x.length > 0);
 
-    // 2. 尋找目標劇目
+    // 3. 尋找目標劇目
     const title = document.querySelector('.modal-title')?.textContent.trim();
     let d = db.find(x => x.id === dramaId) || db.find(x => x.name === title);
     
@@ -1091,11 +1097,10 @@ async function saveShow(dramaId) {
         return;
     }
 
-    // 3. 寫入演員資料並儲存
+    // 4. 更新演員資料並存檔
     d.actors = cast;
     
-    // 原本的 vieweing_history 處理邏輯保持不變...
-    if(!d.viewing_history) d.viewing_history = [];
+    if (!d.viewing_history) d.viewing_history = [];
     d.viewing_history.push({
         id: uid(),
         date,
@@ -1107,10 +1112,10 @@ async function saveShow(dramaId) {
 
     save();
     
-    // 4. 清理並重新渲染
+    // 5. 重新渲染
     document.getElementById('musical-add-show-wrap').innerHTML = '';
     openDetail(dramaId);
-
+}
 function openDetail(id){
   const d=db.find(x=>x.id===id);if(!d)return;
   const isMusical=(d.category==='musical');
