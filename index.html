@@ -1076,42 +1076,33 @@ async function saveShow(dramaId) {
     if(isReadOnly) return;
     // ... 前面的日期、時間等變數保持不變 ...
     
-    // 關鍵：同時抓取勾選的 checkbox 以及你新增的 span 晶片文字
+   // === 徹底修復：抓取 UI 上所有演員名字並存檔 ===
     const container = document.getElementById('form-actor-checkbox-list');
+    
+    // 1. 抓取勾選的 input 值
     const checked = Array.from(container.querySelectorAll('input:checked')).map(i => i.value);
+    
+    // 2. 抓取所有晶片 span 的文字 (關鍵修復：確保抓到手動輸入的內容)
     const chips = Array.from(container.querySelectorAll('.badge')).map(s => s.textContent.trim());
     
-    // 合併並去重
-    const cast = Array.from(new Set([...checked, ...chips]));
+    // 3. 合併並去重
+    const cast = Array.from(new Set([...checked, ...chips])).filter(x => x && x.length > 0);
+    console.log("偵錯：存檔前抓到的演員 cast 陣列:", cast);
 
-    // 確保我們是用這部戲的名字來尋找資料庫中的物件
-// 1. 嘗試根據 dramaId 尋找
-    let d = db.find(x => x.id === dramaId);
-
-    // 2. 如果找不到，嘗試根據目前編輯視窗的標題尋找 (更保險)
-    if (!d) {
-        const title = document.querySelector('.modal-title')?.textContent.trim();
-        d = db.find(x => x.name === title);
-    }
-
-    // 3. 確保 d 有值才繼續存檔
+    // 4. 尋找目標劇目
+    let d = db.find(x => x.id === dramaId) || db.find(x => x.name === document.querySelector('.modal-title')?.textContent.trim());
+    
     if (!d) {
         console.error("錯誤：找不到對應的劇目資料，無法儲存演員！");
         return;
     }
 
-    // 4. 強制寫入演員資料
+    // 5. 強制寫入並儲存
     d.actors = cast;
-    
-    // 在 Console 留下紀錄，方便你確認有沒有存進去
     console.log("已成功更新演員陣列為:", d.actors);
-    if(!d) return;
-
-    // 將資料存入戲劇本身的 actors 欄位
-    d.actors = cast;
     
-    // ... 原本的 viewing_history 存檔邏輯 ...
     save();
+    // === 修復結束 ===
     openDetail(dramaId);
 }
 
