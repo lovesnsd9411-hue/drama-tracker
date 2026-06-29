@@ -314,18 +314,17 @@ body.read-only-mode .fav-badge{display:none}
       <div class="field"><label>評分</label><select id="f-rating" onchange="onRatingChange()"></select></div>
       <div class="field"><label>看完年度</label><select id="f-year"><option value="">—</option></select></div>
     </div>
-   <div class="row2" id="drama-only-genre-platform">
-<div class="field">
+  <div class="field" style="width: 100%;">
   <label>類型</label>
- <select id="f-genre" onchange="checkGenreOther()">
-    </select>
+  <select id="f-genre" onchange="checkGenreOther()" style="width: 100%; padding: 8px;">
+    <option value="">請選擇類型</option>
     <option value="音樂劇">音樂劇</option>
     <option value="懸疑">懸疑</option>
     <option value="愛情">愛情</option>
     <option value="治癒">治癒</option>
     <option value="其他">其他</option>
   </select>
-  <input type="text" id="f-genre-other" placeholder="請輸入新類型" style="display:none; margin-top:5px; width:100%;">
+  <input type="text" id="f-genre-other" placeholder="請輸入新類型" style="display:none; margin-top:5px; width:100%; padding: 8px;">
 </div>
   <div class="field">
     <label>平台</label>
