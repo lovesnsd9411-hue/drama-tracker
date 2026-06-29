@@ -1075,52 +1075,48 @@ function manualFetchActors() {
     `).join('');
 }
 
-async function saveShow(dramaId){
-  if(isReadOnly) return;
-  const date = document.getElementById('show-date').value;
-  if(!date){ alert('請選擇觀看日期'); return; }
-  const time = document.getElementById('show-time').value.trim();
-  const amount = document.getElementById('show-amount').value.trim();
-  const note = document.getElementById('show-note').value.trim();
+async function saveShow(dramaId) {
+    if(isReadOnly) return;
+    const date = document.getElementById('show-date').value;
+    if(!date){ alert('請選擇觀看日期'); return; }
+    const time = document.getElementById('show-time').value.trim();
+    const amount = document.getElementById('show-amount').value.trim();
+    const note = document.getElementById('show-note').value.trim();
 
-  const checkedActors = [
-    ...document.querySelectorAll('#actor-checkbox-list input:checked'),
-  ...document.querySelectorAll('input[name="history-checked-actors"]:checked')
-  ].map(c => c.value);
+    // 1. 抓取演員邏輯 (這部分看起來沒問題)
+    const checkedActors = [
+        ...document.querySelectorAll('#actor-checkbox-list input:checked'),
+        ...document.querySelectorAll('input[name="history-checked-actors"]:checked')
+    ].map(c => c.value);
 
-  const fallbackInput = document.getElementById('new-actor-name');
-  if (fallbackInput && fallbackInput.value.trim()) {
-    const fallbackName = fallbackInput.value.trim();
-    if (!checkedActors.includes(fallbackName)) {
-      checkedActors.push(fallbackName);
+    const fallbackInput = document.getElementById('new-actor-name');
+    if (fallbackInput && fallbackInput.value.trim()) {
+        checkedActors.push(fallbackInput.value.trim());
     }
-  }
+    const cast = Array.from(new Set(checkedActors));
 
-  const cast = Array.from(new Set(checkedActors));
-  const d = db.find(x => x.id === dramaId);
-  if(!d) return;
-  if(!d.viewing_history) d.viewing_history = [];
-  
-  d.viewing_history.push({
-    id: uid(),
-    date,
-    time,
-    cast,
-    amount: amount ? parseFloat(amount) : null,
-    note
-  });
-  
-  save();
-  document.getElementById('musical-add-show-wrap').innerHTML = '';
-  openDetail(dramaId);
-}
-function deleteShow(dramaId,showId){
-  if(isReadOnly)return;
-  if(!confirm('確定要刪除這場紀錄嗎？'))return;
-  const d=db.find(x=>x.id===dramaId);if(!d)return;
-  d.viewing_history=(d.viewing_history||[]).filter(h=>h.id!==showId);
-  save();
-  openDetail(dramaId);
+    // 2. 找到戲劇物件
+    const d = db.find(x => x.id === dramaId);
+    if(!d) return;
+
+    // --- 【關鍵修正開始】 ---
+    // 將演員存入戲劇本身的 d.actors，這樣顯示時才抓得到
+    d.actors = cast; 
+    
+    if(!d.viewing_history) d.viewing_history = [];
+    d.viewing_history.push({
+        id: uid(),
+        date,
+        time,
+        cast, // 這裡保留個別場次的記錄
+        amount: amount ? parseFloat(amount) : null,
+        note
+    });
+    // --- 【關鍵修正結束】 ---
+
+    save();
+    document.getElementById('musical-add-show-wrap').innerHTML = '';
+    openDetail(dramaId);
 }
 
 function openDetail(id){
