@@ -963,13 +963,16 @@ function renderMusicalDetail(d){
       </div>
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
- ${d.actors && d.actors.length ? `
-    <div style="margin-bottom:1rem">
-        <div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.5rem">主要演員測試</div>
-        ${JSON.stringify(d.actors)}
+${
+  console.log("當前劇目資料:", d), 
+  (d.actors && d.actors.length > 0) ? `
+    <div style="margin-bottom:1rem; padding:10px; border:1px dashed #ccc;">
+        <div style="font-size:12px;color:red;font-weight:600;margin-bottom:.5rem">主要演員偵測中...</div>
+        <div>資料總數: ${d.actors.length}</div>
+        <div>內容: ${JSON.stringify(d.actors)}</div>
     </div>
-` : ''}
-
+` : `<div style="margin-bottom:1rem; color:#aaa; font-size:12px;">(沒有偵測到演員資料)</div>`
+}
     <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">
       <span>多刷紀錄（共 ${totalShows} 場${totalSpent>0?' · 共花費 '+totalSpent.toLocaleString():''}）</span>
       ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
