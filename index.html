@@ -1265,8 +1265,25 @@ function openAdd(){
     setFormCategory('drama');
     
     // 選單重置
-    document.getElementById('f-genre').value = '';
-    document.getElementById('f-platform').value = '';
+   // --- 準確替換位置 ---
+const genreSel = document.getElementById('f-genre');
+const genreOther = document.getElementById('f-genre-other');
+const savedGenre = d.genre || '';
+
+if (genreSel) {
+    const options = Array.from(genreSel.options).map(o => o.value);
+    if (savedGenre !== "" && !options.includes(savedGenre)) {
+        genreSel.value = "其他";
+        if(genreOther) {
+            genreOther.style.display = "block";
+            genreOther.value = savedGenre;
+        }
+    } else {
+        genreSel.value = savedGenre;
+        if(genreOther) genreOther.style.display = "none";
+    }
+}
+document.getElementById('f-platform').value = d.platform || '';
     
     openModal('form-modal');
 }
