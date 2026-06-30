@@ -454,8 +454,7 @@ const NY=new Date().getFullYear();
 function checkGenreOther() {
     const sel = document.getElementById('f-genre');
     const input = document.getElementById('f-genre-other');
-    // 如果選「其他」就顯示 (block)，否則隱藏 (none)
-    input.style.display = (sel.value === "其他") ? "block" : "none";
+    if (input) input.style.display = (sel.value === "其他") ? "block" : "none";
 }
 let db=[],editId=null,aFilter={type:'',val:''},aSort='rating-year',pFilter=null,viewMode='gallery';
 let isReadOnly=false;
@@ -1255,19 +1254,25 @@ function openAdd(){
     
     document.getElementById('poster-preview').innerHTML='';
     document.getElementById('dup-warning').style.display='none';
-    document.getElementById('dup-warning-musical').style.display='none';
-    document.getElementById('f-musical-method').value='現場觀劇';
-    document.getElementById('f-status').value='ongoing';
-    fillRatingSel('f-rating',0);
-    document.getElementById('f-air').value='';
-    fillYearSel('f-year','');
-    setFormCategory('drama');
-    
-    // 選單重置
-    document.getElementById('f-genre').value = '';
-    document.getElementById('f-platform').value = '';
-    
-    openModal('form-modal');
+    // 1. 取得 DOM 元素
+const genreSel = document.getElementById('f-genre');
+const genreOther = document.getElementById('f-genre-other');
+// 2. 獲取資料庫內的類型值 (處理陣列或字串)
+const savedGenre = d.genres ? (Array.isArray(d.genres) ? d.genres[0] : d.genres) : (d.genre || '');
+
+// 3. 檢查選單裡有沒有這個值
+const optionValues = Array.from(genreSel.options).map(o => o.value);
+if (savedGenre !== "" && !optionValues.includes(savedGenre)) {
+    // 如果是冷門類型，切換到「其他」並顯示輸入框
+    genreSel.value = "其他";
+    if(genreOther) {
+        genreOther.style.display = "block";
+        genreOther.value = savedGenre;
+    }
+} else {
+    // 如果是選單有的類型，直接選中
+    genreSel.value = savedGenre;
+    if(genreOther) genreOther.style.display = "none";
 }
 function openEdit(id){
   if(isReadOnly)return;
