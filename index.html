@@ -1275,45 +1275,49 @@ function openAdd(){
     openModal('form-modal');
 }
 function openEdit(id) {
-    console.log("收到編輯 ID:", id);
     if (isReadOnly) return;
-    
-    const d = db.find(x => x.id == id);
-    if (!d) {
-        console.error("找不到這部劇！ID 是:", id);
-        return;
-    }
-    
-    console.log("找到資料:", d);
+    const d = db.find(x => x.id === id);
+    if (!d) return;
 
-    // 1. 設定標題
+    editId = id;
+    
+    // 定義一個安全設定值的輔助函式
+    const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val;
+    };
+
+    // 1. 標題與基礎欄位
     const titleEl = document.getElementById('form-title');
     if (titleEl) titleEl.textContent = '編輯劇目';
-
-    // 2. 恢復原本的邏輯 (確保都有對應的閉合括號)
-    document.getElementById('f-name').value = d.name || '';
-    document.getElementById('f-orig').value = d.orig || '';
-    document.getElementById('f-musical-name').value = d.orig || d.name || '';
-    document.getElementById('dup-warning').style.display = 'none';
-    document.getElementById('dup-warning-musical').style.display = 'none';
-    document.getElementById('f-status').value = d.status || 'ongoing';
     
-    if (typeof fillRatingSel === 'function') {
-        fillRatingSel('f-rating', d.rating || 0);
-    }
+    setVal('f-name', d.name || '');
+    setVal('f-orig', d.orig || '');
+    setVal('f-musical-name', d.orig || d.name || '');
     
-    document.getElementById('f-air').value = d.airDate || '';
+    // 2. 隱藏警告
+    const warn1 = document.getElementById('dup-warning');
+    if (warn1) warn1.style.display = 'none';
+    const warn2 = document.getElementById('dup-warning-musical');
+    if (warn2) warn2.style.display = 'none';
 
-    // 3. 安全的類型處理
+    // 3. 狀態與評分
+    setVal('f-status', d.status || 'ongoing');
+    if (typeof fillRatingSel === 'function') fillRatingSel('f-rating', d.rating || 0);
+    
+    setVal('f-air', d.airDate || '');
+
+    // 4. 類型處理 (你的專屬邏輯)
     const genreEl = document.getElementById('f-genre');
     if (genreEl) {
         const exists = Array.from(genreEl.options).some(o => o.value === d.genre);
         genreEl.value = exists ? d.genre : '';
     }
 
-    // 4. 開啟模態框
+    // 最後開啟模態框
     openModal('form-modal');
 }
+
 // --- 平台保持不變 ---
 document.getElementById('f-platform').value = d.platform || '';  
  document.getElementById('f-musical-season').value=d.season||'';
