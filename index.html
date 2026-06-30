@@ -450,6 +450,14 @@ const TMDB_IMG='https://image.tmdb.org/t/p/w300';
 const TMDB_SEARCH='https://api.themoviedb.org/3/search/tv';
 const RATINGS=[5.0,4.8,4.5,4.2,4.0,3.8,3.5,3.0,2.5,2.0,1.5,1.0,0.0];
 const NY=new Date().getFullYear();
+ // --- 修復：類型選擇器 ---
+function checkGenreOther() {
+    const sel = document.getElementById('f-genre');
+    const input = document.getElementById('f-genre-other');
+    if (input) {
+        input.style.display = (sel.value === "其他") ? "block" : "none";
+    }
+}
 let db=[],editId=null,aFilter={type:'',val:''},aSort='rating-year',pFilter=null,viewMode='gallery';
 let isReadOnly=false;
 let mainCategory=''; // '' = all, 'drama', 'musical'
@@ -1274,8 +1282,30 @@ function openEdit(id){
   fillRatingSel('f-rating',d.rating||0);
   document.getElementById('f-air').value=d.airDate||'';
 // 第 1258 行替換為：
-document.getElementById('f-genre').value = d.genre || '';
-document.getElementById('f-platform').value = d.platform || '';  document.getElementById('f-musical-season').value=d.season||'';
+// --- 類型修復 ---
+const genreSel = document.getElementById('f-genre');
+const genreOther = document.getElementById('f-genre-other');
+const savedGenre = d.genre || '';
+
+// 檢查選單選項是否包含目前的資料
+const options = Array.from(genreSel.options).map(o => o.value);
+
+if (savedGenre !== "" && !options.includes(savedGenre)) {
+    // 1. 如果資料不在選單裡（例如是自訂類型），選「其他」並把輸入框叫出來
+    genreSel.value = "其他";
+    if(genreOther) {
+        genreOther.style.display = "block";
+        genreOther.value = savedGenre;
+    }
+} else {
+    // 2. 如果是標準類型，直接選中，並藏起輸入框
+    genreSel.value = savedGenre;
+    if(genreOther) genreOther.style.display = "none";
+}
+
+// --- 平台保持不變 ---
+document.getElementById('f-platform').value = d.platform || '';  
+ document.getElementById('f-musical-season').value=d.season||'';
   document.getElementById('f-musical-method').value=d.viewMethod||'現場觀劇';
   document.getElementById('f-namu').value=d.namu||'';
   document.getElementById('f-actors').value=(d.actors||[]).join(', ');
