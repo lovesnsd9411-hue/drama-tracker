@@ -1283,11 +1283,15 @@ function openEdit(id){
   document.getElementById('f-air').value=d.airDate||'';
 // 第 1258 行替換為：
 // --- 類型修復 ---
-const genreSel = document.getElementById('f-genre');
-const genreOther = document.getElementById('f-genre-other');
-const savedGenre = d.genre || '';
+// 第 1286 行開始替換成這段：
+const selGenre = document.getElementById('f-genre');
+const inputGenre = document.getElementById('f-genre-other');
 
-// 檢查選單選項是否包含目前的資料
+if (selGenre.value === "其他" && inputGenre && inputGenre.value.trim() !== "") {
+    d.genre = inputGenre.value.trim();
+} else {
+    d.genre = selGenre.value;
+}
 const options = Array.from(genreSel.options).map(o => o.value);
 
 if (savedGenre !== "" && !options.includes(savedGenre)) {
