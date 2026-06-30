@@ -1275,49 +1275,21 @@ function openAdd(){
     openModal('form-modal');
 }
 function openEdit(id) {
+    console.log("收到編輯 ID:", id); // 幫我看看 Console 有沒有印出東西
+    
     if (isReadOnly) return;
-    const d = db.find(x => x.id === id);
-    if (!d) return;
-
-    editId = id;
     
-    // 定義一個安全設定值的輔助函式
-    const setVal = (id, val) => {
-        const el = document.getElementById(id);
-        if (el) el.value = val;
-    };
-
-    // 1. 標題與基礎欄位
-    const titleEl = document.getElementById('form-title');
-    if (titleEl) titleEl.textContent = '編輯劇目';
+    const d = db.find(x => x.id == id); // 把 === 改成 == 試試看（寬鬆比較）
     
-    setVal('f-name', d.name || '');
-    setVal('f-orig', d.orig || '');
-    setVal('f-musical-name', d.orig || d.name || '');
-    
-    // 2. 隱藏警告
-    const warn1 = document.getElementById('dup-warning');
-    if (warn1) warn1.style.display = 'none';
-    const warn2 = document.getElementById('dup-warning-musical');
-    if (warn2) warn2.style.display = 'none';
-
-    // 3. 狀態與評分
-    setVal('f-status', d.status || 'ongoing');
-    if (typeof fillRatingSel === 'function') fillRatingSel('f-rating', d.rating || 0);
-    
-    setVal('f-air', d.airDate || '');
-
-    // 4. 類型處理 (你的專屬邏輯)
-    const genreEl = document.getElementById('f-genre');
-    if (genreEl) {
-        const exists = Array.from(genreEl.options).some(o => o.value === d.genre);
-        genreEl.value = exists ? d.genre : '';
+    if (!d) {
+        console.error("找不到這部劇！ID 是:", id);
+        return;
     }
-
-    // 最後開啟模態框
-    openModal('form-modal');
+    
+    console.log("找到資料:", d); // 看看 d 裡面有沒有資料
+    
+    // ... 後面原本的邏輯 ...
 }
-
 // --- 平台保持不變 ---
 document.getElementById('f-platform').value = d.platform || '';  
  document.getElementById('f-musical-season').value=d.season||'';
