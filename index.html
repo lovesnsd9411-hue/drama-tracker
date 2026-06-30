@@ -1281,7 +1281,12 @@ function openEdit(id){
   document.getElementById('f-status').value=d.status||'ongoing';
   fillRatingSel('f-rating',d.rating||0);
   document.getElementById('f-air').value=d.airDate||'';
-document.getElementById('f-genre').value = d.genre || '';
+const genreEl = document.getElementById('f-genre');
+if (genreEl) {
+    // 檢查 d.genre 是否存在於選項中，如果沒有，就設為空值，避免崩潰
+    const exists = Array.from(genreEl.options).some(o => o.value === d.genre);
+    genreEl.value = exists ? d.genre : '';
+}
 
 // --- 平台保持不變 ---
 document.getElementById('f-platform').value = d.platform || '';  
