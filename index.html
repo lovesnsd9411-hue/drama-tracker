@@ -1127,7 +1127,11 @@ async function saveShow(dramaId) {
     if (!d) return;
 
     // 只需要這一行就夠了！
-    d.genre = document.getElementById('f-genre').value;
+   // 這是專門用來儲存資料的程式碼
+const genreEl = document.getElementById('f-genre');
+if (genreEl) {
+    d.genre = genreEl.value; // 直接抓選單的值
+}
     d.platform = document.getElementById('f-platform').value;
     
     const epEl = document.getElementById('f-episode');
@@ -1281,9 +1285,10 @@ function openEdit(id){
   document.getElementById('f-status').value=d.status||'ongoing';
   fillRatingSel('f-rating',d.rating||0);
   document.getElementById('f-air').value=d.airDate||'';
+// 這是專門用來填入編輯框的程式碼
 const genreEl = document.getElementById('f-genre');
 if (genreEl) {
-    // 檢查 d.genre 是否存在於選項中，如果沒有，就設為空值，避免崩潰
+    // 檢查資料庫的值是否在選單清單裡，有就選，沒有就選空值，這就不會崩潰
     const exists = Array.from(genreEl.options).some(o => o.value === d.genre);
     genreEl.value = exists ? d.genre : '';
 }
