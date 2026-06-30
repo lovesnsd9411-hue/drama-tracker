@@ -306,26 +306,29 @@ body.read-only-mode .fav-badge{display:none}
       <input type="hidden" id="f-poster">
     </div>
 
-    <!-- ── 影劇專用欄位 ── -->
-    <div class="row3" id="drama-only-row3">
-      <div class="field"><label>觀看狀態</label>
-        <select id="f-status"><option value="done">看完</option><option value="ongoing">觀看中</option><option value="dropped">棄劇</option></select>
-      </div>
-      <div class="field"><label>評分</label><select id="f-rating" onchange="onRatingChange()"></select></div>
-      <div class="field"><label>看完年度</label><select id="f-year"><option value="">—</option></select></div>
-    </div>
    <div class="row2" id="drama-only-genre-platform">
-<div class="field">
-  <label>類型</label>
- <select id="f-genre" onchange="checkGenreOther()">
-    <option value="音樂劇">音樂劇</option>
-    <option value="懸疑">懸疑</option>
-    <option value="愛情">愛情</option>
-    <option value="治癒">治癒</option>
-    <option value="其他">其他</option>
-  </select>
-  <input type="text" id="f-genre-other" placeholder="請輸入新類型" style="display:none; margin-top:5px; width:100%;">
-</div>
+  <div class="field">
+    <label>類型</label>
+    <select id="f-genre" style="width: 100%;">
+     <option value="">-- 請選擇類型 --</option>
+      <option value="生活">生活</option>
+      <option value="奇幻">奇幻</option>
+      <option value="校園">校園</option>
+      <option value="懸疑">懸疑</option>
+      <option value="愛情">愛情</option>
+      <option value="治癒">治癒</option>
+      <option value="動作">動作</option>
+      <option value="喜劇">喜劇</option>
+      <option value="古裝">古裝</option>
+      <option value="職場">職場</option>
+      <option value="年代劇">年代劇</option>
+      <option value="法政">法政</option>
+      <option value="狗血">狗血</option>
+      <option value="青春">青春</option>
+      <option value="驚悚">驚悚</option>
+    </select>
+  </div>
+  </div>
   <div class="field">
     <label>平台</label>
     <select id="f-platform">
@@ -1124,24 +1127,22 @@ async function saveShow(dramaId) {
     let d = db.find(x => x.id === dramaId);
     if (!d) return;
 
-    // 1. 直接抓取畫面上的值，不管它是 input 還是 select
+    // 只需要這一行就夠了！
     d.genre = document.getElementById('f-genre').value;
     d.platform = document.getElementById('f-platform').value;
     
-    // 2. 這行最關鍵：因為你還沒加「集數」欄位，我們先偷懶用一個 if 判斷
-    // 如果畫面上有集數欄位，就抓；沒有的話，我們之後再補
     const epEl = document.getElementById('f-episode');
     if (epEl) d.episode = epEl.value;
 
-    // 3. 演員的部分，用這個最簡單的寫法
     const container = document.getElementById('form-actor-checkbox-list');
-    const inputs = Array.from(container.querySelectorAll('input:checked')).map(i => i.value);
-    const badges = Array.from(container.querySelectorAll('.badge')).map(s => s.textContent.trim());
-    d.actors = Array.from(new Set([...inputs, ...badges]));
+    if (container) {
+        const inputs = Array.from(container.querySelectorAll('input:checked')).map(i => i.value);
+        const badges = Array.from(container.querySelectorAll('.badge')).map(s => s.textContent.trim());
+        d.actors = Array.from(new Set([...inputs, ...badges]));
+    }
 
-    // 4. 存檔！
     save();
-    location.reload(); // 最無腦的重新整理法，保證畫面會更新
+    location.reload();
 }
 function openDetail(id){
   const d=db.find(x=>x.id===id);if(!d)return;
@@ -1281,27 +1282,7 @@ function openEdit(id){
   document.getElementById('f-status').value=d.status||'ongoing';
   fillRatingSel('f-rating',d.rating||0);
   document.getElementById('f-air').value=d.airDate||'';
-// 第 1258 行替換為：
-// --- 類型修復 ---
-const genreSel = document.getElementById('f-genre');
-const genreOther = document.getElementById('f-genre-other');
-const savedGenre = d.genre || '';
-
-// 檢查選單選項是否包含目前的資料
-const options = Array.from(genreSel.options).map(o => o.value);
-
-if (savedGenre !== "" && !options.includes(savedGenre)) {
-    // 1. 如果資料不在選單裡（例如是自訂類型），選「其他」並把輸入框叫出來
-    genreSel.value = "其他";
-    if(genreOther) {
-        genreOther.style.display = "block";
-        genreOther.value = savedGenre;
-    }
-} else {
-    // 2. 如果是標準類型，直接選中，並藏起輸入框
-    genreSel.value = savedGenre;
-    if(genreOther) genreOther.style.display = "none";
-}
+document.getElementById('f-genre').value = d.genre || '';
 
 // --- 平台保持不變 ---
 document.getElementById('f-platform').value = d.platform || '';  
