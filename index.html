@@ -314,17 +314,17 @@ body.read-only-mode .fav-badge{display:none}
       <div class="field"><label>評分</label><select id="f-rating" onchange="onRatingChange()"></select></div>
       <div class="field"><label>看完年度</label><select id="f-year"><option value="">—</option></select></div>
     </div>
-  <div class="field" style="width: 100%;">
+   <div class="row2" id="drama-only-genre-platform">
+<div class="field">
   <label>類型</label>
-  <select id="f-genre" onchange="checkGenreOther()" style="width: 100%; padding: 8px;">
-    <option value="">請選擇類型</option>
+ <select id="f-genre" onchange="checkGenreOther()">
     <option value="音樂劇">音樂劇</option>
     <option value="懸疑">懸疑</option>
     <option value="愛情">愛情</option>
     <option value="治癒">治癒</option>
     <option value="其他">其他</option>
   </select>
-  <input type="text" id="f-genre-other" placeholder="請輸入新類型" style="display:none; margin-top:5px; width:100%; padding: 8px;">
+  <input type="text" id="f-genre-other" placeholder="請輸入新類型" style="display:none; margin-top:5px; width:100%;">
 </div>
   <div class="field">
     <label>平台</label>
@@ -450,12 +450,6 @@ const TMDB_IMG='https://image.tmdb.org/t/p/w300';
 const TMDB_SEARCH='https://api.themoviedb.org/3/search/tv';
 const RATINGS=[5.0,4.8,4.5,4.2,4.0,3.8,3.5,3.0,2.5,2.0,1.5,1.0,0.0];
 const NY=new Date().getFullYear();
- // 這是專門用來處理「其他」選項的開關
-function checkGenreOther() {
-    const sel = document.getElementById('f-genre');
-    const input = document.getElementById('f-genre-other');
-    if (input) input.style.display = (sel.value === "其他") ? "block" : "none";
-}
 let db=[],editId=null,aFilter={type:'',val:''},aSort='rating-year',pFilter=null,viewMode='gallery';
 let isReadOnly=false;
 let mainCategory=''; // '' = all, 'drama', 'musical'
@@ -1254,25 +1248,19 @@ function openAdd(){
     
     document.getElementById('poster-preview').innerHTML='';
     document.getElementById('dup-warning').style.display='none';
-    // 1. 取得 DOM 元素
-const genreSel = document.getElementById('f-genre');
-const genreOther = document.getElementById('f-genre-other');
-// 2. 獲取資料庫內的類型值 (處理陣列或字串)
-const savedGenre = d.genres ? (Array.isArray(d.genres) ? d.genres[0] : d.genres) : (d.genre || '');
-
-// 3. 檢查選單裡有沒有這個值
-const optionValues = Array.from(genreSel.options).map(o => o.value);
-if (savedGenre !== "" && !optionValues.includes(savedGenre)) {
-    // 如果是冷門類型，切換到「其他」並顯示輸入框
-    genreSel.value = "其他";
-    if(genreOther) {
-        genreOther.style.display = "block";
-        genreOther.value = savedGenre;
-    }
-} else {
-    // 如果是選單有的類型，直接選中
-    genreSel.value = savedGenre;
-    if(genreOther) genreOther.style.display = "none";
+    document.getElementById('dup-warning-musical').style.display='none';
+    document.getElementById('f-musical-method').value='現場觀劇';
+    document.getElementById('f-status').value='ongoing';
+    fillRatingSel('f-rating',0);
+    document.getElementById('f-air').value='';
+    fillYearSel('f-year','');
+    setFormCategory('drama');
+    
+    // 選單重置
+    document.getElementById('f-genre').value = '';
+    document.getElementById('f-platform').value = '';
+    
+    openModal('form-modal');
 }
 function openEdit(id){
   if(isReadOnly)return;
