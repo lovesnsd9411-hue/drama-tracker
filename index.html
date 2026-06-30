@@ -1124,35 +1124,24 @@ async function saveShow(dramaId) {
     let d = db.find(x => x.id === dramaId);
     if (!d) return;
 
-    // --- 強化版的類型處理 (保護模式) ---
-    const selGenre = document.getElementById('f-genre');
-    const inputGenre = document.getElementById('f-genre-other');
-
-    if (selGenre) {
-        // 如果選單選「其他」，強制去讀輸入框的值，否則就讀選單的值
-        if (selGenre.value === "其他") {
-            // 如果輸入框存在且有文字，存文字；否則存「其他」這個字串本身
-            d.genre = (inputGenre && inputGenre.value.trim() !== "") ? inputGenre.value.trim() : "其他";
-        } else {
-            d.genre = selGenre.value;
-        }
-    }
-
+    // 1. 直接抓取畫面上的值，不管它是 input 還是 select
+    d.genre = document.getElementById('f-genre').value;
     d.platform = document.getElementById('f-platform').value;
     
-    // 以下保持不動
+    // 2. 這行最關鍵：因為你還沒加「集數」欄位，我們先偷懶用一個 if 判斷
+    // 如果畫面上有集數欄位，就抓；沒有的話，我們之後再補
     const epEl = document.getElementById('f-episode');
     if (epEl) d.episode = epEl.value;
 
+    // 3. 演員的部分，用這個最簡單的寫法
     const container = document.getElementById('form-actor-checkbox-list');
-    if (container) {
-        const inputs = Array.from(container.querySelectorAll('input:checked')).map(i => i.value);
-        const badges = Array.from(container.querySelectorAll('.badge')).map(s => s.textContent.trim());
-        d.actors = Array.from(new Set([...inputs, ...badges]));
-    }
+    const inputs = Array.from(container.querySelectorAll('input:checked')).map(i => i.value);
+    const badges = Array.from(container.querySelectorAll('.badge')).map(s => s.textContent.trim());
+    d.actors = Array.from(new Set([...inputs, ...badges]));
 
+    // 4. 存檔！
     save();
-    location.reload(); 
+    location.reload(); // 最無腦的重新整理法，保證畫面會更新
 }
 function openDetail(id){
   const d=db.find(x=>x.id===id);if(!d)return;
@@ -1276,63 +1265,42 @@ function openAdd(){
     setFormCategory('drama');
     
     // 選單重置
-   // --- 準確替換位置 ---
+    document.getElementById('f-genre').value = '';
+    document.getElementById('f-platform').value = '';
+    
+    openModal('form-modal');
+}
+function openEdit(id){
+  if(isReadOnly)return;
+  const d=db.find(x=>x.id===id);if(!d)return;
+  editId=id;document.getElementById('form-title').textContent='編輯劇目';
+  document.getElementById('f-name').value=d.name||'';document.getElementById('f-orig').value=d.orig||'';
+  document.getElementById('f-musical-name').value=d.orig||d.name||'';
+  document.getElementById('dup-warning').style.display='none';
+  document.getElementById('dup-warning-musical').style.display='none';
+  document.getElementById('f-status').value=d.status||'ongoing';
+  fillRatingSel('f-rating',d.rating||0);
+  document.getElementById('f-air').value=d.airDate||'';
+// 第 1258 行替換為：
+// --- 類型修復 ---
 const genreSel = document.getElementById('f-genre');
 const genreOther = document.getElementById('f-genre-other');
 const savedGenre = d.genre || '';
 
-if (genreSel) {
-    const options = Array.from(genreSel.options).map(o => o.value);
-    if (savedGenre !== "" && !options.includes(savedGenre)) {
-        genreSel.value = "其他";
-        if(genreOther) {
-            genreOther.style.display = "block";
-            genreOther.value = savedGenre;
-        }
-    } else {
-        genreSel.value = savedGenre;
-        if(genreOther) genreOther.style.display = "none";
+// 檢查選單選項是否包含目前的資料
+const options = Array.from(genreSel.options).map(o => o.value);
+
+if (savedGenre !== "" && !options.includes(savedGenre)) {
+    // 1. 如果資料不在選單裡（例如是自訂類型），選「其他」並把輸入框叫出來
+    genreSel.value = "其他";
+    if(genreOther) {
+        genreOther.style.display = "block";
+        genreOther.value = savedGenre;
     }
-}
-document.getElementById('f-platform').value = d.platform || '';
-    
-    openModal('form-modal');
-}
-function openEdit(id) {
-    // ... (你原本函式前面的程式碼保持不動) ...
-
-    const d = getDataById(id); // 這是假設你原本取得資料的方式
-    
-    // --- 這裡開始替換成這段 ---
-    const genreSel = document.getElementById('f-genre');
-    const genreOther = document.getElementById('f-genre-other');
-    const savedGenre = d.genre || '';
-
-    if (genreSel) {
-        // 先預設填入選單，如果選單裡沒有，會變成空白
-        genreSel.value = savedGenre;
-        
-        // 檢查選單內是否真的有這個選項
-        const optionValues = Array.from(genreSel.options).map(o => o.value);
-        
-        if (savedGenre !== "" && !optionValues.includes(savedGenre)) {
-            // 如果不在選單內，強制選「其他」，並填入輸入框
-            genreSel.value = "其他";
-            if (genreOther) {
-                genreOther.style.display = "block";
-                genreOther.value = savedGenre;
-            }
-        } else {
-            // 如果在選單內，隱藏輸入框
-            if (genreOther) {
-                genreOther.style.display = "none";
-                genreOther.value = "";
-            }
-        }
-    }
-    // --- 替換結束 ---
-
-    // ... (你原本函式後面開啟 Modal 的程式碼) ...
+} else {
+    // 2. 如果是標準類型，直接選中，並藏起輸入框
+    genreSel.value = savedGenre;
+    if(genreOther) genreOther.style.display = "none";
 }
 
 // --- 平台保持不變 ---
