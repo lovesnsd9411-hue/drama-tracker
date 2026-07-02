@@ -329,23 +329,25 @@ body.read-only-mode .fav-badge{display:none}
    <div class="row2" id="drama-only-genre-platform">
   <div class="field">
     <label>類型</label>
-   <div id="f-genre" style="display: flex; flex-wrap: wrap; gap: 8px; padding: 5px; border: 1px solid #ccc; border-radius: 4px; background: #fff;">
-  <label><input type="checkbox" value="生活"> 生活</label>
-  <label><input type="checkbox" value="奇幻"> 奇幻</label>
-  <label><input type="checkbox" value="校園"> 校園</label>
-  <label><input type="checkbox" value="懸疑"> 懸疑</label>
-  <label><input type="checkbox" value="愛情"> 愛情</label>
-  <label><input type="checkbox" value="治癒"> 治癒</label>
-  <label><input type="checkbox" value="動作"> 動作</label>
-  <label><input type="checkbox" value="喜劇"> 喜劇</label>
-  <label><input type="checkbox" value="古裝"> 古裝</label>
-  <label><input type="checkbox" value="職場"> 職場</label>
-  <label><input type="checkbox" value="年代劇"> 年代劇</label>
-  <label><input type="checkbox" value="法政"> 法政</label>
-  <label><input type="checkbox" value="狗血"> 狗血</label>
-  <label><input type="checkbox" value="青春"> 青春</label>
-  <label><input type="checkbox" value="驚悚"> 驚悚</label>
-</div>
+    <select id="f-genre" style="width: 100%;">
+     <option value="">-- 請選擇類型 --</option>
+      <option value="生活">生活</option>
+      <option value="奇幻">奇幻</option>
+      <option value="校園">校園</option>
+      <option value="懸疑">懸疑</option>
+      <option value="愛情">愛情</option>
+      <option value="治癒">治癒</option>
+      <option value="動作">動作</option>
+      <option value="喜劇">喜劇</option>
+      <option value="古裝">古裝</option>
+      <option value="職場">職場</option>
+      <option value="年代劇">年代劇</option>
+      <option value="法政">法政</option>
+      <option value="狗血">狗血</option>
+      <option value="青春">青春</option>
+      <option value="驚悚">驚悚</option>
+    </select>
+  </div>
   <div class="field">
     <label>平台</label>
     <select id="f-platform">
@@ -1470,12 +1472,8 @@ function openAdd(){
     setFormCategory('drama');
     
     // 選單重置
-    // --- 替換為以下程式碼 ---
-document.querySelectorAll('#f-genre input[type="checkbox"]').forEach(cb => {
-    cb.checked = d.genre ? d.genre.split(',').includes(cb.value) : false;
-});
-    // --- 替換為以下程式碼 ---
-document.querySelectorAll('#f-genre input[type="checkbox"]').forEach(cb => cb.checked = false);
+    document.getElementById('f-genre').value = '';
+    document.getElementById('f-platform').value = '';
     
     openModal('form-modal');
 }
@@ -1491,11 +1489,12 @@ function openEdit(id){
   fillRatingSel('f-rating',d.rating||0);
   document.getElementById('f-air').value=d.airDate||'';
 // 這是專門用來填入編輯框的程式碼
-// 填入 checkbox 狀態
-const savedGenres = d.genre ? d.genre.split(',') : [];
-document.querySelectorAll('#f-genre input[type="checkbox"]').forEach(cb => {
-    cb.checked = savedGenres.includes(cb.value);
-});
+const genreEl = document.getElementById('f-genre');
+if (genreEl) {
+    // 檢查資料庫的值是否在選單清單裡，有就選，沒有就選空值，這就不會崩潰
+    const exists = Array.from(genreEl.options).some(o => o.value === d.genre);
+    genreEl.value = exists ? d.genre : '';
+}
 
 // --- 平台保持不變 ---
 document.getElementById('f-platform').value = d.platform || '';  
@@ -1578,30 +1577,28 @@ function saveForm(){
     }else{
       data.viewing_history=[];
     }
-} else {
-    // 1. 獲取所有勾選的類型
-    const genres = Array.from(document.querySelectorAll('#f-genre input[type="checkbox"]:checked')).map(cb => cb.value);
-    
-    // 2. 準備其他資料
-    const actors = document.getElementById('f-actors').value.split(',').map(s => s.trim()).filter(Boolean);
-    const rating = parseFloat(document.getElementById('f-rating').value) || 0;
-    const status = rating > 0 ? 'done' : document.getElementById('f-status').value;
-    const directors = document.getElementById('f-director').value.split(',').map(s => s.trim()).filter(Boolean);
-    const writers = document.getElementById('f-writer').value.split(',').map(s => s.trim()).filter(Boolean);
-    
-    // 3. 組合資料 (注意：這裡 genre 存的是陣列，後續儲存會自動轉為字串)
-    data = {
-      name, orig, category, status, rating,
-      genre: genres.join(','), 
-      platform: document.getElementById('f-platform').value.trim(),
-      airDate: document.getElementById('f-air').value,
-      yearDone: document.getElementById('f-year').value,
-      actors, directors, director: directors[0] || '',
-      writers, writer: writers[0] || '',
-      note: document.getElementById('f-note').value.trim(),
-      poster, namu: document.getElementById('f-namu').value.trim()
-    };
+  }else{
+    const genreInput=document.getElementById('f-genre').value.trim();
+    const genres=genreInput.split(',').map(g=>g.trim()).filter(Boolean);
+    const actors=document.getElementById('f-actors').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const rating=parseFloat(document.getElementById('f-rating').value)||0;
+    const status=rating>0?'done':document.getElementById('f-status').value;
+    const directors=document.getElementById('f-director').value.split(',').map(s=>s.trim()).filter(Boolean);
+    const writers=document.getElementById('f-writer').value.split(',').map(s=>s.trim()).filter(Boolean);
+    data={name,orig,category,status,rating,genre:genreInput,genres,platform:document.getElementById('f-platform').value.trim(),airDate:document.getElementById('f-air').value,yearDone:document.getElementById('f-year').value,actors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:document.getElementById('f-note').value.trim(),poster,namu:document.getElementById('f-namu').value.trim()};
   }
+  if(editId){const i=db.findIndex(x=>x.id===editId);if(i>-1)db[i]={...db[i],...data}}
+  else db.unshift({id:uid(),addedAt:Date.now(),...data});
+  save();closeModal('form-modal');render();
+}
+function del(id){if(isReadOnly)return;if(!confirm('確定要刪除這部劇嗎？'))return;db=db.filter(x=>x.id!==id);save();render()}
+function toggleFavorite(id,event){
+  if(isReadOnly)return;
+  if(event)event.stopPropagation();
+  const d=db.find(x=>x.id===id);if(!d)return;
+  d.favorite=!d.favorite;
+  save();render();
+}
 function exportData(){const b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`追劇清單_${new Date().toISOString().slice(0,10)}.json`;a.click()}
 function importData(e){if(isReadOnly)return;const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;if(confirm(`匯入 ${d.length} 筆資料？（會覆蓋現有資料）`)){db=d;save();render()}}catch{alert('格式不正確，請匯入之前匯出的 JSON 檔')}};r.readAsText(f);e.target.value=''}
 function fixRatedStatus(){
