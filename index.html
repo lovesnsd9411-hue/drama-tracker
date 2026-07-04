@@ -2388,13 +2388,20 @@ function renderActorsTotalList() {
 // ════════════════════════════════════════════════════════════════
 
 // 是否為「格式有問題」的原始名稱（含角色分隔符或逗號等，代表尚未正確拆解）
+// 是否為「格式有問題」的原始名稱：含角色分隔符（代表尚未拆開），
+// 或名字尾巴黏著像「[3]」「(1)」這種註腳/編號標記（常見於從維基之類的來源複製貼上時夾帶的引用編號）。
+const FOOTNOTE_SUFFIX_RE=/[\[（(]\s*\d+\s*[\]）)]\s*$/;
 function isMessyActorName(name){
-  return typeof name==='string' && /[|｜：:,，、]/.test(name);
+  return typeof name==='string' && (/[|｜：:,，、]/.test(name) || FOOTNOTE_SUFFIX_RE.test(name));
+}
+// 去掉姓名尾巴的註腳/編號標記，例如「박준휘[3]」→「박준휘」
+function stripFootnoteSuffix(name){
+  return String(name||'').replace(FOOTNOTE_SUFFIX_RE,'').trim();
 }
 
 // 把「一筆」可能混亂的卡司資料（字串或 {role,name} 物件）正規化成
 // 乾淨的 [{role,name}, ...] 陣列——名字只保留「純演員姓名」作為唯一識別鍵，
-// 角色會被拆出來獨立存放；一個欄位裡黏了多個人也會拆成多筆。
+// 角色會被拆出來獨立存放；一個欄位裡黏了多個人也會拆成多筆；姓名尾巴的註腳編號也會被去掉。
 function normalizeCastValue(raw){
   if(!raw) return [];
   let role='', text;
@@ -2415,7 +2422,7 @@ function normalizeCastValue(raw){
       text = colonMatch[2];
     }
   }
-  return text.split(/[,，、]/).map(s=>s.trim()).filter(Boolean).map(name=>({role,name}));
+  return text.split(/[,，、]/).map(s=>stripFootnoteSuffix(s)).filter(Boolean).map(name=>({role,name}));
 }
 
 // 正規化整個卡司陣列：攤平＋依「角色＋姓名」組合鍵去重
