@@ -74,6 +74,13 @@ input,select,textarea,button{font-family:inherit}
 .actor-cb:hover{border-color:#8B86D4;color:#3C3489}
 .actor-cb input{display:none}
 .actor-cb:has(input:checked){background:#EEEDFE;color:#3C3489;border-color:#AFA9EC}
+.filter-chip{display:inline-flex;align-items:center;font-size:12px;font-weight:600;padding:5px 10px;border-radius:20px;border:1px solid #E0E0EE;background:#fff;cursor:pointer;color:#666;transition:all .15s}
+.filter-chip:hover{border-color:#8B86D4;color:#3C3489}
+.filter-chip.active{background:#3C3489;color:#fff;border-color:#3C3489}
+.show-status-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-top:4px}
+.show-status-watched{background:#E7F6F0;color:#0F6E56}
+.show-status-ticketed{background:#EAF1FE;color:#2563A8}
+.show-status-refunded{background:#F2F2F5;color:#999;text-decoration:line-through}
  .badge {
     display: inline-block;
     padding: 2px 8px;
@@ -266,6 +273,7 @@ body.read-only-mode .fav-badge{display:none}
       <button class="icon-btn" onclick="openShareModal()" title="產生唯讀分享連結"><i class="ti ti-share"></i> 分享清單</button>
       <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
      <button class="icon-btn" onclick="openActorsModal()"><i class="ti ti-masks-theater"></i> 🎭 人物總表</button>
+<button class="icon-btn" onclick="promptExchangeRate()" title="設定韓元對台幣匯率"><i class="ti ti-currency-won"></i> 匯率設定</button>
 <button class="btn-primary" onclick="openAdd()">+ 新增</button>
     </div>
   </div>
@@ -500,6 +508,50 @@ const TMDB_SEARCH='https://api.themoviedb.org/3/search/tv';
 const RATINGS=[5.0,4.8,4.5,4.2,4.0,3.8,3.5,3.0,2.5,2.0,1.5,1.0,0.0];
 const NY=new Date().getFullYear();
 let db=[],editId=null,aFilter={type:'',val:''},aSort='rating-year',pFilter=null,viewMode='gallery';
+
+// ── 多幣別財務計算引擎 ──
+// 目前只需要處理 KRW（韓元，現場買票最常見）與 TWD（台幣）。
+// 匯率是使用者自訂、存在這台裝置的 localStorage 裡（不同人可能匯率不同，也會隨時間變動）。
+const EX_RATE_KEY='krw_to_twd_rate';
+let krwToTwdRate=parseFloat(localStorage.getItem(EX_RATE_KEY))||0.023; // 預設約略值，建議使用者依當下匯率調整
+
+// 把任意幣別金額換算成台幣。currency 不是 'KRW' 就一律視為台幣，不做換算。
+function convertToTWD(amount,currency){
+  const n=parseFloat(amount)||0;
+  return currency==='KRW' ? n*krwToTwdRate : n;
+}
+
+// 設定新的韓元匯率（1 KRW = ? TWD），成功回傳 true、寫入 localStorage 並套用；輸入無效回傳 false。
+function setExchangeRate(rate){
+  const r=parseFloat(rate);
+  if(!r || r<=0) return false;
+  krwToTwdRate=r;
+  localStorage.setItem(EX_RATE_KEY,String(r));
+  return true;
+}
+
+// 讓使用者輸入/查看目前的匯率設定，套用後重新整理畫面（含正在打開的演員頁）
+function promptExchangeRate(){
+  const input=prompt('請設定韓元對台幣的匯率（1 KRW = ? TWD）\n例如：1 韓元 ≈ 0.023 台幣，就輸入 0.023',krwToTwdRate);
+  if(input===null) return; // 使用者取消
+  if(setExchangeRate(input)){
+    render();
+    if(location.hash.startsWith('#actor/')) handleRoute();
+  }else{
+    alert('請輸入大於 0 的匯率數字');
+  }
+}
+
+// 依幣別格式化單筆金額顯示；韓元會額外附上約略台幣金額方便閱讀
+function formatShowAmount(h){
+  const amt=parseFloat(h.amount)||0;
+  const cur=h.currency||'TWD';
+  if(cur==='KRW'){
+    const twd=convertToTWD(amt,cur);
+    return `₩${amt.toLocaleString()}<span style="font-size:11px;color:#aaa;font-weight:500"> (≈NT$${Math.round(twd).toLocaleString()})</span>`;
+  }
+  return `NT$${amt.toLocaleString()}`;
+}
 let isReadOnly=false;
 let mainCategory=''; // '' = all, 'drama', 'musical'
 let musicalActors=[]; // [{id, name}] loaded from Supabase musical_actors table
@@ -1215,6 +1267,16 @@ function castNames(list){
   return (list||[]).map(c=>(typeof c==='string')?c:(c&&c.name)).filter(Boolean);
 }
 
+// ── 演出狀態 ──
+// 每一場「多刷紀錄」都有一個演出狀態：已觀看／持有票券／已退票或轉讓。
+// 舊資料沒有這個欄位，一律視為「已觀看」（原本的紀錄本來就代表已經看過）。
+const SHOW_STATUSES=['已觀看','持有票券','已退票/轉讓'];
+function getShowStatus(h){ return (h&&h.showStatus) || '已觀看'; }
+// 作品統計（次數、場次）只算「已觀看」
+function countsTowardWorks(h){ return getShowStatus(h)==='已觀看'; }
+// 財務花費統計包含「已觀看」與「持有票券」（票已經買了就是花了錢），但不含已退票/轉讓
+function countsTowardSpend(h){ const s=getShowStatus(h); return s==='已觀看'||s==='持有票券'; }
+
 function getFiltered(){
   const q=(document.getElementById('search').value||'').toLowerCase();
   let list=[...db];
@@ -1392,8 +1454,9 @@ function renderMusicalDetail(d){
     :'';
   const namuUrl=d.namu||(d.orig?'https://namu.wiki/Search?q='+encodeURIComponent(d.orig):'');
   const history=(d.viewing_history||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  const totalShows=history.length;
-  const totalSpent=history.reduce((sum,h)=>sum+(parseFloat(h.amount)||0),0);
+  const totalShows=history.filter(countsTowardWorks).length;
+  const totalSpent=history.filter(countsTowardSpend).reduce((sum,h)=>sum+convertToTWD(h.amount,h.currency||'TWD'),0);
+  currentTimelineFilter='all'; // 每次打開作品詳細頁都重置分類篩選器
 
   document.getElementById('detail-content').innerHTML=`
     <div style="display:flex;gap:1rem;margin-bottom:1rem;align-items:flex-start">
@@ -1415,12 +1478,53 @@ function renderMusicalDetail(d){
         : '<div style="font-size:12px; color:#aaa;">尚無主要演員資料</div>'}
     </div>
     <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
-      <span>多刷紀錄（共 ${totalShows} 場${totalSpent>0?' · 共花費 '+totalSpent.toLocaleString():''}）</span>
+      <span>多刷紀錄（共 ${totalShows} 場${totalSpent>0?' · 共花費 NT$'+Math.round(totalSpent).toLocaleString():''}）</span>
       ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
     </div>
     <div id="musical-add-show-wrap"></div>
-    <div id="musical-timeline">${renderMusicalTimeline(history,d.id)}</div>
+    <div id="musical-timeline-filter">${renderTimelineFilterBar(history,d.id)}</div>
+    <div id="musical-timeline">${renderMusicalTimeline(filterByShowStatus(history,currentTimelineFilter),d.id)}</div>
   `;
+}
+
+// 分類篩選器：依演出狀態（全部／已觀看／持有票券／已退票或轉讓）篩選要顯示的場次
+let currentTimelineFilter='all';
+
+function filterByShowStatus(history,filterVal){
+  if(filterVal==='all') return history;
+  return history.filter(h=>getShowStatus(h)===filterVal);
+}
+
+function renderTimelineFilterBar(history,dramaId){
+  if(!history.length) return '';
+  const counts={};
+  SHOW_STATUSES.forEach(s=>{ counts[s]=0; });
+  history.forEach(h=>{ const s=getShowStatus(h); if(counts.hasOwnProperty(s)) counts[s]++; });
+  const options=[['all','全部',history.length],...SHOW_STATUSES.map(s=>[s,s.replace('/','·'),counts[s]])];
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.6rem">
+    ${options.map(([val,label,count])=>
+      `<button class="filter-chip${currentTimelineFilter===val?' active':''}" onclick="setTimelineFilter('${val}','${dramaId}')">${esc(label)}${count?` (${count})`:''}</button>`
+    ).join('')}
+  </div>`;
+}
+
+// 切換分類篩選器：只重繪篩選列與時間軸列表，不用整頁重新渲染
+function setTimelineFilter(filterVal,dramaId){
+  currentTimelineFilter=filterVal;
+  const d=db.find(x=>x.id===dramaId);
+  if(!d)return;
+  const history=(d.viewing_history||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const filterEl=document.getElementById('musical-timeline-filter');
+  if(filterEl) filterEl.innerHTML=renderTimelineFilterBar(history,dramaId);
+  const timelineEl=document.getElementById('musical-timeline');
+  if(timelineEl) timelineEl.innerHTML=renderMusicalTimeline(filterByShowStatus(history,filterVal),dramaId);
+}
+
+// 依演出狀態回傳對應的徽章樣式 class
+function showStatusClass(status){
+  if(status==='持有票券') return 'show-status-ticketed';
+  if(status==='已退票/轉讓') return 'show-status-refunded';
+  return 'show-status-watched';
 }
 
 function renderMusicalTimeline(history,dramaId){
@@ -1428,24 +1532,28 @@ function renderMusicalTimeline(history,dramaId){
     return `<div style="font-size:13px;color:#aaa;padding:1rem 0;text-align:center">還沒有場次紀錄</div>`;
   }
   return `<div style="display:flex;flex-direction:column;gap:8px">
-    ${history.map(h=>`
+    ${history.map(h=>{
+      const status=getShowStatus(h);
+      return `
       <div style="background:#F8F8FB;border-radius:12px;padding:.75rem .9rem;font-size:13px;position:relative">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div>
             <div style="font-weight:700;color:#1A1A2E">${esc(h.date||'')}${h.time?' '+esc(h.time):''}</div>
+            <span class="show-status-badge ${showStatusClass(status)}">${esc(status)}</span>
             ${(()=>{const castData=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
               return castData&&castData.length?`<div style="margin-top:6px">${renderCastGrouped(castData,false)}</div>`:'';})()}
             ${h.note?`<div style="margin-top:6px;color:#888;font-size:12px">${esc(h.note)}</div>`:''}
           </div>
           <div style="text-align:right;flex-shrink:0">
-            ${h.amount?`<div style="font-weight:700;color:#D97706;white-space:nowrap">$${parseFloat(h.amount).toLocaleString()}</div>`:''}
+            ${h.amount?`<div style="font-weight:700;color:#D97706;white-space:nowrap">${formatShowAmount(h)}</div>`:''}
             ${isReadOnly?'':`<div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px">
               <button class="icon-btn" onclick="openAddShowForm('${dramaId}','${h.id}')" style="padding:3px 5px;font-size:11px"><i class="ti ti-pencil"></i></button>
               <button class="icon-btn" onclick="deleteShow('${dramaId}','${h.id}')" style="padding:3px 5px;font-size:11px"><i class="ti ti-trash"></i></button>
             </div>`}
           </div>
         </div>
-      </div>`).join('')}
+      </div>`;
+    }).join('')}
   </div>`;
 }
 
@@ -1492,9 +1600,22 @@ async function openAddShowForm(dramaId, editShowId){
           </select>
         </div>
       </div>
+      <div class="field"><label>演出狀態</label>
+        <select id="show-status">
+          ${SHOW_STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+        </select>
+      </div>
       ${castFieldHtml}
       <div class="row2">
-        <div class="field"><label>金額（可選）</label><input type="text" id="show-amount" placeholder="例：1800" inputmode="numeric"></div>
+        <div class="field"><label>金額（可選）</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="show-amount" placeholder="例：1800" inputmode="numeric" style="flex:1;min-width:0">
+            <select id="show-currency" style="width:88px;flex-shrink:0">
+              <option value="TWD">TWD</option>
+              <option value="KRW">KRW</option>
+            </select>
+          </div>
+        </div>
         <div class="field"><label>活動（可選）</label><input type="text" id="show-note" placeholder="例：謝幕拍照、簽名會"></div>
       </div>
       <div class="mfooter" style="margin-top:.5rem">
@@ -1505,11 +1626,13 @@ async function openAddShowForm(dramaId, editShowId){
 
   if(!hasRoster) initCastTagInput('show', existingCast);
 
-  // 編輯模式：回填日期／場次／金額／活動筆記
+  // 編輯模式：回填日期／場次／演出狀態／金額／活動筆記
   if(existingShow){
     setFieldVal('show-date', existingShow.date||'');
     setFieldVal('show-time', existingShow.time||'');
+    setFieldVal('show-status', getShowStatus(existingShow));
     setFieldVal('show-amount', existingShow.amount!=null?String(existingShow.amount):'');
+    setFieldVal('show-currency', existingShow.currency||'TWD');
     setFieldVal('show-note', existingShow.note||'');
   }
 }
@@ -1533,7 +1656,9 @@ async function saveShow(dramaId, editShowId) {
   if(!date){alert('請選擇觀看日期');return}
 
   const time = fieldVal('show-time');
+  const showStatus = fieldVal('show-status','已觀看')||'已觀看';
   const amount = fieldVal('show-amount').trim();
+  const currency = fieldVal('show-currency','TWD')||'TWD';
   const note = fieldVal('show-note').trim();
 
   // 卡司：此劇目若已有候選名單，會顯示勾選清單，讀取被勾選的演員；
@@ -1549,8 +1674,9 @@ async function saveShow(dramaId, editShowId) {
     if(idx>-1){
       d.viewing_history[idx] = {
         ...d.viewing_history[idx],
-        date, time, viewed_actors,
+        date, time, showStatus, viewed_actors,
         amount: amount ? parseFloat(amount) : null,
+        currency,
         note
       };
     }
@@ -1559,8 +1685,10 @@ async function saveShow(dramaId, editShowId) {
       id: uid(),
       date,
       time,
+      showStatus,
       viewed_actors,
       amount: amount ? parseFloat(amount) : null,
+      currency,
       note
     });
   }
@@ -1992,11 +2120,12 @@ function getActorWorks(name){
 }
 
 // 該演員在「單一這部作品」裡，被實際記錄觀看過的場次（用於重刷次數聚合顯示）
+// 只計入「已觀看」的場次；持有票券／已退票或轉讓都不算進作品統計。
 function getActorViewCountInWork(d,name){
   if((d.category||'drama')!=='musical') return 0;
   let count=0;
   (d.viewing_history||[]).forEach(h=>{
-    if(!h) return;
+    if(!h || !countsTowardWorks(h)) return;
     const raw=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
     if(castNames(raw).includes(name)) count++;
   });
@@ -2053,6 +2182,23 @@ function renderActorWorksList(list, el, name){
   }).join('');
 }
 
+// 該演員被觀看過的所有場次，加總花費並統一換算成台幣
+// 花費統計包含「已觀看」與「持有票券」，已退票或轉讓的不算是實際花費
+function getActorSpendTWD(name){
+  let total=0;
+  db.forEach(d=>{
+    if((d.category||'drama')!=='musical') return;
+    (d.viewing_history||[]).forEach(h=>{
+      if(!h || !countsTowardSpend(h)) return;
+      const raw=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
+      if(castNames(raw).includes(name)){
+        total += convertToTWD(h.amount,h.currency||'TWD');
+      }
+    });
+  });
+  return total;
+}
+
 function renderActorPage(name){
   const page=document.getElementById('actor-page');
   if(!page) return; // 防呆：頁面容器不存在就不繼續
@@ -2086,6 +2232,8 @@ function renderActorPage(name){
     let html = stat(works.length,'作品總數');
     if(musicalWorks.length) html += stat(musicalCount,'音樂劇累計次數');
     if(dramaWorks.length) html += stat(dramaCount,'電視劇累計次數');
+    const spendTWD=getActorSpendTWD(name);
+    if(spendTWD>0) html += stat('NT$'+Math.round(spendTWD).toLocaleString(),'累計花費（台幣）');
     if(avgRating>0) html += stat('⭐ '+avgRating.toFixed(1),'平均評分');
     summaryEl.innerHTML = html;
   }
@@ -2153,6 +2301,7 @@ function renderActorsTotalList() {
   // Count total shows each actor appears in, across every musical's viewing_history.
   // Cast entries may be plain strings (legacy) or {role,name} objects (current format) — handle both.
   // New records store the pick under viewed_actors; older records used cast — count whichever is present.
+  // 只計入「已觀看」的場次，持有票券／已退票或轉讓不算進作品統計。
   const actorCounts = {};
   musicalActors.forEach(a => { actorCounts[a.name] = 0; });
 
@@ -2160,7 +2309,7 @@ function renderActorsTotalList() {
     if (!item || item.category !== 'musical') return;
     const history = item.viewing_history || [];
     history.forEach(show => {
-      if (!show) return;
+      if (!show || !countsTowardWorks(show)) return;
       const castList = (show.viewed_actors && show.viewed_actors.length) ? show.viewed_actors : show.cast;
       if (!castList) return;
       castList.forEach(c => {
