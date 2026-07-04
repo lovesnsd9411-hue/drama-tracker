@@ -758,7 +758,14 @@ function renderCastGrouped(items, filterable){
 // 用於「新增多刷紀錄」時勾選本場實際觀看的演員，取代原本的純文字輸入。
 function renderCastCheckboxList(items, checkedList){
   if(!items || !items.length) return '';
-  const checkedNames = new Set((checkedList||[]).map(c=>(typeof c==='string')?c:(c&&c.name)).filter(Boolean));
+  // 用「角色＋姓名」組合鍵判斷是否勾選，不能只看姓名——
+  // 同一位演員可能一人分飾多角，這場如果只勾了其中一個角色，
+  // 不能因為同名就連帶把他在另一個角色底下的框也自動勾起來。
+  const checkedKeys = new Set((checkedList||[]).map(c=>{
+    const role = (typeof c==='string') ? '' : (c && c.role || '');
+    const name = (typeof c==='string') ? c : (c && c.name);
+    return name ? role+'\u0001'+name : null;
+  }).filter(Boolean));
   const norm = items.map(c => (typeof c==='string') ? {role:'',name:c} : {role:c.role||'',name:c.name||c});
   const groups=[];
   const roleIndex={};
@@ -773,7 +780,7 @@ function renderCastCheckboxList(items, checkedList){
   });
   return groups.map(g=>{
     const boxes=g.names.map(n=>{
-      const checkedAttr = checkedNames.has(n) ? ' checked' : '';
+      const checkedAttr = checkedKeys.has(g.role+'\u0001'+n) ? ' checked' : '';
       return `<label class="actor-cb"><input type="checkbox" value="${esc(n)}" data-role="${esc(g.role)}"${checkedAttr}> ${esc(n)}</label>`;
     }).join('');
     const header = g.role ? `<div class="cast-role-name">${esc(g.role)}<span class="cast-divider">｜</span></div>` : '';
@@ -793,8 +800,9 @@ function getViewedActorsChecked(){
 //   1. 目前表單填寫的主要演員
 //   2. 這部劇目原本就存的 actors_all／actors
 //   3. 每一場「多刷紀錄」裡記下的 viewed_actors／cast（歷史場次曾記錄過的演員）
-// 依演員姓名去重（同名只留第一次出現的角色標籤），確保每次編輯或新增場次時，
-// 候選名單只會越來越完整，不會遺漏任何曾經記錄過的演員。
+// 去重的識別鍵是「角色＋姓名」的組合，不是姓名單獨一個欄位——
+// 姓名不是這裡的主鍵，一個演員本來就可能同時掛在多個角色底下（一人分飾多角），
+// 只用姓名去重會把同一位演員的第二個角色誤判成「重複」而遺失掉。
 function aggregateActorsAll(newCast, existingRecord){
   const merged=[];
   const seen=new Set();
@@ -802,8 +810,10 @@ function aggregateActorsAll(newCast, existingRecord){
     (list||[]).forEach(c=>{
       if(!c)return;
       const item = (typeof c==='string') ? {role:'',name:c} : {role:c.role||'',name:c.name||''};
-      if(!item.name || seen.has(item.name)) return;
-      seen.add(item.name);
+      if(!item.name) return;
+      const key=item.role+'\u0001'+item.name; // 角色＋姓名 組合鍵
+      if(seen.has(key)) return;
+      seen.add(key);
       merged.push(item);
     });
   };
@@ -2380,13 +2390,16 @@ function normalizeCastValue(raw){
   return text.split(/[,，、]/).map(s=>s.trim()).filter(Boolean).map(name=>({role,name}));
 }
 
-// 正規化整個卡司陣列：攤平＋依姓名去重（同名只留第一次出現的角色標籤）
+// 正規化整個卡司陣列：攤平＋依「角色＋姓名」組合鍵去重
+// （姓名不是主鍵，同一位演員可能一人分飾多角，只用姓名去重會誤刪掉他的其他角色）
 function normalizeCastArray(list){
   const out=[]; const seen=new Set();
   (list||[]).forEach(item=>{
     normalizeCastValue(item).forEach(c=>{
-      if(!c.name || seen.has(c.name)) return;
-      seen.add(c.name);
+      if(!c.name) return;
+      const key=(c.role||'')+'\u0001'+c.name;
+      if(seen.has(key)) return;
+      seen.add(key);
       out.push(c);
     });
   });
