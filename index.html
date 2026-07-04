@@ -50,12 +50,26 @@ input,select,textarea,button{font-family:inherit}
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
-    margin-top: 8px;
 }
-.cast-role-block{margin-bottom:8px}
+.cast-role-block{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .cast-role-block:last-child{margin-bottom:0}
-.cast-role-name{font-weight:700;color:#1A1A2E;font-size:13px}
+.cast-role-name{font-weight:700;color:#1A1A2E;font-size:13px;flex-shrink:0;display:flex;align-items:center}
 .cast-divider{color:#ccc;font-weight:400;margin:0 4px;font-size:13px}
+/* 通用「標籤 + 內容」排版規則：標籤與內容水平對齊，內容過多時往下換行但不會把標籤擠開 */
+.meta-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.meta-row .meta-label{color:#aaa;font-weight:600;flex-shrink:0}
+
+/* 演員詳細頁：全螢幕頁面，預設隱藏，加上 .open 才顯示（用 hash 路由控制） */
+.actor-page{display:none;position:fixed;inset:0;background:#fff;z-index:999;overflow-y:auto}
+.actor-page.open{display:block}
+.actor-page-header{position:sticky;top:0;background:#fff;padding:.75rem 1rem;border-bottom:.5px solid #F0F0F5;z-index:1}
+.actor-page-body{padding:1rem;max-width:760px;margin:0 auto}
+.actor-page-name{font-size:24px;font-weight:700;color:#1A1A2E;margin-top:.25rem}
+.actor-page-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:.6rem}
+.actor-page-summary{display:flex;gap:1.5rem;margin:1.1rem 0;padding:1rem 1.2rem;background:#F8F8FB;border-radius:12px}
+.actor-summary-stat{display:flex;flex-direction:column;gap:2px}
+.actor-summary-num{font-size:20px;font-weight:700;color:#3C3489}
+.actor-summary-label{font-size:12px;color:#888}
 .actor-cb{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:5px 10px;border-radius:20px;border:1px solid #E0E0EE;background:#fff;cursor:pointer;transition:all .15s;user-select:none}
 .actor-cb:hover{border-color:#8B86D4;color:#3C3489}
 .actor-cb input{display:none}
@@ -355,12 +369,11 @@ body.read-only-mode .fav-badge{display:none}
       <label class="genre-cb"><input type="checkbox" value="喜劇"> 喜劇</label>
       <label class="genre-cb"><input type="checkbox" value="古裝"> 古裝</label>
       <label class="genre-cb"><input type="checkbox" value="職場"> 職場</label>
-      <label class="genre-cb"><input type="checkbox" value="醫療"> 醫療</label>
+      <label class="genre-cb"><input type="checkbox" value="年代劇"> 年代劇</label>
       <label class="genre-cb"><input type="checkbox" value="法政"> 法政</label>
       <label class="genre-cb"><input type="checkbox" value="狗血"> 狗血</label>
       <label class="genre-cb"><input type="checkbox" value="青春"> 青春</label>
       <label class="genre-cb"><input type="checkbox" value="驚悚"> 驚悚</label>
-     <label class="genre-cb"><input type="checkbox" value="年代劇"> 年代劇</label>
     </div>
   </div>
   <div class="field">
@@ -539,6 +552,7 @@ async function loadFromCloud(){
   }
   await loadMusicalActors();
   render();
+  handleRoute();
 }
 
 async function loadMusicalActors(){
@@ -679,7 +693,7 @@ function renderCastGrouped(items, filterable){
   });
   return groups.map(g=>{
     const pills=g.names.map(n=>{
-      const click = filterable ? ` onclick="setPerson('${esc(n).replace(/'/g,"\\'")}','actor')" style="cursor:pointer"` : '';
+      const click = filterable ? ` onclick="openActorPage('${esc(n).replace(/'/g,"\\'")}')" style="cursor:pointer"` : '';
       return `<span class="actor-pill"${click}>${esc(n)}</span>`;
     }).join('');
     const header = g.role ? `<div class="cast-role-name">${esc(g.role)}<span class="cast-divider">｜</span></div>` : '';
@@ -690,8 +704,9 @@ function renderCastGrouped(items, filterable){
 // 將候選卡司（該劇目的「主要演員」欄位，即完整候選名單）依角色分組，
 // 渲染成勾選清單：角色名稱（粗體）＋分隔線「｜」＋每位候選演員一個 checkbox 膠囊 (actor-cb)。
 // 用於「新增多刷紀錄」時勾選本場實際觀看的演員，取代原本的純文字輸入。
-function renderCastCheckboxList(items){
+function renderCastCheckboxList(items, checkedList){
   if(!items || !items.length) return '';
+  const checkedNames = new Set((checkedList||[]).map(c=>(typeof c==='string')?c:(c&&c.name)).filter(Boolean));
   const norm = items.map(c => (typeof c==='string') ? {role:'',name:c} : {role:c.role||'',name:c.name||c});
   const groups=[];
   const roleIndex={};
@@ -705,7 +720,10 @@ function renderCastCheckboxList(items){
     }
   });
   return groups.map(g=>{
-    const boxes=g.names.map(n=>`<label class="actor-cb"><input type="checkbox" value="${esc(n)}" data-role="${esc(g.role)}"> ${esc(n)}</label>`).join('');
+    const boxes=g.names.map(n=>{
+      const checkedAttr = checkedNames.has(n) ? ' checked' : '';
+      return `<label class="actor-cb"><input type="checkbox" value="${esc(n)}" data-role="${esc(g.role)}"${checkedAttr}> ${esc(n)}</label>`;
+    }).join('');
     const header = g.role ? `<div class="cast-role-name">${esc(g.role)}<span class="cast-divider">｜</span></div>` : '';
     return `<div class="cast-role-block">${header}<div class="actor-list-container">${boxes}</div></div>`;
   }).join('');
@@ -1191,11 +1209,17 @@ function renderChips(){
   document.getElementById('chips').innerHTML=h;
 }
 
+// 把「演員欄位」正規化成純姓名字串陣列：相容舊版純字串陣列（一般劇集）
+// 與新版 {role,name} 物件陣列（音樂劇），呼叫端不用再各自判斷格式。
+function castNames(list){
+  return (list||[]).map(c=>(typeof c==='string')?c:(c&&c.name)).filter(Boolean);
+}
+
 function getFiltered(){
   const q=(document.getElementById('search').value||'').toLowerCase();
   let list=[...db];
   if(mainCategory) list=list.filter(d=>(d.category||'drama')===mainCategory);
-  if(q) list=list.filter(d=>[d.name,d.orig||'',...(d.actors||[]),...(d.directors||(d.director?[d.director]:[])),...(d.writers||(d.writer?[d.writer]:[]))].join(' ').toLowerCase().includes(q));
+  if(q) list=list.filter(d=>[d.name,d.orig||'',...castNames(d.actors),...(d.directors||(d.director?[d.director]:[])),...(d.writers||(d.writer?[d.writer]:[]))].join(' ').toLowerCase().includes(q));
   if(aFilter.type==='status') list=list.filter(d=>d.status===aFilter.val);
   else if(aFilter.type==='year') list=list.filter(d=>d.yearDone===aFilter.val);
   else if(aFilter.type==='genre') list=list.filter(d=>{
@@ -1205,7 +1229,7 @@ function getFiltered(){
   else if(aFilter.type==='platform') list=list.filter(d=>d.platform===aFilter.val);
   else if(aFilter.type==='rating') list=list.filter(d=>parseFloat(d.rating||0)===parseFloat(aFilter.val));
   if(pFilter){
-    if(pFilter.role==='actor') list=list.filter(d=>(d.actors||[]).includes(pFilter.name));
+    if(pFilter.role==='actor') list=list.filter(d=>castNames(d.actors).includes(pFilter.name));
     else if(pFilter.role==='director') list=list.filter(d=>(d.directors&&d.directors.length?d.directors:(d.director?[d.director]:[])).includes(pFilter.name));
     else if(pFilter.role==='writer') list=list.filter(d=>(d.writers&&d.writers.length?d.writers:(d.writer?[d.writer]:[])).includes(pFilter.name));
   }
@@ -1390,7 +1414,7 @@ function renderMusicalDetail(d){
         ? renderCastGrouped(d.actors, true)
         : '<div style="font-size:12px; color:#aaa;">尚無主要演員資料</div>'}
     </div>
-    <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between">
+    <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
       <span>多刷紀錄（共 ${totalShows} 場${totalSpent>0?' · 共花費 '+totalSpent.toLocaleString():''}）</span>
       ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
     </div>
@@ -1415,19 +1439,26 @@ function renderMusicalTimeline(history,dramaId){
           </div>
           <div style="text-align:right;flex-shrink:0">
             ${h.amount?`<div style="font-weight:700;color:#D97706;white-space:nowrap">$${parseFloat(h.amount).toLocaleString()}</div>`:''}
-            ${isReadOnly?'':`<button class="icon-btn" onclick="deleteShow('${dramaId}','${h.id}')" style="margin-top:4px;padding:3px 5px;font-size:11px"><i class="ti ti-trash"></i></button>`}
+            ${isReadOnly?'':`<div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px">
+              <button class="icon-btn" onclick="openAddShowForm('${dramaId}','${h.id}')" style="padding:3px 5px;font-size:11px"><i class="ti ti-pencil"></i></button>
+              <button class="icon-btn" onclick="deleteShow('${dramaId}','${h.id}')" style="padding:3px 5px;font-size:11px"><i class="ti ti-trash"></i></button>
+            </div>`}
           </div>
         </div>
       </div>`).join('')}
   </div>`;
 }
 
-async function openAddShowForm(dramaId){
+async function openAddShowForm(dramaId, editShowId){
   if(isReadOnly)return;
   const d=db.find(x=>x.id===dramaId);
   if(!d)return;
   const wrap=document.getElementById('musical-add-show-wrap');
   if(!wrap)return; // 防呆：容器不存在就不繼續（例如頁面結構被改過）
+
+  // 編輯模式：找出原始場次紀錄，等等把資料回填進表單
+  const existingShow = editShowId ? (d.viewing_history||[]).find(h=>h.id===editShowId) : null;
+  const existingCast = existingShow ? ((existingShow.viewed_actors&&existingShow.viewed_actors.length)?existingShow.viewed_actors:existingShow.cast) : [];
 
   // 候選卡司優先讀 actors_all（自動彙整的完整名單），舊資料若還沒有這個欄位就退回 actors
   const roster = (d.actors_all && d.actors_all.length) ? d.actors_all : (d.actors||[]);
@@ -1437,7 +1468,7 @@ async function openAddShowForm(dramaId){
   const castFieldHtml = hasRoster
     ? `<div class="field">
         <label>本次卡司（勾選本場實際觀看的演員）</label>
-        <div id="show-viewed-actors-wrap">${renderCastCheckboxList(roster)}</div>
+        <div id="show-viewed-actors-wrap">${renderCastCheckboxList(roster, existingCast)}</div>
       </div>`
     : `<div class="field">
         <label>卡司（此劇尚未設定「主要演員」候選名單，暫用文字輸入；可先在編輯劇目視窗建立候選名單，之後就能直接勾選）</label>
@@ -1453,7 +1484,13 @@ async function openAddShowForm(dramaId){
     <div style="background:#fff;border:1px solid #E5E5F0;border-radius:12px;padding:1rem;margin-bottom:1rem">
       <div class="row2">
         <div class="field"><label>觀看日期</label><input type="date" id="show-date"></div>
-        <div class="field"><label>時間（可選）</label><input type="text" id="show-time" placeholder="例：14:00 / 晚場"></div>
+        <div class="field"><label>場次</label>
+          <select id="show-time">
+            <option value="">未指定</option>
+            <option value="午場">午場</option>
+            <option value="晚場">晚場</option>
+          </select>
+        </div>
       </div>
       ${castFieldHtml}
       <div class="row2">
@@ -1461,19 +1498,33 @@ async function openAddShowForm(dramaId){
         <div class="field"><label>活動（可選）</label><input type="text" id="show-note" placeholder="例：謝幕拍照、簽名會"></div>
       </div>
       <div class="mfooter" style="margin-top:.5rem">
-        <button class="icon-btn" onclick="document.getElementById('musical-add-show-wrap').innerHTML=''">取消</button>
-        <button class="btn-primary" onclick="saveShow('${dramaId}')">儲存場次</button>
+        <button class="icon-btn" onclick="closeAddShowForm()">取消</button>
+        <button class="btn-primary" onclick="saveShow('${dramaId}'${editShowId?`,'${editShowId}'`:''})">${existingShow?'更新場次':'儲存場次'}</button>
       </div>
     </div>`;
 
-  if(!hasRoster) initCastTagInput('show', []);
+  if(!hasRoster) initCastTagInput('show', existingCast);
+
+  // 編輯模式：回填日期／場次／金額／活動筆記
+  if(existingShow){
+    setFieldVal('show-date', existingShow.date||'');
+    setFieldVal('show-time', existingShow.time||'');
+    setFieldVal('show-amount', existingShow.amount!=null?String(existingShow.amount):'');
+    setFieldVal('show-note', existingShow.note||'');
+  }
+}
+
+// 關閉「新增／編輯場次」表單（供取消按鈕與儲存完成後共用，容器不存在時安全跳過）
+function closeAddShowForm(){
+  const wrap=document.getElementById('musical-add-show-wrap');
+  if(wrap) wrap.innerHTML='';
 }
 
 // 1. 這是負責顯示演員晶片的函式 (已修復偵測機制)
 // (manualFetchActors removed — replaced by the cast tag-input system below,
 //  which reads directly from musicalActors instead of scraping the DOM)
 
-async function saveShow(dramaId) {
+async function saveShow(dramaId, editShowId) {
   if(isReadOnly)return;
   const d = db.find(x => x.id === dramaId);
   if (!d) return;
@@ -1481,7 +1532,7 @@ async function saveShow(dramaId) {
   const date = fieldVal('show-date');
   if(!date){alert('請選擇觀看日期');return}
 
-  const time = fieldVal('show-time').trim();
+  const time = fieldVal('show-time');
   const amount = fieldVal('show-amount').trim();
   const note = fieldVal('show-note').trim();
 
@@ -1491,24 +1542,37 @@ async function saveShow(dramaId) {
   const viewed_actors = checkboxWrap ? getViewedActorsChecked() : getCastChipsData('show');
 
   if (!d.viewing_history) d.viewing_history = [];
-  d.viewing_history.push({
-    id: uid(),
-    date,
-    time,
-    viewed_actors,
-    amount: amount ? parseFloat(amount) : null,
-    note
-  });
 
-  // 若這場是用文字輸入新增的（表示候選名單裡還沒有這些人），把新名字併回 actors_all，
+  if(editShowId){
+    // 編輯模式：更新既有那一筆場次紀錄，不新增
+    const idx = d.viewing_history.findIndex(h=>h.id===editShowId);
+    if(idx>-1){
+      d.viewing_history[idx] = {
+        ...d.viewing_history[idx],
+        date, time, viewed_actors,
+        amount: amount ? parseFloat(amount) : null,
+        note
+      };
+    }
+  }else{
+    d.viewing_history.push({
+      id: uid(),
+      date,
+      time,
+      viewed_actors,
+      amount: amount ? parseFloat(amount) : null,
+      note
+    });
+  }
+
+  // 若這場是用文字輸入新增/編輯的（表示候選名單裡還沒有這些人），把新名字併回 actors_all，
   // 下次「新增多刷紀錄」時就能直接勾選，不用再手動打字。
   if(!checkboxWrap && viewed_actors.length){
     d.actors_all = aggregateActorsAll(viewed_actors, d);
   }
 
   save();
-  const wrap=document.getElementById('musical-add-show-wrap');
-  if(wrap) wrap.innerHTML = '';
+  closeAddShowForm();
   openDetail(dramaId); // re-render detail with updated timeline, no full page reload needed
 }
 
@@ -1546,7 +1610,7 @@ function openDetail(id){
     d.actors.forEach(actor=>{
       const others=db.filter(x=>x.id!==id&&x.actors&&x.actors.includes(actor));
       if(others.length){
-        blocks.push(`<div style="margin-bottom:.4rem"><span class="ppill" onclick="setPerson('${esc(actor)}','actor')" style="margin:0 4px 0 0">${esc(actor)}</span><span style="font-size:12px;color:#999">其他作品：</span>${others.map(x=>`<span class="cpill" onclick="closeModal('detail-modal');openDetail('${x.id}')">${esc(x.name)}</span>`).join('')}</div>`);
+        blocks.push(`<div style="margin-bottom:.4rem"><span class="ppill" onclick="openActorPage('${esc(actor)}')" style="margin:0 4px 0 0">${esc(actor)}</span><span style="font-size:12px;color:#999">其他作品：</span>${others.map(x=>`<span class="cpill" onclick="closeModal('detail-modal');openDetail('${x.id}')">${esc(x.name)}</span>`).join('')}</div>`);
       }
     });
     if(blocks.length) relActors=`<div class="sec-title">演員的其他作品</div>${blocks.join('')}`;
@@ -1592,15 +1656,15 @@ function openDetail(id){
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem 1rem;font-size:13px;margin-bottom:1rem">
-      ${d.platform?`<div><span style="color:#aaa;font-weight:600">平台</span><br><span style="font-weight:500">${esc(d.platform)}</span></div>`:''}
-      ${d.airDate?`<div><span style="color:#aaa;font-weight:600">首播日期</span><br><span style="font-weight:500">${d.airDate}</span></div>`:''}
-      ${d.yearDone?`<div><span style="color:#aaa;font-weight:600">看完年度</span><br><span style="font-weight:500">${d.yearDone}年</span></div>`:''}
+      ${d.platform?`<div class="meta-row"><span class="meta-label">平台</span><span style="font-weight:500">${esc(d.platform)}</span></div>`:''}
+      ${d.airDate?`<div class="meta-row"><span class="meta-label">首播日期</span><span style="font-weight:500">${d.airDate}</span></div>`:''}
+      ${d.yearDone?`<div class="meta-row"><span class="meta-label">看完年度</span><span style="font-weight:500">${d.yearDone}年</span></div>`:''}
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem 1.5rem;font-size:13px;margin-bottom:1rem">
-      ${dDirectors.length?`<div><span style="color:#aaa;font-weight:600">導演</span><br>${dDirectors.map(p=>`<span class="ppill" onclick="setPerson('${esc(p)}','director')">${esc(p)} 🔍</span>`).join('')}</div>`:''}
-      ${dWriters.length?`<div><span style="color:#aaa;font-weight:600">編劇</span><br>${dWriters.map(p=>`<span class="ppill" onclick="setPerson('${esc(p)}','writer')">${esc(p)} 🔍</span>`).join('')}</div>`:''}
+      ${dDirectors.length?`<div class="meta-row"><span class="meta-label">導演</span>${dDirectors.map(p=>`<span class="ppill" onclick="setPerson('${esc(p)}','director')">${esc(p)} 🔍</span>`).join('')}</div>`:''}
+      ${dWriters.length?`<div class="meta-row"><span class="meta-label">編劇</span>${dWriters.map(p=>`<span class="ppill" onclick="setPerson('${esc(p)}','writer')">${esc(p)} 🔍</span>`).join('')}</div>`:''}
     </div>
-    ${d.actors&&d.actors.length?`<div style="margin-bottom:1rem"><div style="font-size:12px;color:#aaa;font-weight:600;margin-bottom:.35rem">主角</div><div>${d.actors.map(a=>`<span class="ppill" onclick="setPerson('${esc(a)}','actor')">${esc(a)} 🔍</span>`).join('')}</div></div>`:''}
+    ${d.actors&&d.actors.length?`<div class="meta-row" style="margin-bottom:1rem"><span class="meta-label" style="font-size:12px">主角</span>${d.actors.map(a=>`<span class="ppill" onclick="openActorPage('${esc(a)}')">${esc(a)} 🔍</span>`).join('')}</div>`:''}
     ${d.note?`<div style="background:#F8F8FB;border-radius:12px;padding:.85rem;font-size:13px;line-height:1.7;margin-bottom:1rem;font-weight:500;color:#444">${esc(d.note)}</div>`:''}
     ${rel}`;
   document.getElementById('det-edit').onclick=()=>{closeModal('detail-modal');openEdit(id)};
@@ -1893,6 +1957,7 @@ if(shareMode==='expired'){
     try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
     if(!db.length) seedData();
     render();
+    handleRoute();
   }
 
   if('serviceWorker' in navigator){
@@ -1901,6 +1966,156 @@ if(shareMode==='expired'){
     });
   }
 }
+// ==========================================
+// 🧑‍🎤 演員詳細頁：路由與框架
+// 路由方式：hash-based（#actor/演員姓名），支援瀏覽器上一頁/下一頁、重新整理後仍停留在該頁。
+// ==========================================
+
+// 判斷某部作品是否算這位演員的作品：
+// 一般劇集只看 actors；音樂劇則額外涵蓋 actors_all（候選名單）與每場實際紀錄的卡司，
+// 確保只在某幾場被記錄過、但沒被列進主要演員的演員，也找得到這部作品。
+function actorAppearsIn(d,name){
+  if((d.category||'drama')!=='musical'){
+    return castNames(d.actors).includes(name);
+  }
+  if(castNames(d.actors).includes(name)) return true;
+  if(castNames(d.actors_all).includes(name)) return true;
+  return (d.viewing_history||[]).some(h=>{
+    if(!h) return false;
+    const raw=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
+    return castNames(raw).includes(name);
+  });
+}
+
+function getActorWorks(name){
+  return db.filter(d=>actorAppearsIn(d,name));
+}
+
+// 該演員在「單一這部作品」裡，被實際記錄觀看過的場次（用於重刷次數聚合顯示）
+function getActorViewCountInWork(d,name){
+  if((d.category||'drama')!=='musical') return 0;
+  let count=0;
+  (d.viewing_history||[]).forEach(h=>{
+    if(!h) return;
+    const raw=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
+    if(castNames(raw).includes(name)) count++;
+  });
+  return count;
+}
+
+// 該演員被實際記錄「觀看過」的音樂劇總場次（沿用人物總表的計算方式）
+function getActorShowCount(name){
+  let total=0;
+  db.forEach(d=>{ total += getActorViewCountInWork(d,name); });
+  return total;
+}
+
+// 導向演員詳細頁：改變 hash，實際渲染交給 hashchange 監聽統一處理
+function openActorPage(name){
+  if(!name) return;
+  closeModal('detail-modal');
+  closeActorsModal();
+  location.hash = 'actor/' + encodeURIComponent(name);
+}
+
+function closeActorPage(){
+  if(location.hash.startsWith('#actor/')) history.back();
+  else{
+    const page=document.getElementById('actor-page');
+    if(page) page.classList.remove('open');
+  }
+}
+
+// 演員詳細頁專用的作品清單渲染：若這位演員在同一部作品被記錄看過不只一次（重刷），
+// 合併顯示為「劇名（N次）」，並把徽章換成「這位演員」的個人場次，而不是全劇總場次
+// （全劇總場次可能包含其他卡司，跟這位演員無關）。
+function renderActorWorksList(list, el, name){
+  el.className='gallery';
+  el.innerHTML = list.map(d=>{
+    const personalCount = getActorViewCountInWork(d,name);
+    const nameLabel = personalCount>1 ? `${esc(d.name)}（${personalCount}次）` : esc(d.name);
+    const badge = d.category==='musical'
+      ? (personalCount>0
+          ? `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> ${personalCount}次</span>`
+          : `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> 候選卡司</span>`)
+      : `<span class="po-badge ${d.status==='done'?'po-done':d.status==='dropped'?'po-dropped':'po-ongoing'}">${d.status==='done'?'看完':d.status==='dropped'?'棄劇':'觀看中'}</span>`;
+    return `
+    <div class="poster-card" onclick="openDetail('${d.id}')">
+      ${d.favorite?`<div class="fav-badge"><i class="ti ti-star-filled"></i></div>`:''}
+      ${d.poster?`<img src="${posterSrc(d)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block" onerror="this.style.display='none';this.parentElement.querySelector('.poster-placeholder').style.display='flex'">`:''}
+      <div class="poster-placeholder" style="display:${d.poster?'none':'flex'}"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(d.name)}</div>${d.orig?`<div class="ph-orig">${esc(d.orig)}</div>`:''}</div>
+      <div class="poster-overlay">
+        <div class="po-name">${nameLabel}</div>
+        <div class="po-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):''}</div>
+        ${badge}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderActorPage(name){
+  const page=document.getElementById('actor-page');
+  if(!page) return; // 防呆：頁面容器不存在就不繼續
+
+  const works=getActorWorks(name);
+  const categories=[...new Set(works.map(w=>w.category||'drama'))];
+  const musicalWorks=works.filter(w=>(w.category||'drama')==='musical');
+  const dramaWorks=works.filter(w=>(w.category||'drama')!=='musical');
+  // 音樂劇累計次數：加總這位演員在每一部音樂劇裡被記錄觀看的場次（含重刷）
+  const musicalCount=getActorShowCount(name);
+  // 電視劇累計次數：電視劇沒有「多刷場次」的概念，累計次數＝符合條件（此演員參演）的劇集數
+  const dramaCount=dramaWorks.length;
+  const ratedWorks=works.filter(w=>w.rating&&w.rating>0);
+  const avgRating=ratedWorks.length ? (ratedWorks.reduce((s,w)=>s+parseFloat(w.rating),0)/ratedWorks.length) : 0;
+
+  const nameEl=document.getElementById('actor-page-name');
+  if(nameEl) nameEl.textContent = name;
+
+  const tagsEl=document.getElementById('actor-page-tags');
+  if(tagsEl){
+    tagsEl.innerHTML = categories.map(c=>
+      c==='musical'
+        ? `<span class="badge" style="background:#EEEDFE;color:#3C3489"><i class="ti ti-music" style="font-size:11px;margin-right:3px"></i>音樂劇</span>`
+        : `<span class="badge" style="background:#F5F5FA;color:#666"><i class="ti ti-device-tv" style="font-size:11px;margin-right:3px"></i>影劇</span>`
+    ).join('');
+  }
+
+  const summaryEl=document.getElementById('actor-page-summary');
+  if(summaryEl){
+    const stat=(num,label)=>`<div class="actor-summary-stat"><span class="actor-summary-num">${num}</span><span class="actor-summary-label">${label}</span></div>`;
+    let html = stat(works.length,'作品總數');
+    if(musicalWorks.length) html += stat(musicalCount,'音樂劇累計次數');
+    if(dramaWorks.length) html += stat(dramaCount,'電視劇累計次數');
+    if(avgRating>0) html += stat('⭐ '+avgRating.toFixed(1),'平均評分');
+    summaryEl.innerHTML = html;
+  }
+
+  const worksEl=document.getElementById('actor-page-works');
+  if(worksEl){
+    if(works.length){
+      renderActorWorksList(works, worksEl, name);
+    }else{
+      worksEl.className='';
+      worksEl.innerHTML='<p style="color:#999;font-size:13px;padding:10px 0">目前沒有這位演員的作品紀錄</p>';
+    }
+  }
+
+  page.classList.add('open');
+}
+
+// 統一的路由處理：解析目前的 hash，決定要不要顯示演員詳細頁
+function handleRoute(){
+  const hash=location.hash||'';
+  const m=hash.match(/^#actor\/(.+)$/);
+  const page=document.getElementById('actor-page');
+  if(m){
+    renderActorPage(decodeURIComponent(m[1]));
+  }else if(page){
+    page.classList.remove('open');
+  }
+}
+window.addEventListener('hashchange', handleRoute);
+
 // ==========================================
 // 🎭 人物總表 控制功能
 // ==========================================
@@ -1968,13 +2183,196 @@ function renderActorsTotalList() {
 
     btn.addEventListener('click', () => {
       closeActorsModal();
-      // Use the app's existing actor-filter mechanism (precise array match),
-      // not a simulated text-search input, so the gallery shows exactly this actor's works.
-      setPerson(actor.name, 'actor');
+      // 導向該演員的專屬詳細頁（而不是只在畫廊套用篩選）
+      openActorPage(actor.name);
     });
 
     listContainer.appendChild(btn);
   });
+}
+
+// ════════════════════════════════════════════════════════════════
+// 🧹 演員資料清理（正規化 / 去重 / 觀看場次歸位）
+// 解決「人物總表」晶片格式混亂的問題：舊資料裡的演員欄位可能是
+//   ① 純字串   "演員A"
+//   ② 角色配對 "角色｜演員A" 或 "角色：演員A"（角色黏在名字裡，沒有拆開）
+//   ③ 多人合併 "演員A, 演員B"（好幾個人擠在同一個欄位/同一個 chip）
+// 這一段只做「解析＋預覽」，實際寫回資料要按下預覽視窗裡的「確認套用」才會執行。
+// ════════════════════════════════════════════════════════════════
+
+// 是否為「格式有問題」的原始名稱（含角色分隔符或逗號等，代表尚未正確拆解）
+function isMessyActorName(name){
+  return typeof name==='string' && /[|｜：:,，、]/.test(name);
+}
+
+// 把「一筆」可能混亂的卡司資料（字串或 {role,name} 物件）正規化成
+// 乾淨的 [{role,name}, ...] 陣列——名字只保留「純演員姓名」作為唯一識別鍵，
+// 角色會被拆出來獨立存放；一個欄位裡黏了多個人也會拆成多筆。
+function normalizeCastValue(raw){
+  if(!raw) return [];
+  let role='', text;
+  if(typeof raw==='object'){
+    role=(raw.role||'').trim();
+    text=String(raw.name||'');
+  }else{
+    text=String(raw);
+  }
+  const pipeMatch=text.match(/^(.+?)[|｜](.*)$/);
+  if(pipeMatch){
+    role = role || pipeMatch[1].trim();
+    text = pipeMatch[2];
+  }else{
+    const colonMatch=text.match(/^(.+?)[：:](.*)$/);
+    if(colonMatch){
+      role = role || colonMatch[1].trim();
+      text = colonMatch[2];
+    }
+  }
+  return text.split(/[,，、]/).map(s=>s.trim()).filter(Boolean).map(name=>({role,name}));
+}
+
+// 正規化整個卡司陣列：攤平＋依姓名去重（同名只留第一次出現的角色標籤）
+function normalizeCastArray(list){
+  const out=[]; const seen=new Set();
+  (list||[]).forEach(item=>{
+    normalizeCastValue(item).forEach(c=>{
+      if(!c.name || seen.has(c.name)) return;
+      seen.add(c.name);
+      out.push(c);
+    });
+  });
+  return out;
+}
+
+// 乾跑（dry-run）：不寫入任何資料，只計算「清理前 vs 清理後」的對照結果，供預覽確認。
+// 回傳 { messyEntries, cleanNameCounts, unchangedCount }
+function buildActorsCleanupPlan(){
+  // 清理前：目前 musicalActors 名單裡，凡是格式有問題的，各自要拆成哪些乾淨姓名
+  const messyEntries = musicalActors
+    .filter(a => isMessyActorName(a.name))
+    .map(a => ({ oldName: a.id, oldLabel: a.name, splitInto: normalizeCastValue(a.name).map(c=>c.name) }));
+
+  // 清理後：把整個 db 的卡司欄位（主要演員／候選名單／每場記錄）都正規化，
+  // 用正規化後的資料重新計算每位「乾淨演員姓名」的正確觀看場次總數。
+  const cleanNameCounts = {};
+  const bumpCount = (name) => { cleanNameCounts[name] = (cleanNameCounts[name]||0) + 1; };
+
+  db.forEach(item=>{
+    if(!item || item.category!=='musical') return;
+    (item.viewing_history||[]).forEach(show=>{
+      if(!show) return;
+      const raw = (show.viewed_actors && show.viewed_actors.length) ? show.viewed_actors : show.cast;
+      normalizeCastArray(raw).forEach(c => bumpCount(c.name));
+    });
+  });
+
+  // 沒有任何觀看紀錄、但曾出現在主要演員／候選名單裡的乾淨姓名，也要列進清單（計數 0）
+  const allCleanNames = new Set(Object.keys(cleanNameCounts));
+  musicalActors.forEach(a=>{
+    normalizeCastValue(a.name).forEach(c=>{
+      if(!allCleanNames.has(c.name)){ allCleanNames.add(c.name); cleanNameCounts[c.name]=cleanNameCounts[c.name]||0; }
+    });
+  });
+
+  const unchangedCount = musicalActors.filter(a=>!isMessyActorName(a.name)).length;
+  return { messyEntries, cleanNameCounts, unchangedCount };
+}
+
+function openActorsCleanupPreview(){
+  const bg=document.getElementById('actors-cleanup-modal-bg');
+  const body=document.getElementById('actors-cleanup-body');
+  if(!bg || !body) return; // 防呆：找不到容器就不繼續
+
+  const plan = buildActorsCleanupPlan();
+  window.__actorsCleanupPlan = plan; // 暫存，供「確認套用」使用，避免重複計算
+
+  if(!plan.messyEntries.length){
+    body.innerHTML = `<p style="color:#888;font-size:13px;padding:10px 0">目前沒有偵測到格式混亂的演員資料，不需要清理 🎉</p>`;
+    const confirmBtn=document.getElementById('actors-cleanup-confirm-btn');
+    if(confirmBtn) confirmBtn.style.display='none';
+  }else{
+    const rows = plan.messyEntries.map(m=>{
+      const newNamesHtml = m.splitInto.map(n=>{
+        const c = plan.cleanNameCounts[n]||0;
+        return `<span class="actor-pill">${esc(n)}<span style="color:#8B86D4;font-weight:700">（${c}場）</span></span>`;
+      }).join(' ');
+      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F0F0F5;flex-wrap:wrap">
+        <span style="color:#B91C1C;text-decoration:line-through;font-size:13px;flex-shrink:0">${esc(m.oldLabel)}</span>
+        <span style="color:#ccc">→</span>
+        <div style="display:flex;flex-wrap:wrap;gap:5px">${newNamesHtml}</div>
+      </div>`;
+    }).join('');
+    body.innerHTML = `
+      <p style="font-size:13px;color:#3C3489;font-weight:700;margin-bottom:6px">將拆解 / 修正 ${plan.messyEntries.length} 筆格式錯誤的節點：</p>
+      ${rows}
+      <p style="color:#888;font-size:12px;margin-top:12px">另有 ${plan.unchangedCount} 位演員格式正確，不會被更動。</p>
+    `;
+    const confirmBtn=document.getElementById('actors-cleanup-confirm-btn');
+    if(confirmBtn) confirmBtn.style.display='';
+  }
+  bg.classList.add('open');
+}
+
+function closeActorsCleanupModal(){
+  const bg=document.getElementById('actors-cleanup-modal-bg');
+  if(bg) bg.classList.remove('open');
+}
+
+// 使用者在預覽視窗按下「確認套用」後才會執行：
+// 1) 正規化 db 裡每部音樂劇的 actors / actors_all / 每場 viewing_history 的卡司欄位
+// 2) 把乾淨姓名補進 musicalActors（若尚未存在），並刪除格式錯誤的舊節點
+// 3) save() 寫回 localStorage / Supabase，重新載入名單並重繪畫面
+async function confirmActorsCleanup(){
+  const plan = window.__actorsCleanupPlan;
+  if(!plan){ closeActorsCleanupModal(); return; }
+  const btn=document.getElementById('actors-cleanup-confirm-btn');
+  if(btn){ btn.disabled=true; btn.textContent='套用中…'; }
+
+  // 1) 正規化整個 db 的卡司欄位
+  db.forEach(item=>{
+    if(!item || item.category!=='musical') return;
+    if(item.actors) item.actors = normalizeCastArray(item.actors);
+    if(item.actors_all) item.actors_all = normalizeCastArray(item.actors_all);
+    (item.viewing_history||[]).forEach(show=>{
+      if(!show) return;
+      const raw = (show.viewed_actors && show.viewed_actors.length) ? show.viewed_actors : show.cast;
+      show.viewed_actors = normalizeCastArray(raw);
+    });
+  });
+  save();
+
+  // 2) 補上尚未存在於 musicalActors 的乾淨姓名
+  const cleanNames = Object.keys(plan.cleanNameCounts);
+  for(const name of cleanNames){
+    if(!musicalActors.some(a=>a.name===name)){
+      await addMusicalActor(name);
+    }
+  }
+  // 刪除已經被拆解掉的格式錯誤節點
+  for(const m of plan.messyEntries){
+    await deleteMusicalActorRow(m.oldName);
+  }
+
+  if(sb) await loadMusicalActors();
+  else musicalActors = musicalActors.filter(a=>!isMessyActorName(a.name));
+
+  closeActorsCleanupModal();
+  renderActorsTotalList();
+  if(btn){ btn.disabled=false; btn.textContent='確認套用'; }
+  alert('演員資料清理完成！');
+}
+
+// 刪除單一 musical_actors 節點（用於清掉格式錯誤的舊資料）。
+// 本機模式（沒有連 Supabase）直接從記憶體陣列移除即可。
+async function deleteMusicalActorRow(id){
+  musicalActors = musicalActors.filter(a=>a.id!==id);
+  if(!sb || String(id).startsWith('local-')) return;
+  try{
+    const {error}=await sb.from('musical_actors').delete().eq('id',id);
+    if(error) throw error;
+  }catch(e){
+    console.error('Failed to delete musical actor', id, e);
+  }
 }
 // =========================================================
 // 補回 HTML 結構與閉合標籤
@@ -1993,9 +2391,43 @@ function renderActorsTotalList() {
     <div id="actors-total-list" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 50vh; overflow-y: auto; padding: 5px;">
       </div>
     
-    <div class="mfooter">
+    <div class="mfooter" style="justify-content:space-between">
+      <button class="icon-btn" onclick="openActorsCleanupPreview()" style="color:#B45309;border-color:#F5D9A8"><i class="ti ti-broom"></i> 🧹 清理重複／格式錯誤的演員</button>
       <button class="icon-btn" onclick="closeActorsModal()">關閉</button>
     </div>
+  </div>
+</div>
+
+<!-- 演員資料清理：預覽確認用的對照表 modal。只有按下「確認套用」才會真的寫入資料，
+     單純打開預覽不會動到任何資料。 -->
+<div id="actors-cleanup-modal-bg" class="modal-bg">
+  <div class="modal" style="width: min(680px, 95vw);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem;">
+      <h3 class="modal-title" style="margin-bottom: 0;">🧹 演員資料清理預覽</h3>
+      <button onclick="closeActorsCleanupModal()" style="background: none; border: none; cursor: pointer; font-size: 20px; color: #888;">×</button>
+    </div>
+    <p style="color:#888;font-size:12px;margin-top:-8px;margin-bottom:12px">
+      這只是預覽，尚未寫入任何資料。確認名單無誤後再按下方「確認套用」。
+    </p>
+    <div id="actors-cleanup-body" style="max-height:60vh;overflow-y:auto"></div>
+    <div class="mfooter">
+      <button class="icon-btn" onclick="closeActorsCleanupModal()">取消</button>
+      <button class="btn-primary" id="actors-cleanup-confirm-btn" onclick="confirmActorsCleanup()">確認套用</button>
+    </div>
+  </div>
+</div>
+
+<!-- 演員詳細頁：透過 #actor/<姓名> 路由開啟，涵蓋整個畫面，用「返回」取代一般 modal 的關閉 X -->
+<div id="actor-page" class="actor-page">
+  <div class="actor-page-header">
+    <button class="icon-btn" onclick="closeActorPage()"><i class="ti ti-arrow-left"></i> 返回</button>
+  </div>
+  <div class="actor-page-body">
+    <div class="actor-page-name" id="actor-page-name"></div>
+    <div class="actor-page-tags" id="actor-page-tags"></div>
+    <div class="actor-page-summary" id="actor-page-summary"></div>
+    <div class="sec-title" style="margin-top:1.5rem">作品列表</div>
+    <div id="actor-page-works"></div>
   </div>
 </div>
 
