@@ -1599,8 +1599,15 @@ async function openAddShowForm(dramaId, editShowId){
   const existingShow = editShowId ? (d.viewing_history||[]).find(h=>h.id===editShowId) : null;
   const existingCast = existingShow ? ((existingShow.viewed_actors&&existingShow.viewed_actors.length)?existingShow.viewed_actors:existingShow.cast) : [];
 
-  // 候選卡司優先讀 actors_all（自動彙整的完整名單），舊資料若還沒有這個欄位就退回 actors
-  const roster = (d.actors_all && d.actors_all.length) ? d.actors_all : (d.actors||[]);
+  // 候選卡司：每次打開都用「主要演員 ∪ 舊 actors_all ∪ 所有歷史場次」重新彙整一次，
+  // 不要只信任舊的 actors_all 快取——如果這部劇目的 actors_all 是在修正「一人分飾多角」
+  // 去重 bug 之前就存檔的，裡面可能漏掉了某些角色（同名演員的第二個角色）。
+  // 這裡重新彙整可以自動補回漏掉的資料，並直接存回去，一勞永逸修好舊資料。
+  const roster = aggregateActorsAll(d.actors, d);
+  if(JSON.stringify(roster)!==JSON.stringify(d.actors_all||[])){
+    d.actors_all = roster;
+    save();
+  }
   const hasRoster = roster.length>0;
   if(!hasRoster && musicalActors.length===0) await loadMusicalActors();
 
