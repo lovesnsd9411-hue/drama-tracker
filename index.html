@@ -81,6 +81,13 @@ input,select,textarea,button{font-family:inherit}
 .show-status-watched{background:#E7F6F0;color:#0F6E56}
 .show-status-ticketed{background:#EAF1FE;color:#2563A8}
 .show-status-refunded{background:#F2F2F5;color:#999;text-decoration:line-through}
+
+/* 多刷紀錄卡司晶片：角色＋演員合併成一個晶片，並排＋自動換行，比原本的區塊排版省垂直空間 */
+.cast-chip-row{display:flex;flex-wrap:wrap;gap:6px}
+.cast-chip{display:inline-flex;align-items:center;max-width:100%;background:#F3F2FC;border-radius:14px;padding:3px 10px 3px 10px;font-size:12px;line-height:1.5}
+.cast-chip-role{font-weight:700;color:#3C3489;max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:1}
+.cast-chip-sep{color:#B7B2E8;margin:0 4px;flex-shrink:0}
+.cast-chip-actor{color:#1A1A2E;font-weight:500;white-space:nowrap;flex-shrink:0}
  .badge {
     display: inline-block;
     padding: 2px 8px;
@@ -751,6 +758,20 @@ function renderCastGrouped(items, filterable){
     const header = g.role ? `<div class="cast-role-name">${esc(g.role)}<span class="cast-divider">｜</span></div>` : '';
     return `<div class="cast-role-block">${header}<div class="actor-list-container">${pills}</div></div>`;
   }).join('');
+}
+
+// 多刷紀錄專用的卡司排版：不用「角色標題＋演員列表」的區塊排版（每個角色各佔一整行，太佔垂直空間），
+// 改成「角色｜演員」合併成一個晶片，所有晶片平鋪在同一個 flex-wrap 容器裡並排、自動換行。
+// 角色名稱過長時用 CSS 截斷＋title 提示完整文字，避免撐爆晶片、也不會犧牲可讀性。
+function renderCastChipsInline(items, filterable){
+  if(!items || !items.length) return '';
+  const norm = items.map(c => (typeof c==='string') ? {role:'',name:c} : {role:c.role||'',name:c.name||c});
+  const chips = norm.filter(c=>c.name).map(c=>{
+    const click = filterable ? ` onclick="openActorPage('${esc(c.name).replace(/'/g,"\\'")}')" style="cursor:pointer"` : '';
+    const roleHtml = c.role ? `<span class="cast-chip-role" title="${esc(c.role)}">${esc(c.role)}</span><span class="cast-chip-sep">｜</span>` : '';
+    return `<span class="cast-chip"${click}>${roleHtml}<span class="cast-chip-actor">${esc(c.name)}</span></span>`;
+  }).join('');
+  return `<div class="cast-chip-row">${chips}</div>`;
 }
 
 // 將候選卡司（該劇目的「主要演員」欄位，即完整候選名單）依角色分組，
@@ -1551,7 +1572,7 @@ function renderMusicalTimeline(history,dramaId){
             <div style="font-weight:700;color:#1A1A2E">${esc(h.date||'')}${h.time?' '+esc(h.time):''}</div>
             <span class="show-status-badge ${showStatusClass(status)}">${esc(status)}</span>
             ${(()=>{const castData=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
-              return castData&&castData.length?`<div style="margin-top:6px">${renderCastGrouped(castData,false)}</div>`:'';})()}
+              return castData&&castData.length?`<div style="margin-top:6px">${renderCastChipsInline(castData,false)}</div>`:'';})()}
             ${h.note?`<div style="margin-top:6px;color:#888;font-size:12px">${esc(h.note)}</div>`:''}
           </div>
           <div style="text-align:right;flex-shrink:0">
