@@ -75,8 +75,10 @@ input,select,textarea,button{font-family:inherit}
 .actors-search-bar{display:flex;gap:8px;margin-top:.6rem}
 .actors-search-bar input{flex:1;padding:.6rem .9rem;border:1px solid #E0E0EE;border-radius:12px;font-size:14px}
 .actors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;padding:1rem;max-width:1100px;margin:0 auto}
-.actor-grid-card{background:#F8F8FB;border:1px solid #EFEFF5;border-radius:14px;padding:.9rem .8rem;text-align:center;cursor:pointer;transition:all .15s}
+.actor-grid-card{background:#F8F8FB;border:1px solid #EFEFF5;border-radius:14px;padding:.9rem .8rem;text-align:center;cursor:pointer;transition:all .15s;position:relative}
 .actor-grid-card:hover{border-color:#AFA9EC;background:#F3F2FC}
+.agc-delete{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:#fff;color:#B91C1C;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);opacity:.7}
+.agc-delete:hover{opacity:1;background:#FEE2E2}
 .actor-grid-card .agc-name{font-weight:700;color:#1A1A2E;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .actor-grid-card .agc-count{font-size:12px;color:#8B86D4;font-weight:600;margin-top:4px}
 
@@ -802,25 +804,14 @@ function renderCastCheckboxList(items, checkedList){
     return name ? role+'\u0001'+name : null;
   }).filter(Boolean));
   const norm = items.map(c => (typeof c==='string') ? {role:'',name:c} : {role:c.role||'',name:c.name||c});
-  const groups=[];
-  const roleIndex={};
-  norm.forEach(c=>{
-    if(!c.name)return;
-    if(c.role && roleIndex.hasOwnProperty(c.role)){
-      groups[roleIndex[c.role]].names.push(c.name);
-    }else{
-      if(c.role) roleIndex[c.role]=groups.length;
-      groups.push({role:c.role,names:[c.name]});
-    }
-  });
-  return groups.map(g=>{
-    const boxes=g.names.map(n=>{
-      const checkedAttr = checkedKeys.has(g.role+'\u0001'+n) ? ' checked' : '';
-      return `<label class="actor-cb"><input type="checkbox" value="${esc(n)}" data-role="${esc(g.role)}"${checkedAttr}> ${esc(n)}</label>`;
-    }).join('');
-    const header = g.role ? `<div class="cast-role-name">${esc(g.role)}<span class="cast-divider">｜</span></div>` : '';
-    return `<div class="cast-role-block">${header}<div class="actor-list-container">${boxes}</div></div>`;
+  // 不再依角色分組成一整塊區塊（太佔垂直空間）——每位候選演員一張「角色｜演員」合併晶片，
+  // 全部平鋪在同一個 flex-wrap 容器裡並排顯示，跟多刷紀錄的卡司晶片是同一套排版邏輯。
+  const boxes = norm.filter(c=>c.name).map(c=>{
+    const checkedAttr = checkedKeys.has(c.role+'\u0001'+c.name) ? ' checked' : '';
+    const roleHtml = c.role ? `<span class="cast-chip-role" title="${esc(c.role)}">${esc(c.role)}</span><span class="cast-chip-sep">｜</span>` : '';
+    return `<label class="actor-cb">${roleHtml}<input type="checkbox" value="${esc(c.name)}" data-role="${esc(c.role)}"${checkedAttr}>${esc(c.name)}</label>`;
   }).join('');
+  return `<div class="cast-chip-row">${boxes}</div>`;
 }
 
 // 讀取「新增多刷紀錄」勾選清單中，目前被勾選的候選演員，回傳 [{role,name}]
@@ -2373,7 +2364,7 @@ function getFilteredActorsList(){
       // 分類篩選：看這位演員的作品裡有沒有符合分類的紀錄
       return getActorWorks(a.name).some(w=>(w.category||'drama')===actorsCategoryFilter);
     })
-    .map(a=>({name:a.name,count:actorCounts[a.name]||0}))
+    .map(a=>({id:a.id,name:a.name,count:actorCounts[a.name]||0}))
     .sort((a,b)=>a.name.localeCompare(b.name,'ko'));
 }
 
@@ -2414,10 +2405,46 @@ function renderActorsGrid(){
 
   grid.innerHTML=list.map(a=>`
     <div class="actor-grid-card" onclick="openActorPage('${esc(a.name).replace(/'/g,"\\'")}')">
+      <button class="agc-delete" title="刪除這個演員節點" onclick="event.stopPropagation();deleteActorNode('${esc(a.id).replace(/'/g,"\\'")}','${esc(a.name).replace(/'/g,"\\'")}')"><i class="ti ti-x"></i></button>
       <div class="agc-name">🎭 ${esc(a.name)}</div>
       <div class="agc-count">${a.count} 場</div>
     </div>
   `).join('');
+}
+
+// 直接從人物總表刪除單一演員節點（不用跑整個批次清理流程）。
+// 如果這個名字其實是某個乾淨姓名的髒版本（例如「박준휘[3]」→「박준휘」），
+// 會先把資料庫裡所有引用到它的場次記錄正規化、轉移到乾淨姓名下，確保場次數字不會憑空消失，
+// 再刪除這個節點。如果本來就救不回一個像樣的姓名（例如破損的「ㄷ」），就直接刪除。
+async function deleteActorNode(id,name){
+  const cleanNames=normalizeCastValue(name).map(c=>c.name);
+  const isRecoverable = cleanNames.length>0 && !(cleanNames.length===1 && cleanNames[0]===name);
+
+  const confirmMsg = isRecoverable
+    ? `即將刪除「${name}」，並將其場次記錄轉移到「${cleanNames.join('、')}」，確定嗎？`
+    : `即將直接刪除「${name}」這個演員節點（無法辨識出有效姓名，此操作無法復原），確定嗎？`;
+  if(!confirm(confirmMsg)) return;
+
+  if(isRecoverable){
+    db.forEach(item=>{
+      if(!item || item.category!=='musical') return;
+      if(item.actors) item.actors=normalizeCastArray(item.actors);
+      if(item.actors_all) item.actors_all=normalizeCastArray(item.actors_all);
+      (item.viewing_history||[]).forEach(show=>{
+        if(!show) return;
+        const raw=(show.viewed_actors&&show.viewed_actors.length)?show.viewed_actors:show.cast;
+        show.viewed_actors=normalizeCastArray(raw);
+      });
+    });
+    save();
+    for(const n of cleanNames){
+      if(!musicalActors.some(a=>a.name===n)) await addMusicalActor(n);
+    }
+  }
+
+  await deleteMusicalActorRow(id);
+  if(sb) await loadMusicalActors();
+  renderActorsGrid();
 }
 
 // 打開人物總表頁面：導向 hash 後由 handleRoute() 統一呼叫這裡把畫面渲染出來
