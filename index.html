@@ -2685,8 +2685,8 @@ async function deleteMusicalActorRow(id){
 
 <!-- 演員懸浮卡片：透過 #actor/<姓名> 路由開啟，半透明遮罩疊在人物總表頁面上方；
      點擊遮罩背景或關閉鈕會回到人物總表頁面（而不是離開整個 app）。 -->
-<div id="actor-card-bg" class="actor-card-bg">
-  <div class="actor-card">
+<div id="actor-card-bg" class="actor-card-bg" onclick="closeActorPage()">
+  <div class="actor-card" onclick="event.stopPropagation()">
     <button onclick="closeActorPage()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;cursor:pointer;font-size:22px;color:#888">×</button>
     <div class="actor-page-name" id="actor-page-name"></div>
     <div class="actor-page-tags" id="actor-page-tags"></div>
