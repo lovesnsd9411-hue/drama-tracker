@@ -2387,21 +2387,37 @@ function renderActorsTotalList() {
 // 這一段只做「解析＋預覽」，實際寫回資料要按下預覽視窗裡的「確認套用」才會執行。
 // ════════════════════════════════════════════════════════════════
 
-// 是否為「格式有問題」的原始名稱（含角色分隔符或逗號等，代表尚未正確拆解）
-// 是否為「格式有問題」的原始名稱：含角色分隔符（代表尚未拆開），
-// 或名字尾巴黏著像「[3]」「(1)」這種註腳/編號標記（常見於從維基之類的來源複製貼上時夾帶的引用編號）。
-const FOOTNOTE_SUFFIX_RE=/[\[（(]\s*\d+\s*[\]）)]\s*$/;
-function isMessyActorName(name){
-  return typeof name==='string' && (/[|｜：:,，、]/.test(name) || FOOTNOTE_SUFFIX_RE.test(name));
+// 合法姓名格式：純文字姓名（可含空白），最後可以選擇性加上「(數字)」做同名區分
+// 例如「이석준(99)」代表「第 99 號的이석준」，用來區分同名不同人，這個格式視為合法、不清理。
+// 除此之外的任何符號（方括號、冒號、逗號、豎線…）都視為格式異常；
+// 姓名本體長度小於 2（例如殘破的單一字母/注音）也視為異常，因為不可能是完整的人名。
+const VALID_NAME_RE=/^[\p{L}\p{M}\s]+(\(\d+\))?$/u;
+function isValidActorName(name){
+  if(typeof name!=='string') return false;
+  const trimmed=name.trim();
+  if(!trimmed) return false;
+  if(!VALID_NAME_RE.test(trimmed)) return false;
+  const base=trimmed.replace(/\(\d+\)$/,'').trim();
+  return base.length>=2;
 }
-// 去掉姓名尾巴的註腳/編號標記，例如「박준휘[3]」→「박준휘」
-function stripFootnoteSuffix(name){
-  return String(name||'').replace(FOOTNOTE_SUFFIX_RE,'').trim();
+function isMessyActorName(name){
+  return !isValidActorName(name);
+}
+// 嘗試把一個原始姓名字串清理成合法格式：本來就合法（含「姓名(數字)」同名區分格式）就直接保留；
+// 否則試著去掉尾端的括號／方括號標記（例如「박준휘[3]」→「박준휘」）再檢查一次；
+// 如果清完還是不合法（代表本來就是殘破資料，救不回來），回傳空字串，呼叫端會濾掉、不留垃圾節點。
+function cleanActorName(raw){
+  const s=String(raw||'').trim();
+  if(isValidActorName(s)) return s;
+  const stripped=s.replace(/[\[\(（【][^\]\)）】]*[\]\)）】]\s*$/,'').trim();
+  if(isValidActorName(stripped)) return stripped;
+  return '';
 }
 
 // 把「一筆」可能混亂的卡司資料（字串或 {role,name} 物件）正規化成
 // 乾淨的 [{role,name}, ...] 陣列——名字只保留「純演員姓名」作為唯一識別鍵，
-// 角色會被拆出來獨立存放；一個欄位裡黏了多個人也會拆成多筆；姓名尾巴的註腳編號也會被去掉。
+// 角色會被拆出來獨立存放；一個欄位裡黏了多個人也會拆成多筆；不合法的姓名格式（非「姓名」或「姓名(數字)」）
+// 會嘗試去掉尾端括號標記後再檢查一次，仍救不回來的（例如殘破的單一字元）會被直接濾掉。
 function normalizeCastValue(raw){
   if(!raw) return [];
   let role='', text;
@@ -2422,7 +2438,7 @@ function normalizeCastValue(raw){
       text = colonMatch[2];
     }
   }
-  return text.split(/[,，、]/).map(s=>stripFootnoteSuffix(s)).filter(Boolean).map(name=>({role,name}));
+  return text.split(/[,，、]/).map(s=>cleanActorName(s)).filter(Boolean).map(name=>({role,name}));
 }
 
 // 正規化整個卡司陣列：攤平＋依「角色＋姓名」組合鍵去重
@@ -2489,10 +2505,12 @@ function openActorsCleanupPreview(){
     if(confirmBtn) confirmBtn.style.display='none';
   }else{
     const rows = plan.messyEntries.map(m=>{
-      const newNamesHtml = m.splitInto.map(n=>{
-        const c = plan.cleanNameCounts[n]||0;
-        return `<span class="actor-pill">${esc(n)}<span style="color:#8B86D4;font-weight:700">（${c}場）</span></span>`;
-      }).join(' ');
+      const newNamesHtml = m.splitInto.length
+        ? m.splitInto.map(n=>{
+            const c = plan.cleanNameCounts[n]||0;
+            return `<span class="actor-pill">${esc(n)}<span style="color:#8B86D4;font-weight:700">（${c}場）</span></span>`;
+          }).join(' ')
+        : `<span style="color:#999;font-size:12px">（無法辨識為有效姓名，將直接刪除）</span>`;
       return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F0F0F5;flex-wrap:wrap">
         <span style="color:#B91C1C;text-decoration:line-through;font-size:13px;flex-shrink:0">${esc(m.oldLabel)}</span>
         <span style="color:#ccc">→</span>
