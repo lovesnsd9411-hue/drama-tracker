@@ -212,8 +212,8 @@ input,select,textarea,button{font-family:inherit}
 .btn-primary{background:#1A1A2E;color:#fff;border:none;border-radius:10px;padding:8px 18px;cursor:pointer;font-size:14px;font-weight:700;transition:opacity .15s}
 .btn-primary:hover{opacity:.85}
 
-input[type=text],input[type=date],select,textarea{background:#fff;border:.5px solid #E0E0EE;border-radius:10px;padding:8px 12px;font-size:14px;color:#1A1A2E;outline:none;transition:border-color .15s;width:100%}
-input[type=text]:focus,input[type=date]:focus,select:focus,textarea:focus{border-color:#8B86D4}
+input[type=text],input[type=date],input[type=number],select,textarea{background:#fff;border:.5px solid #E0E0EE;border-radius:10px;padding:8px 12px;font-size:14px;color:#1A1A2E;outline:none;transition:border-color .15s;width:100%}
+input[type=text]:focus,input[type=date]:focus,input[type=number]:focus,select:focus,textarea:focus{border-color:#8B86D4}
 select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
 textarea{height:80px;resize:vertical}
 
@@ -421,11 +421,10 @@ body.read-only-mode .fav-badge{display:none}
     </select>
   </div>
 </div>
-
-<div class="field">
-  <label>集數</label>
-  <input type="number" id="f-episode" placeholder="例如: 1">
-</div>
+    <div class="field" id="drama-only-episode">
+      <label for="f-episode">集數</label>
+      <input type="number" id="f-episode" min="0">
+    </div>
     <div class="field" id="drama-only-air"><label>首播日期</label><input type="date" id="f-air"></div>
     <div class="field" id="drama-only-actors"><label>主角（逗號分隔）</label><input type="text" id="f-actors" placeholder="宋慧喬, 李道賢"></div>
     <div class="row2" id="drama-only-crew">
@@ -1073,12 +1072,14 @@ async function setFormCategory(cat){
   const isMusical=cat==='musical';
 
   // drama-only field groups
-  ['drama-only-names','drama-only-row3','drama-only-genre-platform','drama-only-air','drama-only-actors','drama-only-crew'].forEach(id=>{
-    document.getElementById(id).style.display=isMusical?'none':'';
+  ['drama-only-names','drama-only-row3','drama-only-genre-platform','drama-only-episode','drama-only-air','drama-only-actors','drama-only-crew'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display=isMusical?'none':'';
   });
   // musical-only field groups
   ['musical-only-name','musical-only-season','musical-only-method','musical-only-cast'].forEach(id=>{
-    document.getElementById(id).style.display=isMusical?'':'none';
+    const el=document.getElementById(id);
+    if(el) el.style.display=isMusical?'':'none';
   });
 
   if(isMusical){
@@ -1376,6 +1377,12 @@ function phHTML(name,orig){
   return `<div class="poster-placeholder"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(name)}</div>${orig?`<div class="ph-orig">${esc(orig)}</div>`:''}</div>`;
 }
 
+// 集數顯示標準化：有輸入就顯示「第 X 集」，沒有就回傳空字串（呼叫端據此隱藏該欄位，不留空白）
+function episodeLabel(d){
+  const n=parseInt(d.episode,10);
+  return (n>0) ? `第 ${n} 集` : '';
+}
+
 function renderGallery(list,el){
   el.className='gallery';
   el.innerHTML=list.map(d=>`
@@ -1390,7 +1397,7 @@ function renderGallery(list,el){
       <div class="poster-placeholder" style="display:${d.poster?'none':'flex'}"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(d.name)}</div>${d.orig?`<div class="ph-orig">${esc(d.orig)}</div>`:''}</div>
       <div class="poster-overlay">
         <div class="po-name">${esc(d.name)}</div>
-        <div class="po-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):''}</div>
+        <div class="po-score">${[d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'',episodeLabel(d)].filter(Boolean).join(' · ')}</div>
         ${d.category==='musical'
           ?`<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> ${(d.viewing_history||[]).length}場</span>`
           :`<span class="po-badge ${d.status==='done'?'po-done':d.status==='dropped'?'po-dropped':'po-ongoing'}">${d.status==='done'?'看完':d.status==='dropped'?'棄劇':'觀看中'}</span>`}
@@ -1417,7 +1424,7 @@ function renderTable(list,el){
         <div class="rt-cell rt-c-poster">${d.poster?`<img src="${posterSrc(d)}" loading="lazy">`:`<div class="rt-ph"><i class="ti ti-device-tv"></i></div>`}</div>
         <div class="rt-cell rt-c-name">
           <div class="rt-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:12px;margin-right:3px"></i>':''}${esc(d.name)}</div>
-          <div class="rt-orig">${d.orig?esc(d.orig):''}</div>
+          <div class="rt-orig">${d.orig?esc(d.orig):''}${episodeLabel(d)?' · '+episodeLabel(d):''}</div>
         </div>
         <div class="rt-cell rt-c-rating rt-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'—'}</div>
         <div class="rt-cell rt-c-status">${d.category==='musical'?`<span class="badge" style="background:#EEEDFE;color:#3C3489">${(d.viewing_history||[]).length}場</span>`:statusBadge(d.status)}</div>
@@ -1441,6 +1448,7 @@ function renderTable(list,el){
         <div class="rc-badges">
           ${d.rating&&d.rating>0?`<span class="rc-badge rc-badge-score">⭐ ${parseFloat(d.rating).toFixed(1)}</span>`:''}
           ${statusBadge(d.status)}
+          ${episodeLabel(d)?`<span class="rc-badge">${episodeLabel(d)}</span>`:''}
           ${d.yearDone?`<span class="rc-badge">${d.yearDone}年</span>`:''}
           ${d.platform?`<span class="rc-badge">${esc(d.platform)}</span>`:''}
         </div>
@@ -1902,6 +1910,7 @@ function openEdit(id){
   setFieldVal('f-status',d.status||'ongoing');
   fillRatingSel('f-rating',d.rating||0);
   setFieldVal('f-air',d.airDate||'');
+  setFieldVal('f-episode', d.episode!=null ? String(d.episode) : '');
 
   // 類型（checkbox 多選）
   setGenreCheckboxValues(d.genres && d.genres.length ? d.genres : (d.genre || ''));
@@ -1997,7 +2006,9 @@ function saveForm(){
     const status=rating>0?'done':fieldVal('f-status');
     const directors=fieldVal('f-director').split(',').map(s=>s.trim()).filter(Boolean);
     const writers=fieldVal('f-writer').split(',').map(s=>s.trim()).filter(Boolean);
-    data={name,orig,category,status,rating,genre:genreInput,genres,platform:fieldVal('f-platform').trim(),airDate:fieldVal('f-air'),yearDone:fieldVal('f-year'),actors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:fieldVal('f-note').trim(),poster,namu:fieldVal('f-namu').trim()};
+    const episodeRaw=fieldVal('f-episode').trim();
+    const episode=episodeRaw ? parseInt(episodeRaw,10) : null;
+    data={name,orig,category,status,rating,genre:genreInput,genres,platform:fieldVal('f-platform').trim(),airDate:fieldVal('f-air'),yearDone:fieldVal('f-year'),episode,actors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:fieldVal('f-note').trim(),poster,namu:fieldVal('f-namu').trim()};
   }
   if(editId){const i=db.findIndex(x=>x.id===editId);if(i>-1)db[i]={...db[i],...data}}
   else db.unshift({id:uid(),addedAt:Date.now(),...data});
