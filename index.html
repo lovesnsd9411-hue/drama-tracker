@@ -59,17 +59,31 @@ input,select,textarea,button{font-family:inherit}
 .meta-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
 .meta-row .meta-label{color:#aaa;font-weight:600;flex-shrink:0}
 
-/* 演員詳細頁：全螢幕頁面，預設隱藏，加上 .open 才顯示（用 hash 路由控制） */
+/* 全螢幕頁面共用樣式（人物總表頁面使用）：預設隱藏，加上 .open 才顯示（用 hash 路由控制） */
 .actor-page{display:none;position:fixed;inset:0;background:#fff;z-index:999;overflow-y:auto}
 .actor-page.open{display:block}
 .actor-page-header{position:sticky;top:0;background:#fff;padding:.75rem 1rem;border-bottom:.5px solid #F0F0F5;z-index:1}
 .actor-page-body{padding:1rem;max-width:760px;margin:0 auto}
 .actor-page-name{font-size:24px;font-weight:700;color:#1A1A2E;margin-top:.25rem}
 .actor-page-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:.6rem}
-.actor-page-summary{display:flex;gap:1.5rem;margin:1.1rem 0;padding:1rem 1.2rem;background:#F8F8FB;border-radius:12px}
+.actor-page-summary{display:flex;gap:1.5rem;margin:1.1rem 0;padding:1rem 1.2rem;background:#F8F8FB;border-radius:12px;flex-wrap:wrap}
 .actor-summary-stat{display:flex;flex-direction:column;gap:2px}
 .actor-summary-num{font-size:20px;font-weight:700;color:#3C3489}
 .actor-summary-label{font-size:12px;color:#888}
+
+/* 人物總表頁面：搜尋列、篩選器、大面積網格 */
+.actors-search-bar{display:flex;gap:8px;margin-top:.6rem}
+.actors-search-bar input{flex:1;padding:.6rem .9rem;border:1px solid #E0E0EE;border-radius:12px;font-size:14px}
+.actors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;padding:1rem;max-width:1100px;margin:0 auto}
+.actor-grid-card{background:#F8F8FB;border:1px solid #EFEFF5;border-radius:14px;padding:.9rem .8rem;text-align:center;cursor:pointer;transition:all .15s}
+.actor-grid-card:hover{border-color:#AFA9EC;background:#F3F2FC}
+.actor-grid-card .agc-name{font-weight:700;color:#1A1A2E;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.actor-grid-card .agc-count{font-size:12px;color:#8B86D4;font-weight:600;margin-top:4px}
+
+/* 演員懸浮卡片：半透明遮罩背景 + 置中卡片，點擊遮罩或關閉鈕可關閉，回到總表頁面 */
+.actor-card-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1100;align-items:center;justify-content:center;padding:1rem}
+.actor-card-bg.open{display:flex}
+.actor-card{background:#fff;border-radius:20px;width:100%;max-width:640px;max-height:85vh;overflow-y:auto;padding:1.3rem;position:relative}
 .actor-cb{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:5px 10px;border-radius:20px;border:1px solid #E0E0EE;background:#fff;cursor:pointer;transition:all .15s;user-select:none}
 .actor-cb:hover{border-color:#8B86D4;color:#3C3489}
 .actor-cb input{display:none}
@@ -2105,6 +2119,7 @@ function applyReadOnlyMode(){
 function openModal(id){const el=document.getElementById(id);if(el)el.classList.add('open')}
 function closeModal(id){const el=document.getElementById(id);if(el)el.classList.remove('open')}
 document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id)}));
+document.getElementById('actor-card-bg')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeActorPage()});
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 const shareMode=detectShareMode();
@@ -2178,19 +2193,17 @@ function getActorShowCount(name){
 }
 
 // 導向演員詳細頁：改變 hash，實際渲染交給 hashchange 監聽統一處理
+// 開啟演員懸浮卡片：關掉可能開著的作品詳細 modal，導向 #actor/<姓名>。
+// 不再需要「先關閉人物總表」——總表現在是頁面而不是 modal，卡片會疊在它上面。
 function openActorPage(name){
   if(!name) return;
   closeModal('detail-modal');
-  closeActorsModal();
   location.hash = 'actor/' + encodeURIComponent(name);
 }
 
+// 關閉懸浮卡片，回到人物總表頁面（不是離開整個 app）
 function closeActorPage(){
-  if(location.hash.startsWith('#actor/')) history.back();
-  else{
-    const page=document.getElementById('actor-page');
-    if(page) page.classList.remove('open');
-  }
+  location.hash = 'actors';
 }
 
 // 演員詳細頁專用的作品清單渲染：若這位演員在同一部作品被記錄看過不只一次（重刷），
@@ -2238,8 +2251,8 @@ function getActorSpendTWD(name){
 }
 
 function renderActorPage(name){
-  const page=document.getElementById('actor-page');
-  if(!page) return; // 防呆：頁面容器不存在就不繼續
+  const cardBg=document.getElementById('actor-card-bg');
+  if(!cardBg) return; // 防呆：卡片容器不存在就不繼續
 
   const works=getActorWorks(name);
   const categories=[...new Set(works.map(w=>w.category||'drama'))];
@@ -2286,18 +2299,30 @@ function renderActorPage(name){
     }
   }
 
-  page.classList.add('open');
+  cardBg.classList.add('open');
 }
 
-// 統一的路由處理：解析目前的 hash，決定要不要顯示演員詳細頁
+// 統一的路由處理：解析目前的 hash，決定人物總表頁面／演員懸浮卡片各自要不要顯示。
+// #actors        → 只顯示人物總表頁面
+// #actor/<姓名>  → 人物總表頁面當底層（若還沒開會自動打開），懸浮卡片疊在上面
+// 其他 hash      → 兩層都關閉，回到一般的畫廊畫面
 function handleRoute(){
   const hash=location.hash||'';
-  const m=hash.match(/^#actor\/(.+)$/);
-  const page=document.getElementById('actor-page');
-  if(m){
-    renderActorPage(decodeURIComponent(m[1]));
-  }else if(page){
-    page.classList.remove('open');
+  const actorMatch=hash.match(/^#actor\/(.+)$/);
+  const isActorsRoute = hash==='#actors' || !!actorMatch;
+
+  if(isActorsRoute){
+    openActorsListPage();
+  }else{
+    const listPage=document.getElementById('actors-list-page');
+    if(listPage) listPage.classList.remove('open');
+  }
+
+  if(actorMatch){
+    renderActorPage(decodeURIComponent(actorMatch[1]));
+  }else{
+    const cardBg=document.getElementById('actor-card-bg');
+    if(cardBg) cardBg.classList.remove('open');
   }
 }
 window.addEventListener('hashchange', handleRoute);
@@ -2305,78 +2330,106 @@ window.addEventListener('hashchange', handleRoute);
 // ==========================================
 // 🎭 人物總表 控制功能
 // ==========================================
-function openActorsModal() {
-  const modalBg = document.getElementById('actors-modal-bg');
-  if (modalBg) {
-    modalBg.classList.add('open');
-    renderActorsTotalList();
-  }
+// ── 人物總表：獨立頁面 ──
+let actorsSearchQuery='';
+let actorsCategoryFilter='all'; // 'all' | 'musical' | 'drama'
+
+// 導向人物總表頁面（取代原本開啟 modal 的做法）
+function openActorsModal(){
+  location.hash='actors';
 }
 
-function closeActorsModal() {
-  const modalBg = document.getElementById('actors-modal-bg');
-  if (modalBg) {
-    modalBg.classList.remove('open');
-  }
+// 離開人物總表頁面，回到主畫面
+function closeActorsListPage(){
+  location.hash='';
 }
 
-document.addEventListener('click', function(e) {
-  const modalBg = document.getElementById('actors-modal-bg');
-  if (modalBg && e.target === modalBg) {
-    modalBg.classList.remove('open');
-  }
-});
-function renderActorsTotalList() {
-  const listContainer = document.getElementById('actors-total-list');
-  if (!listContainer) return;
-  listContainer.innerHTML = '';
+// 保留舊名稱以兼容既有呼叫點（例如懸浮卡片開啟前的收尾動作），現在單純是無操作
+function closeActorsModal(){}
 
-  if (!musicalActors.length) {
-    listContainer.innerHTML = '<p style="color: #999; font-size: 13px; padding: 10px;">目前尚未建立任何演員資料</p>';
-    return;
-  }
-
-  // Count total shows each actor appears in, across every musical's viewing_history.
-  // Cast entries may be plain strings (legacy) or {role,name} objects (current format) — handle both.
-  // New records store the pick under viewed_actors; older records used cast — count whichever is present.
-  // 只計入「已觀看」的場次，持有票券／已退票或轉讓不算進作品統計。
-  const actorCounts = {};
-  musicalActors.forEach(a => { actorCounts[a.name] = 0; });
-
-  db.forEach(item => {
-    if (!item || item.category !== 'musical') return;
-    const history = item.viewing_history || [];
-    history.forEach(show => {
-      if (!show || !countsTowardWorks(show)) return;
-      const castList = (show.viewed_actors && show.viewed_actors.length) ? show.viewed_actors : show.cast;
-      if (!castList) return;
-      castList.forEach(c => {
-        const name = (typeof c === 'string') ? c : c.name;
-        if (name && actorCounts.hasOwnProperty(name)) {
-          actorCounts[name]++;
-        }
+// 依目前的搜尋字串與分類篩選器，計算每位演員的觀看場次並回傳要顯示的清單
+function getFilteredActorsList(){
+  // 只計入「已觀看」的場次，持有票券／已退票或轉讓不算進作品統計（沿用既有規則）
+  const actorCounts={};
+  musicalActors.forEach(a=>{ actorCounts[a.name]=0; });
+  db.forEach(item=>{
+    if(!item||item.category!=='musical') return;
+    (item.viewing_history||[]).forEach(show=>{
+      if(!show||!countsTowardWorks(show)) return;
+      const castList=(show.viewed_actors&&show.viewed_actors.length)?show.viewed_actors:show.cast;
+      if(!castList) return;
+      castList.forEach(c=>{
+        const name=(typeof c==='string')?c:c.name;
+        if(name&&actorCounts.hasOwnProperty(name)) actorCounts[name]++;
       });
     });
   });
 
-  const sortedActors = [...musicalActors].sort((a,b)=>a.name.localeCompare(b.name,'ko'));
-
-  sortedActors.forEach(actor => {
-    const count = actorCounts[actor.name] || 0;
-    const btn = document.createElement('button');
-    btn.className = 'icon-btn';
-    btn.style.cssText = 'padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer; background: #fff; border: .5px solid #E0E0EE; display: inline-flex; align-items: center; gap: 4px; margin: 4px; transition: all 0.15s;';
-    btn.innerHTML = '🎭 ' + esc(actor.name) + ' <span style="color: #8B86D4; font-weight: 700;">(' + count + '場)</span>';
-
-    btn.addEventListener('click', () => {
-      closeActorsModal();
-      // 導向該演員的專屬詳細頁（而不是只在畫廊套用篩選）
-      openActorPage(actor.name);
-    });
-
-    listContainer.appendChild(btn);
-  });
+  const q=actorsSearchQuery.trim().toLowerCase();
+  return musicalActors
+    .filter(a=>!q||a.name.toLowerCase().includes(q))
+    .filter(a=>{
+      if(actorsCategoryFilter==='all') return true;
+      // 分類篩選：看這位演員的作品裡有沒有符合分類的紀錄
+      return getActorWorks(a.name).some(w=>(w.category||'drama')===actorsCategoryFilter);
+    })
+    .map(a=>({name:a.name,count:actorCounts[a.name]||0}))
+    .sort((a,b)=>a.name.localeCompare(b.name,'ko'));
 }
+
+function renderActorsCategoryFilterBar(){
+  const el=document.getElementById('actors-category-filter');
+  if(!el) return;
+  const options=[['all','全部'],['musical','音樂劇'],['drama','影劇']];
+  el.innerHTML=options.map(([val,label])=>
+    `<button class="filter-chip${actorsCategoryFilter===val?' active':''}" onclick="setActorsCategoryFilter('${val}')">${label}</button>`
+  ).join('');
+}
+
+function setActorsSearch(val){
+  actorsSearchQuery=val;
+  renderActorsGrid();
+}
+function setActorsCategoryFilter(val){
+  actorsCategoryFilter=val;
+  renderActorsCategoryFilterBar();
+  renderActorsGrid();
+}
+
+// 人物總表的大面積網格渲染（取代原本擠成一團的小晶片清單）
+function renderActorsGrid(){
+  const grid=document.getElementById('actors-grid');
+  if(!grid) return; // 防呆：容器不存在就不繼續
+
+  if(!musicalActors.length){
+    grid.innerHTML='<p style="color:#999;font-size:13px;padding:10px;grid-column:1/-1">目前尚未建立任何演員資料</p>';
+    return;
+  }
+
+  const list=getFilteredActorsList();
+  if(!list.length){
+    grid.innerHTML='<p style="color:#999;font-size:13px;padding:10px;grid-column:1/-1">沒有符合搜尋／篩選條件的演員</p>';
+    return;
+  }
+
+  grid.innerHTML=list.map(a=>`
+    <div class="actor-grid-card" onclick="openActorPage('${esc(a.name).replace(/'/g,"\\'")}')">
+      <div class="agc-name">🎭 ${esc(a.name)}</div>
+      <div class="agc-count">${a.count} 場</div>
+    </div>
+  `).join('');
+}
+
+// 打開人物總表頁面：導向 hash 後由 handleRoute() 統一呼叫這裡把畫面渲染出來
+function openActorsListPage(){
+  const page=document.getElementById('actors-list-page');
+  if(!page) return; // 防呆：頁面容器不存在就不繼續
+  page.classList.add('open');
+  renderActorsCategoryFilterBar();
+  renderActorsGrid();
+}
+
+
 
 // ════════════════════════════════════════════════════════════════
 // 🧹 演員資料清理（正規化 / 去重 / 觀看場次歸位）
@@ -2572,7 +2625,7 @@ async function confirmActorsCleanup(){
   else musicalActors = musicalActors.filter(a=>!isMessyActorName(a.name));
 
   closeActorsCleanupModal();
-  renderActorsTotalList();
+  renderActorsGrid();
   if(btn){ btn.disabled=false; btn.textContent='確認套用'; }
   alert('演員資料清理完成！');
 }
@@ -2594,23 +2647,21 @@ async function deleteMusicalActorRow(id){
 // =========================================================
 </script>
 
-<div id="actors-modal-bg" class="modal-bg">
-  <div class="modal" style="width: min(650px, 95vw);">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-      <h3 class="modal-title" style="margin-bottom: 0;">🎭 人物總表</h3>
-      <button onclick="closeActorsModal()" style="background: none; border: none; cursor: pointer; font-size: 20px; color: #888;">×</button>
+<!-- 人物總表：獨立頁面（透過 #actors 路由開啟），含搜尋、分類篩選器、大面積網格 -->
+<div id="actors-list-page" class="actor-page">
+  <div class="actor-page-header">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <button class="icon-btn" onclick="closeActorsListPage()"><i class="ti ti-arrow-left"></i> 返回</button>
+      <h3 style="margin:0;font-size:16px">🎭 人物總表</h3>
+      <button class="icon-btn" onclick="openActorsCleanupPreview()" style="color:#B45309;border-color:#F5D9A8"><i class="ti ti-broom"></i></button>
     </div>
-    <p style="color: #888; font-size: 12px; margin-top: -10px; margin-bottom: 15px;">點擊演員名字可直接篩選作品，括號內為該演員的「總觀看場次」</p>
-    <hr style="border: none; border-top: .5px solid #F0F0F5; margin-bottom: 15px;">
-    
-    <div id="actors-total-list" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 50vh; overflow-y: auto; padding: 5px;">
-      </div>
-    
-    <div class="mfooter" style="justify-content:space-between">
-      <button class="icon-btn" onclick="openActorsCleanupPreview()" style="color:#B45309;border-color:#F5D9A8"><i class="ti ti-broom"></i> 🧹 清理重複／格式錯誤的演員</button>
-      <button class="icon-btn" onclick="closeActorsModal()">關閉</button>
+    <div class="actors-search-bar">
+      <input type="text" id="actors-search-input" placeholder="搜尋演員姓名…" oninput="setActorsSearch(this.value)">
     </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:.6rem" id="actors-category-filter"></div>
   </div>
+  <p style="color:#888;font-size:12px;padding:.6rem 1rem 0">點擊演員可查看詳細演出紀錄，括號內為該演員的「總觀看場次」</p>
+  <div id="actors-grid" class="actors-grid"></div>
 </div>
 
 <!-- 演員資料清理：預覽確認用的對照表 modal。只有按下「確認套用」才會真的寫入資料，
@@ -2632,16 +2683,15 @@ async function deleteMusicalActorRow(id){
   </div>
 </div>
 
-<!-- 演員詳細頁：透過 #actor/<姓名> 路由開啟，涵蓋整個畫面，用「返回」取代一般 modal 的關閉 X -->
-<div id="actor-page" class="actor-page">
-  <div class="actor-page-header">
-    <button class="icon-btn" onclick="closeActorPage()"><i class="ti ti-arrow-left"></i> 返回</button>
-  </div>
-  <div class="actor-page-body">
+<!-- 演員懸浮卡片：透過 #actor/<姓名> 路由開啟，半透明遮罩疊在人物總表頁面上方；
+     點擊遮罩背景或關閉鈕會回到人物總表頁面（而不是離開整個 app）。 -->
+<div id="actor-card-bg" class="actor-card-bg">
+  <div class="actor-card">
+    <button onclick="closeActorPage()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;cursor:pointer;font-size:22px;color:#888">×</button>
     <div class="actor-page-name" id="actor-page-name"></div>
     <div class="actor-page-tags" id="actor-page-tags"></div>
     <div class="actor-page-summary" id="actor-page-summary"></div>
-    <div class="sec-title" style="margin-top:1.5rem">作品列表</div>
+    <div class="sec-title" style="margin-top:1.2rem">作品列表</div>
     <div id="actor-page-works"></div>
   </div>
 </div>
