@@ -403,11 +403,12 @@ body.read-only-mode .fav-badge{display:none}
       <label class="genre-cb"><input type="checkbox" value="喜劇"> 喜劇</label>
       <label class="genre-cb"><input type="checkbox" value="古裝"> 古裝</label>
       <label class="genre-cb"><input type="checkbox" value="職場"> 職場</label>
-      <label class="genre-cb"><input type="checkbox" value="年代劇"> 年代劇</label>
+      <label class="genre-cb"><input type="checkbox" value="醫療"> 醫療</label>
       <label class="genre-cb"><input type="checkbox" value="法政"> 法政</label>
       <label class="genre-cb"><input type="checkbox" value="狗血"> 狗血</label>
       <label class="genre-cb"><input type="checkbox" value="青春"> 青春</label>
       <label class="genre-cb"><input type="checkbox" value="驚悚"> 驚悚</label>
+     <label class="genre-cb"><input type="checkbox" value="年代劇"> 年代劇</label>
     </div>
   </div>
   <div class="field">
@@ -1467,10 +1468,10 @@ function phHTML(name,orig){
   return `<div class="poster-placeholder"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(name)}</div>${orig?`<div class="ph-orig">${esc(orig)}</div>`:''}</div>`;
 }
 
-// 集數顯示標準化：有輸入就顯示「第 X 集」，沒有就回傳空字串（呼叫端據此隱藏該欄位，不留空白）
+// 集數顯示標準化：有輸入就顯示「共 X 集」，沒有就回傳空字串（呼叫端據此隱藏該欄位，不留空白）
 function episodeLabel(d){
   const n=parseInt(d.episode,10);
-  return (n>0) ? `第 ${n} 集` : '';
+  return (n>0) ? `共 ${n} 集` : '';
 }
 
 function renderGallery(list,el){
