@@ -221,7 +221,7 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 textarea{height:80px;resize:vertical}
 
 /* Modal */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:center;justify-content:center}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1200;align-items:center;justify-content:center}
 .modal-bg.open{display:flex}
 .modal{background:#fff;border-radius:18px;border:.5px solid #E5E5F0;padding:1.75rem;width:min(560px,95vw);max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.12)}
 .modal-title{font-size:18px;font-weight:700;margin-bottom:1.25rem;color:#1A1A2E}
@@ -857,7 +857,7 @@ function renderCastGrouped(items, filterable){
   });
   return groups.map(g=>{
     const pills=g.names.map(n=>{
-      const click = filterable ? ` onclick="openActorPage('${esc(n).replace(/'/g,"\\'")}')" style="cursor:pointer"` : '';
+      const click = filterable ? ` onclick="openActorPage('${jsStr(n)}')" style="cursor:pointer"` : '';
       return `<span class="actor-pill"${click}>${esc(n)}</span>`;
     }).join('');
     const header = g.role ? `<div class="cast-role-name">${esc(g.role)}<span class="cast-divider">｜</span></div>` : '';
@@ -872,7 +872,7 @@ function renderCastChipsInline(items, filterable){
   if(!items || !items.length) return '';
   const norm = items.map(c => (typeof c==='string') ? {role:'',name:c} : {role:c.role||'',name:c.name||c});
   const chips = norm.filter(c=>c.name).map(c=>{
-    const click = filterable ? ` onclick="openActorPage('${esc(c.name).replace(/'/g,"\\'")}')" style="cursor:pointer"` : '';
+    const click = filterable ? ` onclick="openActorPage('${jsStr(c.name)}')" style="cursor:pointer"` : '';
     const roleHtml = c.role ? `<span class="cast-chip-role" title="${esc(c.role)}">${esc(c.role)}</span><span class="cast-chip-sep">｜</span>` : '';
     return `<span class="cast-chip"${click}>${roleHtml}<span class="cast-chip-actor">${esc(c.name)}</span></span>`;
   }).join('');
@@ -987,11 +987,11 @@ function onCastInputType(scope){
   let html='';
   matches.slice(0,8).forEach(a=>{
     const display = curRole ? curRole+divider+a.name : a.name;
-    html+=`<div class="tag-suggest-item" onmousedown="event.preventDefault();selectCastSuggestion('${scope}','${esc(a.name).replace(/'/g,"\\'")}','${esc(curRole).replace(/'/g,"\\'")}')">${esc(display)}</div>`;
+    html+=`<div class="tag-suggest-item" onmousedown="event.preventDefault();selectCastSuggestion('${scope}','${jsStr(a.name)}','${jsStr(curRole)}')">${esc(display)}</div>`;
   });
   if(searchTerm && !musicalActors.some(a=>a.name===searchTerm)){
     const newDisplay = curRole ? curRole+divider+searchTerm : searchTerm;
-    html+=`<div class="tag-suggest-item tag-suggest-new" onmousedown="event.preventDefault();selectCastSuggestion('${scope}','${esc(searchTerm).replace(/'/g,"\\'")}','${esc(curRole).replace(/'/g,"\\'")}',true)">＋ 新增演員「${esc(newDisplay)}」</div>`;
+    html+=`<div class="tag-suggest-item tag-suggest-new" onmousedown="event.preventDefault();selectCastSuggestion('${scope}','${jsStr(searchTerm)}','${jsStr(curRole)}',true)">＋ 新增演員「${esc(newDisplay)}」</div>`;
   }
   if(!html) html=`<div class="tag-suggest-empty">沒有符合的演員</div>`;
   suggestEl.innerHTML=html;
@@ -2215,6 +2215,15 @@ document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',e
 document.getElementById('actor-card-bg')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeActorPage()});
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
+// 安全地把一個字串嵌入 onclick="fn('...')" 這種單引號 JS 字串參數裡。
+// 順序很重要：必須先跳脫反斜線／單引號給 JS 用，最後才做 HTML escape。
+// 如果反過來（像之前很多地方寫的 esc(x).replace(/'/g,"\\'")）：esc() 早就把 ' 轉成 &#39; 了，
+// 後面的 replace 找不到任何 ' 可以跳脫，等於沒做事——瀏覽器讀屬性值時 &#39; 又會解碼回 '，
+// 結果一個沒跳脫的單引號跑進 onclick 的 JS 字串中間，直接把整段語法弄壞，按鈕就完全點不動。
+function jsStr(s){
+  return esc(String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
+}
+
 const shareMode=detectShareMode();
 
 if(shareMode==='expired'){
@@ -2330,7 +2339,9 @@ function renderActorWorksList(list, el, name){
 // 再開作品詳細頁，避免兩層彈窗疊在一起。音樂劇會看到多刷紀錄／卡司；
 // 電視劇會看到「集數」等資訊——都是同一個 openDetail()，只是資料不同。
 function openWorkFromActorCard(id){
-  location.hash='';
+  // 保留在「人物總表」這一層（而不是完全清空 hash 回到主畫廊），
+  // 這樣關掉作品詳細頁時，底層畫面才會精確回到總表頁面，而不是跳回其他主頁。
+  location.hash='actors';
   openDetail(id);
 }
 
@@ -2388,8 +2399,8 @@ function renderActorPage(name){
   const actionsEl=document.getElementById('actor-card-actions');
   if(actionsEl){
     actionsEl.innerHTML = actorRecord && !isReadOnly
-      ? `<button class="icon-btn" style="font-size:12px;padding:4px 10px" onclick="editActorProfile('${esc(actorRecord.id).replace(/'/g,"\\'")}')"><i class="ti ti-pencil"></i> 編輯</button>
-         <button class="icon-btn" style="font-size:12px;padding:4px 10px;color:#B91C1C;border-color:#F5C6C6" onclick="deleteActorNode('${esc(actorRecord.id).replace(/'/g,"\\'")}','${esc(actorRecord.name).replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i> 刪除</button>`
+      ? `<button class="icon-btn" style="font-size:12px;padding:4px 10px" onclick="editActorProfile('${jsStr(actorRecord.id)}')"><i class="ti ti-pencil"></i> 編輯</button>
+         <button class="icon-btn" style="font-size:12px;padding:4px 10px;color:#B91C1C;border-color:#F5C6C6" onclick="deleteActorNode('${jsStr(actorRecord.id)}','${jsStr(actorRecord.name)}')"><i class="ti ti-trash"></i> 刪除</button>`
       : '';
   }
 
@@ -2430,7 +2441,7 @@ function refreshActorCardTabsAndWorks(name){
     if(musicalWorks.length && dramaWorks.length){
       const tabs=[['all','全部',works.length],['musical','音樂劇',musicalWorks.length],['drama','影視',dramaWorks.length]];
       tabsEl.innerHTML=tabs.map(([val,label,count])=>
-        `<button class="filter-chip${actorCardTab===val?' active':''}" onclick="setActorCardTab('${val}','${esc(name).replace(/'/g,"\\'")}')">${esc(label)} (${count})</button>`
+        `<button class="filter-chip${actorCardTab===val?' active':''}" onclick="setActorCardTab('${val}','${jsStr(name)}')">${esc(label)} (${count})</button>`
       ).join('');
     }else{
       tabsEl.innerHTML='';
@@ -2464,6 +2475,11 @@ function handleRoute(){
   const hash=location.hash||'';
   const actorMatch=hash.match(/^#actor\/(.+)$/);
   const isActorsRoute = hash==='#actors' || !!actorMatch;
+
+  // detail-modal 不是路由狀態的一部分（單純用 class 開關），所以每次 hash 改變
+  // （不管是點擊關閉按鈕，還是使用者按瀏覽器的上一頁）都順手把它關掉，
+  // 避免舊的作品詳細頁疊在新畫面上方，造成「關閉後畫面卻沒對上」的錯覺。
+  closeModal('detail-modal');
 
   if(isActorsRoute){
     openActorsListPage();
@@ -2567,7 +2583,7 @@ function renderActorsGrid(){
   }
 
   grid.innerHTML=list.map(a=>`
-    <div class="actor-grid-card" onclick="openActorPage('${esc(a.name).replace(/'/g,"\\'")}')">
+    <div class="actor-grid-card" onclick="openActorPage('${jsStr(a.name)}')">
       ${actorAvatarHtml(a,'avatar-sm')}
       <div class="agc-name">${esc(a.name)}</div>
       <div class="agc-count">${a.count} 場</div>
@@ -2879,12 +2895,12 @@ async function deleteMusicalActorRow(id){
      點擊遮罩背景或關閉鈕會回到人物總表頁面（而不是離開整個 app）。 -->
 <div id="actor-card-bg" class="actor-card-bg" onclick="closeActorPage()">
   <div class="actor-card" onclick="event.stopPropagation()">
-    <button onclick="closeActorPage()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;cursor:pointer;font-size:22px;color:#888">×</button>
-    <div style="display:flex;align-items:center;gap:14px">
+    <button onclick="closeActorPage()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;cursor:pointer;font-size:22px;color:#888;z-index:1;width:32px;height:32px">×</button>
+    <div style="display:flex;align-items:center;gap:14px;padding-right:2.2rem">
       <div id="actor-card-avatar"></div>
       <div style="flex:1;min-width:0">
         <div class="actor-page-name" id="actor-page-name"></div>
-        <div id="actor-card-actions" style="display:flex;gap:8px;margin-top:6px"></div>
+        <div id="actor-card-actions" style="display:flex;gap:8px;margin-top:6px;position:relative;z-index:2"></div>
       </div>
     </div>
     <div class="actor-page-tags" id="actor-page-tags"></div>
