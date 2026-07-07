@@ -642,20 +642,27 @@ async function loadFromCloud(){
 async function loadMusicalActors(){
   if(!sb)return;
   try{
-    const {data,error}=await sb.from('musical_actors').select('id,name,profile_image').order('name',{ascending:true});
+    const {data,error}=await sb.from('musical_actors').select('id,name,profile_image,actor_type').order('name',{ascending:true});
     if(error) throw error;
     musicalActors=data||[];
   }catch(e){
-    // 舊的 Supabase 資料表可能還沒有 profile_image 欄位，退回不選這欄位再試一次，
-    // 這樣就算資料庫還沒手動加上這個欄位，App 也不會整個掛掉。
-    console.error('Failed to load musical_actors with profile_image, retrying without it',e);
+    // 資料表可能還沒有 actor_type／profile_image 欄位，逐層退回，這樣就算資料庫欄位還沒補齊，
+    // App 也不會整個掛掉——只是那個欄位讀不到而已。
+    console.error('Failed to load musical_actors with actor_type, retrying with just profile_image',e);
     try{
-      const {data,error}=await sb.from('musical_actors').select('id,name').order('name',{ascending:true});
+      const {data,error}=await sb.from('musical_actors').select('id,name,profile_image').order('name',{ascending:true});
       if(error) throw error;
       musicalActors=data||[];
     }catch(e2){
-      console.error('Failed to load musical_actors',e2);
-      musicalActors=[];
+      console.error('Failed to load musical_actors with profile_image, retrying without it',e2);
+      try{
+        const {data,error}=await sb.from('musical_actors').select('id,name').order('name',{ascending:true});
+        if(error) throw error;
+        musicalActors=data||[];
+      }catch(e3){
+        console.error('Failed to load musical_actors',e3);
+        musicalActors=[];
+      }
     }
   }
 }
@@ -758,6 +765,7 @@ function editActor(id){
   actorEditingId=id;
   setFieldVal('actor-edit-name',actor.name||'');
   setFieldVal('actor-edit-image',actor.profile_image||'');
+  setFieldVal('actor-edit-type',actor.actor_type||'');
   updateActorEditPreview();
   const bg=document.getElementById('actor-edit-modal-bg');
   if(bg) bg.classList.add('open');
@@ -788,6 +796,7 @@ async function submitActorEdit(){
   const trimmedName=fieldVal('actor-edit-name').trim();
   if(!trimmedName){ alert('姓名不能是空的'); return; }
   const newProfileImage=fieldVal('actor-edit-image').trim();
+  const newActorType=fieldVal('actor-edit-type').trim();
 
   if(trimmedName!==actor.name){
     // 避免改名之後跟另一位已存在的演員撞名，變成誤把兩個人合併成同一個
@@ -799,7 +808,7 @@ async function submitActorEdit(){
     renameActorEverywhere(actor.name,trimmedName);
   }
 
-  await saveActor(id,{name:trimmedName,profile_image:newProfileImage||null});
+  await saveActor(id,{name:trimmedName,profile_image:newProfileImage||null,actor_type:newActorType||null});
   closeActorEditModal();
   renderActorsGrid();
   // 如果目前正打開這位演員的詳細卡片，改名後網址也要跟著換成新名字
@@ -2439,8 +2448,8 @@ function renderActorPage(name){
   const actionsEl=document.getElementById('actor-card-actions');
   if(actionsEl){
     actionsEl.innerHTML = actorRecord && !isReadOnly
-      ? `<button class="icon-btn" style="font-size:12px;padding:4px 10px" onclick="editActor('${jsStr(actorRecord.id)}')"><i class="ti ti-pencil"></i> 編輯</button>
-         <button class="icon-btn" style="font-size:12px;padding:4px 10px;color:#B91C1C;border-color:#F5C6C6" onclick="deleteActorNode('${jsStr(actorRecord.id)}','${jsStr(actorRecord.name)}')"><i class="ti ti-trash"></i> 刪除</button>`
+      ? `<button class="icon-btn edit-btn" style="font-size:12px;padding:4px 10px" data-id="${esc(actorRecord.id)}"><i class="ti ti-pencil"></i> 編輯</button>
+         <button class="icon-btn delete-btn" style="font-size:12px;padding:4px 10px;color:#B91C1C;border-color:#F5C6C6" data-id="${esc(actorRecord.id)}" data-name="${esc(actorRecord.name)}"><i class="ti ti-trash"></i> 刪除</button>`
       : '';
   }
 
@@ -2543,6 +2552,30 @@ function handleRoute(){
 }
 window.addEventListener('hashchange', handleRoute);
 
+// 事件委派：演員卡片是動態渲染出來的（每次開卡片、切分頁都會整段重寫 innerHTML），
+// 如果每次渲染都重新綁一次 onclick，久了容易忘記清掉舊的、或忘記某個地方漏綁。
+// 改成只在 document 上綁「一次」監聽器，用 class／id 找目標——不管按鈕是什麼時候被塞進 DOM 的都抓得到，
+// 也不用再把 id／姓名這些值手動拼進 onclick 字串裡（順便避開了字串轉義出錯的整類問題）。
+//
+// 這裡也順便處理「點卡片背景關閉」：這行原本用 document.getElementById('actor-card-bg')
+// 直接綁監聽器，但這段 script 在檔案裡的位置比 #actor-card-bg 這個 HTML 元素本身還早執行，
+// 那時候 getElementById 根本找不到元素、回傳 null，這個監聽器其實從來沒有真的綁上去過。
+// 改用 document 層級的事件委派就不會有「元素還沒出生」的問題。
+document.addEventListener('click', function(e){
+  if(e.target.id==='actor-card-bg'){ closeActorPage(); return; }
+
+  const editBtn=e.target.closest('.edit-btn');
+  if(editBtn){
+    editActor(editBtn.dataset.id);
+    return;
+  }
+  const deleteBtn=e.target.closest('.delete-btn');
+  if(deleteBtn){
+    deleteActorNode(deleteBtn.dataset.id, deleteBtn.dataset.name);
+    return;
+  }
+});
+
 // ==========================================
 // 🎭 人物總表 控制功能
 // ==========================================
@@ -2564,6 +2597,14 @@ function closeActorsListPage(){
 function closeActorsModal(){}
 
 // 依目前的搜尋字串與分類篩選器，計算每位演員的觀看場次並回傳要顯示的清單
+// 依 actor_type 欄位判斷這位演員屬於哪個分類：空值／NULL 一律預設歸類在「音樂劇演員」；
+// 有值的話，內容含「影劇」或「電視」才算影劇演員，其餘（含自訂文字）都算音樂劇演員。
+function actorTypeCategory(actorType){
+  const t=(actorType||'').trim();
+  if(!t) return 'musical';
+  return (t.includes('影劇')||t.includes('電視')) ? 'drama' : 'musical';
+}
+
 function getFilteredActorsList(){
   // 只計入「已觀看」的場次，持有票券／已退票或轉讓不算進作品統計（沿用既有規則）
   const actorCounts={};
@@ -2586,8 +2627,8 @@ function getFilteredActorsList(){
     .filter(a=>!q||a.name.toLowerCase().includes(q))
     .filter(a=>{
       if(actorsCategoryFilter==='all') return true;
-      // 分類篩選：看這位演員的作品裡有沒有符合分類的紀錄
-      return getActorWorks(a.name).some(w=>(w.category||'drama')===actorsCategoryFilter);
+      // 分類篩選：直接看這位演員的 actor_type 欄位，空值一律當作音樂劇演員
+      return actorTypeCategory(a.actor_type)===actorsCategoryFilter;
     })
     .map(a=>({id:a.id,name:a.name,profile_image:a.profile_image,count:actorCounts[a.name]||0}))
     .sort((a,b)=>a.name.localeCompare(b.name,'ko'));
@@ -2953,6 +2994,14 @@ async function deleteMusicalActorRow(id){
       <label for="actor-edit-image">照片網址（可留空）</label>
       <input type="text" id="actor-edit-image" placeholder="https://..." oninput="updateActorEditPreview()">
     </div>
+    <div class="field">
+      <label for="actor-edit-type">演員類型（可從清單選，也可以自己輸入）</label>
+      <input type="text" id="actor-edit-type" list="actor-type-options" placeholder="例：音樂劇演員">
+      <datalist id="actor-type-options">
+        <option value="音樂劇演員"></option>
+        <option value="影劇演員"></option>
+      </datalist>
+    </div>
     <div style="display:flex;align-items:center;gap:10px;margin:.5rem 0 1rem">
       <span style="font-size:12px;color:#999">預覽：</span>
       <div id="actor-edit-preview"></div>
@@ -2964,8 +3013,8 @@ async function deleteMusicalActorRow(id){
   </div>
 </div>
 
-<div id="actor-card-bg" class="actor-card-bg" onclick="closeActorPage()">
-  <div class="actor-card" onclick="event.stopPropagation()">
+<div id="actor-card-bg" class="actor-card-bg">
+  <div class="actor-card">
     <button onclick="closeActorPage()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;cursor:pointer;font-size:22px;color:#888;z-index:1;width:32px;height:32px">×</button>
     <div style="display:flex;align-items:center;gap:14px;padding-right:2.2rem">
       <div id="actor-card-avatar"></div>
