@@ -403,12 +403,11 @@ body.read-only-mode .fav-badge{display:none}
       <label class="genre-cb"><input type="checkbox" value="喜劇"> 喜劇</label>
       <label class="genre-cb"><input type="checkbox" value="古裝"> 古裝</label>
       <label class="genre-cb"><input type="checkbox" value="職場"> 職場</label>
-      <label class="genre-cb"><input type="checkbox" value="醫療"> 醫療</label>
+      <label class="genre-cb"><input type="checkbox" value="年代劇"> 年代劇</label>
       <label class="genre-cb"><input type="checkbox" value="法政"> 法政</label>
       <label class="genre-cb"><input type="checkbox" value="狗血"> 狗血</label>
       <label class="genre-cb"><input type="checkbox" value="青春"> 青春</label>
       <label class="genre-cb"><input type="checkbox" value="驚悚"> 驚悚</label>
-     <label class="genre-cb"><input type="checkbox" value="年代劇"> 年代劇</label>
     </div>
   </div>
   <div class="field">
@@ -580,6 +579,13 @@ function formatShowAmount(h){
 }
 let isReadOnly=false;
 let mainCategory=''; // '' = all, 'drama', 'musical'
+// hashchange 是非同步事件；如果從演員卡片點作品後才把 detail-modal 打開，
+// 稍後才觸發的 handleRoute() 還是會把它立刻關掉（因為裡面有「路由改變就關掉 detail-modal」的清理邏輯），
+// 造成畫面閃一下又消失、像完全沒反應一樣。用這個旗標讓 handleRoute() 跳過那一次自動關閉。
+// 這個宣告故意放在最上面：handleRoute() 在 App 初始化時就可能被呼叫到，
+// 如果宣告寫在檔案後面（例如緊鄰 openWorkFromActorCard），會因為 let 的暫時性死區（TDZ）
+// 在初始化階段就丟出 ReferenceError，讓整個 App 卡死、之後所有按鈕都沒反應。
+let suppressNextRouteModalClose=false;
 let musicalActors=[]; // [{id, name}] loaded from Supabase musical_actors table
 let posterDebounce=null;
 
@@ -636,13 +642,13 @@ async function loadFromCloud(){
 async function loadMusicalActors(){
   if(!sb)return;
   try{
-    const {data,error}=await sb.from('musical_actors').select('id,name,image_url').order('name',{ascending:true});
+    const {data,error}=await sb.from('musical_actors').select('id,name,profile_image').order('name',{ascending:true});
     if(error) throw error;
     musicalActors=data||[];
   }catch(e){
-    // 舊的 Supabase 資料表可能還沒有 image_url 欄位，退回不選這欄位再試一次，
+    // 舊的 Supabase 資料表可能還沒有 profile_image 欄位，退回不選這欄位再試一次，
     // 這樣就算資料庫還沒手動加上這個欄位，App 也不會整個掛掉。
-    console.error('Failed to load musical_actors with image_url, retrying without it',e);
+    console.error('Failed to load musical_actors with profile_image, retrying without it',e);
     try{
       const {data,error}=await sb.from('musical_actors').select('id,name').order('name',{ascending:true});
       if(error) throw error;
@@ -703,7 +709,7 @@ async function addMusicalActor(name){
 }
 
 // 更新演員的姓名／照片網址。本機模式（沒有連 Supabase 或 local- 開頭的 id）只更新記憶體即可。
-async function updateMusicalActor(id,updates){
+async function saveActor(id,updates){
   const idx=musicalActors.findIndex(a=>a.id===id);
   if(idx===-1) return false;
   musicalActors[idx]={...musicalActors[idx],...updates};
@@ -741,7 +747,7 @@ function renameActorEverywhere(oldName,newName){
 }
 
 // 編輯演員資料（姓名／照片網址），從詳細資訊卡片裡的「編輯」按鈕觸發
-async function editActorProfile(id){
+async function editActor(id){
   const actor=musicalActors.find(a=>a.id===id);
   if(!actor) return;
 
@@ -750,7 +756,7 @@ async function editActorProfile(id){
   const trimmedName=newName.trim();
   if(!trimmedName){ alert('姓名不能是空的'); return; }
 
-  const newImageUrl=prompt('演員照片網址（可留空）：',actor.image_url||'');
+  const newImageUrl=prompt('演員照片網址（可留空）：',actor.profile_image||'');
   if(newImageUrl===null) return;
 
   if(trimmedName!==actor.name){
@@ -763,7 +769,7 @@ async function editActorProfile(id){
     renameActorEverywhere(actor.name,trimmedName);
   }
 
-  await updateMusicalActor(id,{name:trimmedName,image_url:newImageUrl.trim()||null});
+  await saveActor(id,{name:trimmedName,profile_image:newImageUrl.trim()||null});
   renderActorsGrid();
   // 如果目前正打開這位演員的詳細卡片，改名後網址也要跟著換成新名字
   if(location.hash.startsWith('#actor/')) location.hash='actor/'+encodeURIComponent(trimmedName);
@@ -772,8 +778,8 @@ async function editActorProfile(id){
 // 依姓名找出照片／預設頭像（首字圓形圖示）的 HTML；圖片載入失敗時自動退回預設頭像，避免版面破碎
 function actorAvatarHtml(actor,sizeClass){
   const initial=esc((actor && actor.name ? actor.name.trim().charAt(0) : '?'));
-  if(actor && actor.image_url){
-    return `<img src="${esc(actor.image_url)}" class="${sizeClass}" alt="${esc(actor.name||'')}"
+  if(actor && actor.profile_image){
+    return `<img src="${esc(actor.profile_image)}" class="${sizeClass}" alt="${esc(actor.name||'')}"
       onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div class="${sizeClass} actor-avatar-fallback" style="display:none">${initial}</div>`;
   }
@@ -1468,10 +1474,10 @@ function phHTML(name,orig){
   return `<div class="poster-placeholder"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(name)}</div>${orig?`<div class="ph-orig">${esc(orig)}</div>`:''}</div>`;
 }
 
-// 集數顯示標準化：有輸入就顯示「共 X 集」，沒有就回傳空字串（呼叫端據此隱藏該欄位，不留空白）
+// 集數顯示標準化：有輸入就顯示「第 X 集」，沒有就回傳空字串（呼叫端據此隱藏該欄位，不留空白）
 function episodeLabel(d){
   const n=parseInt(d.episode,10);
-  return (n>0) ? `共 ${n} 集` : '';
+  return (n>0) ? `第 ${n} 集` : '';
 }
 
 function renderGallery(list,el){
@@ -2342,6 +2348,7 @@ function renderActorWorksList(list, el, name){
 function openWorkFromActorCard(id){
   // 保留在「人物總表」這一層（而不是完全清空 hash 回到主畫廊），
   // 這樣關掉作品詳細頁時，底層畫面才會精確回到總表頁面，而不是跳回其他主頁。
+  suppressNextRouteModalClose=true;
   location.hash='actors';
   openDetail(id);
 }
@@ -2400,7 +2407,7 @@ function renderActorPage(name){
   const actionsEl=document.getElementById('actor-card-actions');
   if(actionsEl){
     actionsEl.innerHTML = actorRecord && !isReadOnly
-      ? `<button class="icon-btn" style="font-size:12px;padding:4px 10px" onclick="editActorProfile('${jsStr(actorRecord.id)}')"><i class="ti ti-pencil"></i> 編輯</button>
+      ? `<button class="icon-btn" style="font-size:12px;padding:4px 10px" onclick="editActor('${jsStr(actorRecord.id)}')"><i class="ti ti-pencil"></i> 編輯</button>
          <button class="icon-btn" style="font-size:12px;padding:4px 10px;color:#B91C1C;border-color:#F5C6C6" onclick="deleteActorNode('${jsStr(actorRecord.id)}','${jsStr(actorRecord.name)}')"><i class="ti ti-trash"></i> 刪除</button>`
       : '';
   }
@@ -2480,7 +2487,13 @@ function handleRoute(){
   // detail-modal 不是路由狀態的一部分（單純用 class 開關），所以每次 hash 改變
   // （不管是點擊關閉按鈕，還是使用者按瀏覽器的上一頁）都順手把它關掉，
   // 避免舊的作品詳細頁疊在新畫面上方，造成「關閉後畫面卻沒對上」的錯覺。
-  closeModal('detail-modal');
+  // 但如果這次 hash 改變是 openWorkFromActorCard 自己觸發的（正要打開 detail-modal），
+  // 就跳過這一次自動關閉，否則非同步的 hashchange 會把剛打開的視窗立刻關掉。
+  if(suppressNextRouteModalClose){
+    suppressNextRouteModalClose=false;
+  }else{
+    closeModal('detail-modal');
+  }
 
   if(isActorsRoute){
     openActorsListPage();
@@ -2544,7 +2557,7 @@ function getFilteredActorsList(){
       // 分類篩選：看這位演員的作品裡有沒有符合分類的紀錄
       return getActorWorks(a.name).some(w=>(w.category||'drama')===actorsCategoryFilter);
     })
-    .map(a=>({id:a.id,name:a.name,image_url:a.image_url,count:actorCounts[a.name]||0}))
+    .map(a=>({id:a.id,name:a.name,profile_image:a.profile_image,count:actorCounts[a.name]||0}))
     .sort((a,b)=>a.name.localeCompare(b.name,'ko'));
 }
 
