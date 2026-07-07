@@ -717,7 +717,10 @@ async function addMusicalActor(name){
 
 // 更新演員的姓名／照片網址。本機模式（沒有連 Supabase 或 local- 開頭的 id）只更新記憶體即可。
 async function saveActor(id,updates){
-  const idx=musicalActors.findIndex(a=>a.id===id);
+  // Supabase 的 id 常常是數字（例如整數主鍵 67），但從 DOM 的 data-id 屬性拿到的一律是字串 "67"；
+  // 用 === 嚴格比較的話 67 !== "67"，會永遠找不到人、然後整個函式悄悄地什麼都不做。
+  // 統一轉成字串再比較，兩種型別都能正確配對到。
+  const idx=musicalActors.findIndex(a=>String(a.id)===String(id));
   if(idx===-1) return false;
   musicalActors[idx]={...musicalActors[idx],...updates};
   if(!sb || String(id).startsWith('local-')) return true;
@@ -760,7 +763,9 @@ let actorEditingId=null;
 // 編輯演員資料：打開一般頁面表單（不用瀏覽器原生 prompt()，避免在會封鎖原生對話框的
 // 瀏覽器／webview／PWA 環境裡完全沒反應），並先把目前的姓名／照片網址回填進去。
 function editActor(id){
-  const actor=musicalActors.find(a=>a.id===id);
+  // 用 String() 比對：dataset.id 一定是字串，但 Supabase 的 id 欄位如果是數字型別（例如 bigint），
+  // 直接用 === 比對會因為型別不同（"67" !== 67）永遠找不到，導致這裡靜默失敗、視窗完全不會跳出來。
+  const actor=musicalActors.find(a=>String(a.id)===String(id));
   if(!actor) return;
   actorEditingId=id;
   setFieldVal('actor-edit-name',actor.name||'');
@@ -790,7 +795,7 @@ function updateActorEditPreview(){
 // 最後把姓名／照片網址一起寫回 musical_actors。
 async function submitActorEdit(){
   const id=actorEditingId;
-  const actor=musicalActors.find(a=>a.id===id);
+  const actor=musicalActors.find(a=>String(a.id)===String(id));
   if(!actor) return;
 
   const trimmedName=fieldVal('actor-edit-name').trim();
@@ -800,7 +805,7 @@ async function submitActorEdit(){
 
   if(trimmedName!==actor.name){
     // 避免改名之後跟另一位已存在的演員撞名，變成誤把兩個人合併成同一個
-    const conflict=musicalActors.find(a=>a.id!==id && a.name===trimmedName);
+    const conflict=musicalActors.find(a=>String(a.id)!==String(id) && a.name===trimmedName);
     if(conflict){
       alert(`已經有另一位演員叫做「${trimmedName}」了，請換一個名字；如果本來就是同一個人，可以改用「人物總表」的清理工具合併。`);
       return;
@@ -2943,7 +2948,7 @@ async function confirmActorsCleanup(){
 // 刪除單一 musical_actors 節點（用於清掉格式錯誤的舊資料）。
 // 本機模式（沒有連 Supabase）直接從記憶體陣列移除即可。
 async function deleteMusicalActorRow(id){
-  musicalActors = musicalActors.filter(a=>a.id!==id);
+  musicalActors = musicalActors.filter(a=>String(a.id)!==String(id));
   if(!sb || String(id).startsWith('local-')) return;
   try{
     const {error}=await sb.from('musical_actors').delete().eq('id',id);
