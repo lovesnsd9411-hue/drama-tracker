@@ -2561,27 +2561,35 @@ window.addEventListener('hashchange', handleRoute);
 // 直接綁監聽器，但這段 script 在檔案裡的位置比 #actor-card-bg 這個 HTML 元素本身還早執行，
 // 那時候 getElementById 根本找不到元素、回傳 null，這個監聽器其實從來沒有真的綁上去過。
 // 改用 document 層級的事件委派就不會有「元素還沒出生」的問題。
-document.addEventListener('click', function(e){
-  console.log('🔥 document click listener 有在執行，target 是：', e.target);
+//
+// 防呆：用 window.__actorClickDelegationBound 當作旗標，確保這個監聽器只會被綁定「一次」。
+// 如果目前的預覽/測試環境會在同一個頁面內重複執行這段 <script>（沒有整頁重新整理），
+// 沒有這個防呆的話，同一個監聽器就會被疊加綁上去好幾次，同一次點擊就會觸發好幾次
+// （這正是主控台裡同一個 data-id 連續印出好幾次「🔥」的原因）。
+if(!window.__actorClickDelegationBound){
+  window.__actorClickDelegationBound = true;
+  document.addEventListener('click', function(e){
+    console.log('🔥 document click listener 有在執行，target 是：', e.target);
 
-  if(e.target.id==='actor-card-bg'){ closeActorPage(); return; }
+    if(e.target.id==='actor-card-bg'){ closeActorPage(); return; }
 
-  // 用 .closest() 而不是 .matches()：如果點到按鈕裡面的圖示 <i> 而不是按鈕本身，
-  // e.target 會是那個 <i>，.matches('.edit-btn') 會抓不到，但 .closest() 會往上找到按鈕本身。
-  // data-action 是備援選取器，就算 class 名稱以後又改了，這裡也還抓得到。
-  const editBtn=e.target.closest('.edit-btn') || e.target.closest('button[data-action="edit"]');
-  if(editBtn){
-    console.log('🔥 系統成功偵測到編輯按鈕被點擊了！data-id =', editBtn.dataset.id);
-    editActor(editBtn.dataset.id);
-    return;
+    // 用 .closest() 而不是 .matches()：如果點到按鈕裡面的圖示 <i> 而不是按鈕本身，
+    // e.target 會是那個 <i>，.matches('.edit-btn') 會抓不到，但 .closest() 會往上找到按鈕本身。
+    // data-action 是備援選取器，就算 class 名稱以後又改了，這裡也還抓得到。
+    const editBtn=e.target.closest('.edit-btn') || e.target.closest('button[data-action="edit"]');
+    if(editBtn){
+      console.log('🔥 系統成功偵測到編輯按鈕被點擊了！data-id =', editBtn.dataset.id);
+      editActor(editBtn.dataset.id);
+      return;
+    }
+    const deleteBtn=e.target.closest('.delete-btn') || e.target.closest('button[data-action="delete"]');
+    if(deleteBtn){
+      console.log('🔥 系統成功偵測到刪除按鈕被點擊了！data-id =', deleteBtn.dataset.id);
+      deleteActorNode(deleteBtn.dataset.id, deleteBtn.dataset.name);
+      return;
   }
-  const deleteBtn=e.target.closest('.delete-btn') || e.target.closest('button[data-action="delete"]');
-  if(deleteBtn){
-    console.log('🔥 系統成功偵測到刪除按鈕被點擊了！data-id =', deleteBtn.dataset.id);
-    deleteActorNode(deleteBtn.dataset.id, deleteBtn.dataset.name);
-    return;
-  }
-});
+  });
+}
 
 // ==========================================
 // 🎭 人物總表 控制功能
