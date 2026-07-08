@@ -83,6 +83,7 @@ input,select,textarea,button{font-family:inherit}
 .avatar-sm{width:84px;height:84px;font-size:28px;border-radius:50%;object-fit:cover;display:block;margin-bottom:.7rem;box-shadow:0 3px 10px rgba(0,0,0,.14);border:2px solid #fff}
 .avatar-lg{width:96px;height:96px;font-size:34px;border-radius:50%;object-fit:cover;display:block;box-shadow:0 4px 14px rgba(0,0,0,.14);border:2px solid #f5f5f5}
 .actor-grid-card .agc-name{font-weight:700;color:#1A1A2E;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.actor-grid-card .agc-type-tag{font-size:11px;color:#8B86D4;background:#EEEDFE;padding:1px 8px;border-radius:8px;margin-top:3px}
 .actor-grid-card .agc-count{font-size:12px;color:#8B86D4;font-weight:600;margin-top:4px}
 
 /* 演員懸浮卡片：半透明遮罩背景 + 置中卡片，點擊遮罩或關閉鈕可關閉，回到總表頁面 */
@@ -2619,39 +2620,95 @@ function closeActorsModal(){}
 // 依目前的搜尋字串與分類篩選器，計算每位演員的觀看場次並回傳要顯示的清單
 // 依 actor_type 欄位判斷這位演員屬於哪個分類：空值／NULL 一律預設歸類在「音樂劇演員」；
 // 有值的話，內容含「影劇」或「電視」才算影劇演員，其餘（含自訂文字）都算音樂劇演員。
+// 依 actor_type 欄位判斷這位演員屬於哪個分類：空值／NULL 一律預設歸類在「音樂劇演員」；
+// 有值的話，內容含「影劇」或「電視」才算影劇演員，其餘（含自訂文字）都算音樂劇演員。
+// 這個函式用在「手動設定的 actor_type」上；真正撈總表清單時，優先用下面 computeActorCategoryTags()
+// 直接依實際演出紀錄自動判斷，比手動填的文字更準確。
 function actorTypeCategory(actorType){
   const t=(actorType||'').trim();
   if(!t) return 'musical';
   return (t.includes('影劇')||t.includes('電視')) ? 'drama' : 'musical';
 }
 
-function getFilteredActorsList(){
-  // 只計入「已觀看」的場次，持有票券／已退票或轉讓不算進作品統計（沿用既有規則）
-  const actorCounts={};
-  musicalActors.forEach(a=>{ actorCounts[a.name]=0; });
-  db.forEach(item=>{
-    if(!item||item.category!=='musical') return;
-    (item.viewing_history||[]).forEach(show=>{
-      if(!show||!countsTowardWorks(show)) return;
-      const castList=(show.viewed_actors&&show.viewed_actors.length)?show.viewed_actors:show.cast;
-      if(!castList) return;
-      castList.forEach(c=>{
-        const name=(typeof c==='string')?c:c.name;
-        if(name&&actorCounts.hasOwnProperty(name)) actorCounts[name]++;
-      });
+// 該演員參演的電視劇（非音樂劇）作品數。電視劇沒有「場次」概念，這裡的「次數」＝符合條件的劇集數，
+// 跟 getActorShowCount()（音樂劇累計場次）搭配使用，兩者相加就是總觀看次數。
+function getDramaWorkCount(name){
+  return db.filter(d=>(d.category||'drama')!=='musical' && castNames(d.actors).includes(name)).length;
+}
+
+// 整合總表清單：以 musical_actors 表為主，額外把「只出現在電視劇資料、但還沒被登記成正式節點」的
+// 演員也一起撈出來、暫時合併進清單（沒有真正的 Supabase id，所以不能編輯/刪除，只能瀏覽跟篩選；
+// 一旦透過編輯功能替他建檔，就會自動變成正式節點）。每個演員身上記錄「_sources」：
+// 這個人有沒有音樂劇演出紀錄、有沒有電視劇演出紀錄，用來判斷該顯示哪個分類標籤。
+function getUnifiedActorRoster(){
+  const roster=musicalActors.map(a=>({...a,_sources:new Set()}));
+  const byName={};
+  roster.forEach(a=>{ byName[a.name]=a; });
+
+  db.forEach(d=>{
+    const isMusical=(d.category||'drama')==='musical';
+    const names=isMusical
+      ? castNames((d.actors_all&&d.actors_all.length)?d.actors_all:d.actors)
+      : castNames(d.actors);
+    names.forEach(name=>{
+      if(!name) return;
+      if(!byName[name]){
+        // 電視劇資料裡才會出現「musical_actors 表完全沒有的新名字」，音樂劇的情況本來就是從
+        // musical_actors 表撈出來的名單，理論上不會撈到表裡沒有的人。
+        const virtual={id:'drama-only-'+name,name,profile_image:null,actor_type:null,_sources:new Set(),_virtual:true};
+        byName[name]=virtual;
+        roster.push(virtual);
+      }
+      byName[name]._sources.add(isMusical?'musical':'drama');
+    });
+  });
+  // 也把音樂劇的每場觀看紀錄掃過一次，確保「只在某一場被記錄過、但沒被列進主要演員」的人也算數
+  db.forEach(d=>{
+    if((d.category||'drama')!=='musical') return;
+    (d.viewing_history||[]).forEach(h=>{
+      if(!h) return;
+      const raw=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
+      castNames(raw).forEach(name=>{ if(byName[name]) byName[name]._sources.add('musical'); });
     });
   });
 
+  return roster;
+}
+
+// 依實際演出紀錄自動判斷這位演員的分類標籤與所屬分類（可能同時屬於兩個分類）。
+// 兩邊都有紀錄 → 雙棲演員；只有一邊 → 對應分類；兩邊都沒有（純候選、還沒被記錄任何演出）
+// → 退回手動設定的 actor_type，沒設定就預設音樂劇演員。
+function computeActorCategoryTags(actor){
+  const hasMusical=actor._sources && actor._sources.has('musical');
+  const hasDrama=actor._sources && actor._sources.has('drama');
+  if(hasMusical && hasDrama) return {label:'雙棲演員',categories:['musical','drama']};
+  if(hasDrama) return {label:'影劇演員',categories:['drama']};
+  if(hasMusical) return {label:'音樂劇演員',categories:['musical']};
+  return {label:actor.actor_type||'音樂劇演員',categories:[actorTypeCategory(actor.actor_type)]};
+}
+
+function getFilteredActorsList(){
+  const roster=getUnifiedActorRoster();
+
   const q=actorsSearchQuery.trim().toLowerCase();
-  return musicalActors
+  return roster
     .filter(a=>!q||a.name.toLowerCase().includes(q))
-    .filter(a=>{
-      if(actorsCategoryFilter==='all') return true;
-      // 分類篩選：直接看這位演員的 actor_type 欄位，空值一律當作音樂劇演員
-      return actorTypeCategory(a.actor_type)===actorsCategoryFilter;
+    .map(a=>{
+      const tags=computeActorCategoryTags(a);
+      const musicalCount=getActorShowCount(a.name);
+      const dramaCount=getDramaWorkCount(a.name);
+      return {
+        id:a.id,
+        name:a.name,
+        profile_image:a.profile_image,
+        typeLabel:tags.label,
+        categories:tags.categories,
+        count:musicalCount+dramaCount // 總觀看次數＝音樂劇累計次數＋電視劇累計次數
+      };
     })
-    .map(a=>({id:a.id,name:a.name,profile_image:a.profile_image,count:actorCounts[a.name]||0}))
-    .sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+    .filter(a=>actorsCategoryFilter==='all' || a.categories.includes(actorsCategoryFilter))
+    // 預設依總觀看次數由多到少排序，最常看的演員排最前面；次數相同時依姓名排序，順序才穩定不會亂跳
+    .sort((a,b)=> b.count-a.count || a.name.localeCompare(b.name,'ko'));
 }
 
 function renderActorsCategoryFilterBar(){
@@ -2678,14 +2735,14 @@ function renderActorsGrid(){
   const grid=document.getElementById('actors-grid');
   if(!grid) return; // 防呆：容器不存在就不繼續
 
-  if(!musicalActors.length){
-    grid.innerHTML='<p style="color:#999;font-size:13px;padding:10px;grid-column:1/-1">目前尚未建立任何演員資料</p>';
-    return;
-  }
-
   const list=getFilteredActorsList();
+
   if(!list.length){
-    grid.innerHTML='<p style="color:#999;font-size:13px;padding:10px;grid-column:1/-1">沒有符合搜尋／篩選條件的演員</p>';
+    // 用有沒有套用搜尋/篩選條件來判斷訊息：完全沒有任何演員資料，跟「篩選條件太窄找不到人」是兩種情況
+    const hasAnyFilter = actorsSearchQuery.trim() || actorsCategoryFilter!=='all';
+    grid.innerHTML = hasAnyFilter
+      ? '<p style="color:#999;font-size:13px;padding:10px;grid-column:1/-1">沒有符合搜尋／篩選條件的演員</p>'
+      : '<p style="color:#999;font-size:13px;padding:10px;grid-column:1/-1">目前尚未建立任何演員資料</p>';
     return;
   }
 
@@ -2693,7 +2750,8 @@ function renderActorsGrid(){
     <div class="actor-grid-card" onclick="openActorPage('${jsStr(a.name)}')">
       ${actorAvatarHtml(a,'avatar-sm')}
       <div class="agc-name">${esc(a.name)}</div>
-      <div class="agc-count">${a.count} 場</div>
+      <div class="agc-type-tag">${esc(a.typeLabel)}</div>
+      <div class="agc-count">共 ${a.count} 次</div>
     </div>
   `).join('');
 }
