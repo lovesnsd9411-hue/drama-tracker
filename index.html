@@ -64,9 +64,9 @@ input,select,textarea,button{font-family:inherit}
 .actor-page.open{display:block}
 .actor-page-header{position:sticky;top:0;background:#fff;padding:.75rem 1rem;border-bottom:.5px solid #F0F0F5;z-index:1}
 .actor-page-body{padding:1rem;max-width:760px;margin:0 auto}
-.actor-page-name{font-size:24px;font-weight:700;color:#1A1A2E;margin-top:.25rem}
-.actor-page-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:.6rem}
-.actor-page-summary{display:flex;gap:1.5rem;margin:1.1rem 0;padding:1rem 1.2rem;background:#F8F8FB;border-radius:12px;flex-wrap:wrap}
+.actor-page-name{font-size:22px;font-weight:700;color:#1A1A2E;margin-top:.9rem;text-align:center}
+.actor-page-tags{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:.7rem}
+.actor-page-summary{display:flex;gap:1.5rem;margin:1.3rem 0;padding:1rem 1.2rem;background:#F8F8FB;border-radius:12px;flex-wrap:wrap;justify-content:center}
 .actor-summary-stat{display:flex;flex-direction:column;gap:2px}
 .actor-summary-num{font-size:20px;font-weight:700;color:#3C3489}
 .actor-summary-label{font-size:12px;color:#888}
@@ -75,14 +75,14 @@ input,select,textarea,button{font-family:inherit}
 .actors-search-bar{display:flex;gap:8px;margin-top:.6rem}
 .actors-search-bar input{flex:1;padding:.6rem .9rem;border:1px solid #E0E0EE;border-radius:12px;font-size:14px}
 .actors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;padding:1rem;max-width:1100px;margin:0 auto}
-.actor-grid-card{background:#F8F8FB;border:1px solid #EFEFF5;border-radius:14px;padding:1rem .8rem;text-align:center;cursor:pointer;transition:all .15s;position:relative;display:flex;flex-direction:column;align-items:center;gap:6px}
-.actor-grid-card:hover{border-color:#AFA9EC;background:#F3F2FC}
-.agc-delete{position:absolute;top:4px;right:4px;width:22px;height:22px;border-radius:50%;border:none;background:#fff;color:#B91C1C;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.12);opacity:.7}
-.agc-delete:hover{opacity:1;background:#FEE2E2}
-.actor-avatar-fallback{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8B86D4,#3C3489);color:#fff;font-weight:700;border-radius:50%;flex-shrink:0}
-.avatar-sm{width:44px;height:44px;font-size:16px;object-fit:cover}
-.avatar-lg{width:72px;height:72px;font-size:26px;object-fit:cover}
-.actor-grid-card .agc-name{font-weight:700;color:#1A1A2E;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.actor-grid-card{background:#F8F8FB;border:1px solid #EFEFF5;border-radius:16px;padding:1.2rem .8rem 1rem;cursor:pointer;transition:all .15s;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.actor-grid-card:hover{border-color:#AFA9EC;background:#F3F2FC;transform:translateY(-2px)}
+.actor-avatar-fallback{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8B86D4,#3C3489);color:#fff;font-weight:700;flex-shrink:0}
+/* 圓形頭像：img 跟找不到照片時的字母 fallback 共用同一組尺寸/圓框/陰影，兩種情況外觀完全一致，
+   不會因為有沒有照片而讓卡片高度或形狀跑掉。object-fit:cover 確保任何比例的照片都會被裁成正圓不變形。 */
+.avatar-sm{width:84px;height:84px;font-size:28px;border-radius:50%;object-fit:cover;display:block;margin-bottom:.7rem;box-shadow:0 3px 10px rgba(0,0,0,.14);border:2px solid #fff}
+.avatar-lg{width:96px;height:96px;font-size:34px;border-radius:50%;object-fit:cover;display:block;box-shadow:0 4px 14px rgba(0,0,0,.14);border:2px solid #f5f5f5}
+.actor-grid-card .agc-name{font-weight:700;color:#1A1A2E;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .actor-grid-card .agc-count{font-size:12px;color:#8B86D4;font-weight:600;margin-top:4px}
 
 /* 演員懸浮卡片：半透明遮罩背景 + 置中卡片，點擊遮罩或關閉鈕可關閉，回到總表頁面 */
@@ -3036,12 +3036,10 @@ async function deleteMusicalActorRow(id){
 <div id="actor-card-bg" class="actor-card-bg">
   <div class="actor-card">
     <button onclick="closeActorPage()" style="position:absolute;top:1rem;right:1rem;background:none;border:none;cursor:pointer;font-size:22px;color:#888;z-index:1;width:32px;height:32px">×</button>
-    <div style="display:flex;align-items:center;gap:14px;padding-right:2.2rem">
+    <div style="display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:.3rem">
       <div id="actor-card-avatar"></div>
-      <div style="flex:1;min-width:0">
-        <div class="actor-page-name" id="actor-page-name"></div>
-        <div id="actor-card-actions" style="display:flex;gap:8px;margin-top:6px;position:relative;z-index:2"></div>
-      </div>
+      <div class="actor-page-name" id="actor-page-name"></div>
+      <div id="actor-card-actions" style="display:flex;gap:8px;margin-top:.8rem;position:relative;z-index:2"></div>
     </div>
     <div class="actor-page-tags" id="actor-page-tags"></div>
     <div class="actor-page-summary" id="actor-page-summary"></div>
