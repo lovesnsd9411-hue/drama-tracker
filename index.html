@@ -1527,6 +1527,15 @@ function episodeLabel(d){
   return (n>0) ? `第 ${n} 集` : '';
 }
 
+// 大劇目卡片統計：加總這部音樂劇所有季度、所有場次的總觀看場次與總花費（統一換算成台幣）。
+// 沿用既有規則：場次只算「已觀看」，花費包含「已觀看」＋「持有票券」，不含已退票或轉讓。
+function musicalCardStats(d){
+  const history=d.viewing_history||[];
+  const count=history.filter(countsTowardWorks).length;
+  const spent=history.filter(countsTowardSpend).reduce((s,h)=>s+convertToTWD(h.amount,h.currency||'TWD'),0);
+  return {count,spent};
+}
+
 function renderGallery(list,el){
   el.className='gallery';
   el.innerHTML=list.map(d=>`
@@ -1543,7 +1552,7 @@ function renderGallery(list,el){
         <div class="po-name">${esc(d.name)}</div>
         <div class="po-score">${[d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'',episodeLabel(d)].filter(Boolean).join(' · ')}</div>
         ${d.category==='musical'
-          ?`<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> ${(d.viewing_history||[]).length}場</span>`
+          ?(()=>{const s=musicalCardStats(d);return `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> ${s.count}場${s.spent>0?' · $'+Math.round(s.spent).toLocaleString():''}</span>`;})()
           :`<span class="po-badge ${d.status==='done'?'po-done':d.status==='dropped'?'po-dropped':'po-ongoing'}">${d.status==='done'?'看完':d.status==='dropped'?'棄劇':'觀看中'}</span>`}
       </div>
     </div>`).join('');
@@ -1571,7 +1580,7 @@ function renderTable(list,el){
           <div class="rt-orig">${d.orig?esc(d.orig):''}${episodeLabel(d)?' · '+episodeLabel(d):''}</div>
         </div>
         <div class="rt-cell rt-c-rating rt-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'—'}</div>
-        <div class="rt-cell rt-c-status">${d.category==='musical'?`<span class="badge" style="background:#EEEDFE;color:#3C3489">${(d.viewing_history||[]).length}場</span>`:statusBadge(d.status)}</div>
+        <div class="rt-cell rt-c-status">${d.category==='musical'?(()=>{const s=musicalCardStats(d);return `<span class="badge" style="background:#EEEDFE;color:#3C3489">${s.count}場${s.spent>0?' · $'+Math.round(s.spent).toLocaleString():''}</span>`;})():statusBadge(d.status)}</div>
         <div class="rt-cell rt-c-year rt-muted">${d.category==='musical'?'—':(d.yearDone?d.yearDone+'年':'—')}</div>
         <div class="rt-cell rt-c-platform rt-muted">${d.platform?esc(d.platform):'—'}</div>
         <div class="rt-cell rt-c-acts">
@@ -1645,6 +1654,7 @@ function renderMusicalDetail(d){
   const totalShows=history.filter(countsTowardWorks).length;
   const totalSpent=history.filter(countsTowardSpend).reduce((sum,h)=>sum+convertToTWD(h.amount,h.currency||'TWD'),0);
   currentTimelineFilter='all'; // 每次打開作品詳細頁都重置分類篩選器
+  currentSeasonFilter='all'; // 每次打開作品詳細頁都重置季度分頁籤回「全部」
 
   document.getElementById('detail-content').innerHTML=`
     <div style="display:flex;gap:1rem;margin-bottom:1rem;align-items:flex-start">
@@ -1666,10 +1676,11 @@ function renderMusicalDetail(d){
         : '<div style="font-size:12px; color:#aaa;">尚無主要演員資料</div>'}
     </div>
     <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
-      <span>多刷紀錄（共 ${totalShows} 場${totalSpent>0?' · 共花費 NT$'+Math.round(totalSpent).toLocaleString():''}）</span>
+      <span id="musical-stats-line">多刷紀錄（共 ${totalShows} 場${totalSpent>0?' · 共花費 NT$'+Math.round(totalSpent).toLocaleString():''}）</span>
       ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
     </div>
     <div id="musical-add-show-wrap"></div>
+    <div id="musical-season-filter">${renderSeasonTabBar(history,d.id)}</div>
     <div id="musical-timeline-filter">${renderTimelineFilterBar(history,d.id)}</div>
     <div id="musical-timeline">${renderMusicalTimeline(filterByShowStatus(history,currentTimelineFilter),d.id)}</div>
   `;
@@ -1677,6 +1688,68 @@ function renderMusicalDetail(d){
 
 // 分類篩選器：依演出狀態（全部／已觀看／持有票券／已退票或轉讓）篩選要顯示的場次
 let currentTimelineFilter='all';
+// 季度分頁籤：依「季度」（自由文字，例如第一季/2024재연）篩選要顯示的場次；'all'=全部季度，'__none__'=沒標季度的場次
+let currentSeasonFilter='all';
+
+function getShowSeason(h){ return (h && h.season || '').trim(); }
+
+function filterBySeason(history,seasonVal){
+  if(seasonVal==='all') return history;
+  if(seasonVal==='__none__') return history.filter(h=>!getShowSeason(h));
+  return history.filter(h=>getShowSeason(h)===seasonVal);
+}
+
+// 季度分頁籤列：只有這部劇目「真的有人標過季度」才會顯示，沒人用過季度功能的劇目維持原本簡單畫面。
+function renderSeasonTabBar(history,dramaId){
+  const seasons=[...new Set(history.map(getShowSeason).filter(Boolean))];
+  if(!seasons.length) return '';
+  const hasUnclassified=history.some(h=>!getShowSeason(h));
+  const options=[['all','全部'], ...seasons.map(s=>[s,s])];
+  if(hasUnclassified) options.push(['__none__','未分季']);
+  return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.5rem">
+    ${options.map(([val,label])=>{
+      const count = val==='all' ? history.length : filterBySeason(history,val).length;
+      return `<button class="filter-chip${currentSeasonFilter===val?' active':''}" onclick="setSeasonFilter('${jsStr(val)}','${jsStr(dramaId)}')">${esc(label)} (${count})</button>`;
+    }).join('')}
+  </div>`;
+}
+
+// 依目前選擇的季度，重新計算「多刷紀錄」標題列的統計數字：選「全部」顯示歷史總加總，
+// 選特定季度就只顯示那個季度自己的場次數與花費，兩者連動、不需要整頁重新渲染。
+function refreshMusicalStatsLine(dramaId){
+  const d=db.find(x=>x.id===dramaId);
+  if(!d) return;
+  const fullHistory=(d.viewing_history||[]).slice();
+  const seasonScoped=filterBySeason(fullHistory,currentSeasonFilter);
+  const totalShows=seasonScoped.filter(countsTowardWorks).length;
+  const totalSpent=seasonScoped.filter(countsTowardSpend).reduce((sum,h)=>sum+convertToTWD(h.amount,h.currency||'TWD'),0);
+  const label = currentSeasonFilter==='all' ? '多刷紀錄' : `多刷紀錄・${currentSeasonFilter==='__none__'?'未分季':esc(currentSeasonFilter)}`;
+  const el=document.getElementById('musical-stats-line');
+  if(el) el.textContent = `${label}（共 ${totalShows} 場${totalSpent>0?' · 共花費 NT$'+Math.round(totalSpent).toLocaleString():''}）`;
+}
+
+// 切換季度分頁籤：季度改變時，狀態篩選重置回「全部」，避免使用者以為「這個狀態剛好在新季度是 0 筆」是壞掉了。
+// 會依序重繪：季度分頁籤本身（active 狀態）、狀態篩選列（在新季度範圍內重新算筆數）、時間軸列表、數據面板。
+function setSeasonFilter(seasonVal,dramaId){
+  currentSeasonFilter=seasonVal;
+  currentTimelineFilter='all';
+  const d=db.find(x=>x.id===dramaId);
+  if(!d) return;
+  const fullHistory=(d.viewing_history||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const seasonEl=document.getElementById('musical-season-filter');
+  if(seasonEl) seasonEl.innerHTML=renderSeasonTabBar(fullHistory,dramaId);
+
+  const seasonScoped=filterBySeason(fullHistory,seasonVal);
+
+  const statusEl=document.getElementById('musical-timeline-filter');
+  if(statusEl) statusEl.innerHTML=renderTimelineFilterBar(seasonScoped,dramaId);
+
+  const timelineEl=document.getElementById('musical-timeline');
+  if(timelineEl) timelineEl.innerHTML=renderMusicalTimeline(filterByShowStatus(seasonScoped,currentTimelineFilter),dramaId);
+
+  refreshMusicalStatsLine(dramaId);
+}
 
 function filterByShowStatus(history,filterVal){
   if(filterVal==='all') return history;
@@ -1691,21 +1764,22 @@ function renderTimelineFilterBar(history,dramaId){
   const options=[['all','全部',history.length],...SHOW_STATUSES.map(s=>[s,s.replace('/','·'),counts[s]])];
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.6rem">
     ${options.map(([val,label,count])=>
-      `<button class="filter-chip${currentTimelineFilter===val?' active':''}" onclick="setTimelineFilter('${val}','${dramaId}')">${esc(label)}${count?` (${count})`:''}</button>`
+      `<button class="filter-chip${currentTimelineFilter===val?' active':''}" onclick="setTimelineFilter('${jsStr(val)}','${jsStr(dramaId)}')">${esc(label)}${count?` (${count})`:''}</button>`
     ).join('')}
   </div>`;
 }
 
-// 切換分類篩選器：只重繪篩選列與時間軸列表，不用整頁重新渲染
+// 切換分類篩選器：只重繪篩選列與時間軸列表，不用整頁重新渲染（季度範圍維持目前選擇的季度不變）
 function setTimelineFilter(filterVal,dramaId){
   currentTimelineFilter=filterVal;
   const d=db.find(x=>x.id===dramaId);
   if(!d)return;
-  const history=(d.viewing_history||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const fullHistory=(d.viewing_history||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const seasonScoped=filterBySeason(fullHistory,currentSeasonFilter);
   const filterEl=document.getElementById('musical-timeline-filter');
-  if(filterEl) filterEl.innerHTML=renderTimelineFilterBar(history,dramaId);
+  if(filterEl) filterEl.innerHTML=renderTimelineFilterBar(seasonScoped,dramaId);
   const timelineEl=document.getElementById('musical-timeline');
-  if(timelineEl) timelineEl.innerHTML=renderMusicalTimeline(filterByShowStatus(history,filterVal),dramaId);
+  if(timelineEl) timelineEl.innerHTML=renderMusicalTimeline(filterByShowStatus(seasonScoped,filterVal),dramaId);
 }
 
 // 依演出狀態回傳對應的徽章樣式 class
@@ -1783,6 +1857,10 @@ async function openAddShowForm(dramaId, editShowId){
         </div>
       </div>`;
 
+  // 季度候選清單：從這部劇目「已經用過」的季度名稱裡取不重複的值，方便下拉快速選擇同一個季度，
+  // 也可以直接輸入新的季度名稱（例如「第一季」「2024재연」都可以自由填）。
+  const existingSeasons=[...new Set((d.viewing_history||[]).map(h=>(h&&h.season||'').trim()).filter(Boolean))];
+
   wrap.innerHTML=`
     <div style="background:#fff;border:1px solid #E5E5F0;border-radius:12px;padding:1rem;margin-bottom:1rem">
       <div class="row2">
@@ -1795,10 +1873,18 @@ async function openAddShowForm(dramaId, editShowId){
           </select>
         </div>
       </div>
-      <div class="field"><label>演出狀態</label>
-        <select id="show-status">
-          ${SHOW_STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}
-        </select>
+      <div class="row2">
+        <div class="field"><label>演出狀態</label>
+          <select id="show-status">
+            ${SHOW_STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>季度（可選，例：第一季）</label>
+          <input type="text" id="show-season" list="show-season-options" placeholder="例：第一季">
+          <datalist id="show-season-options">
+            ${existingSeasons.map(s=>`<option value="${esc(s)}"></option>`).join('')}
+          </datalist>
+        </div>
       </div>
       ${castFieldHtml}
       <div class="row2">
@@ -1826,6 +1912,7 @@ async function openAddShowForm(dramaId, editShowId){
     setFieldVal('show-date', existingShow.date||'');
     setFieldVal('show-time', existingShow.time||'');
     setFieldVal('show-status', getShowStatus(existingShow));
+    setFieldVal('show-season', existingShow.season||'');
     setFieldVal('show-amount', existingShow.amount!=null?String(existingShow.amount):'');
     setFieldVal('show-currency', existingShow.currency||'TWD');
     setFieldVal('show-note', existingShow.note||'');
@@ -1852,6 +1939,7 @@ async function saveShow(dramaId, editShowId) {
 
   const time = fieldVal('show-time');
   const showStatus = fieldVal('show-status','已觀看')||'已觀看';
+  const season = fieldVal('show-season').trim();
   const amount = fieldVal('show-amount').trim();
   const currency = fieldVal('show-currency','TWD')||'TWD';
   const note = fieldVal('show-note').trim();
@@ -1869,7 +1957,7 @@ async function saveShow(dramaId, editShowId) {
     if(idx>-1){
       d.viewing_history[idx] = {
         ...d.viewing_history[idx],
-        date, time, showStatus, viewed_actors,
+        date, time, showStatus, season, viewed_actors,
         amount: amount ? parseFloat(amount) : null,
         currency,
         note
@@ -1881,6 +1969,7 @@ async function saveShow(dramaId, editShowId) {
       date,
       time,
       showStatus,
+      season,
       viewed_actors,
       amount: amount ? parseFloat(amount) : null,
       currency,
