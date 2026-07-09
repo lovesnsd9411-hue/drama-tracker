@@ -1643,6 +1643,44 @@ function filterByStatus(val){
 }
 
 // ── Musical detail view: viewing history timeline + add-show form ──
+// ════════════════════════════════════════════════════════════════
+// 🎭 季度資料層（seasons）—— 音樂劇 ➔ 季度 ➔ 專屬卡司與紀錄
+// 新結構：d.seasons = [{id, name, cast:[{role,name}], records:[...]}]
+// 每一季有自己專屬的候選卡司，不再跟其他季度共用同一份 actors_all。
+//
+// 為了不用馬上改動、遷移所有已經存檔的舊資料，這裡用「讀取時轉換」：
+// 如果 d.seasons 已經存在就直接用；沒有的話，從舊的扁平結構
+// （d.viewing_history + 每筆記錄的 .season 標籤）現場組出等價的季度陣列。
+// 這個函式不會寫入任何資料，單純是「用新的方式去看舊的資料」。
+// ════════════════════════════════════════════════════════════════
+function getMusicalSeasons(d){
+  if(d.seasons && d.seasons.length) return d.seasons;
+
+  const history=d.viewing_history||[];
+  const order=[];
+  const bySeasonName=new Map();
+  history.forEach(h=>{
+    const seasonName=(h && h.season && h.season.trim()) || '未分類場次';
+    if(!bySeasonName.has(seasonName)){ bySeasonName.set(seasonName,[]); order.push(seasonName); }
+    bySeasonName.get(seasonName).push(h);
+  });
+
+  if(!order.length){
+    // 完全沒有任何場次記錄：回傳一個空季度，卡司先繼承舊的 actors_all／actors 當作候選名單
+    const fallbackCast=(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[]);
+    return [{id:'season_default',name:'第一季',cast:fallbackCast,records:[]}];
+  }
+
+  return order.map((name,i)=>{
+    const records=bySeasonName.get(name);
+    // 這一季的專屬卡司＝這一季所有場次記錄裡實際出現過的演員聯集起來；
+    // 如果這一季完全沒人被記錄過（例如只填了日期沒勾卡司），才退回舊的全劇候選名單。
+    const seasonCast=normalizeCastArray(records.flatMap(h=>(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:(h.cast||[])));
+    const fallbackCast=(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[]);
+    return {id:'season_legacy_'+i,name,cast:seasonCast.length?seasonCast:fallbackCast,records};
+  });
+}
+
 function renderMusicalDetail(d){
   const genreList=d.genres&&d.genres.length?d.genres:(d.genre?d.genre.split(',').map(g=>g.trim()).filter(Boolean):[]);
   const posterUrl=posterSrc(d);
