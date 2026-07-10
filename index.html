@@ -266,6 +266,9 @@ textarea{height:80px;resize:vertical}
 .genre-cb:has(input:checked){background:#EEEDFE;color:#3C3489;border-color:#AFA9EC}
 
 .tag-input-wrap{position:relative}
+.season-block{border:1px solid #E5E5F0;border-radius:12px;padding:.9rem;margin-bottom:.7rem;position:relative;background:#FAFAFC}
+.season-block-remove{position:absolute;top:.6rem;right:.6rem;background:none;border:none;cursor:pointer;font-size:16px;color:#B91C1C;padding:2px 6px;border-radius:6px}
+.season-block-remove:hover{background:#FEE2E2}
 .tag-input-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px}
 .tag-input-chips:empty{margin-bottom:0}
 .tag-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:5px 10px;border-radius:20px;background:#EEEDFE;color:#3C3489;border:1px solid #AFA9EC;font-weight:600}
@@ -438,7 +441,7 @@ body.read-only-mode .fav-badge{display:none}
 
     <!-- ── 音樂劇專用欄位 ── -->
     <div class="field" id="musical-only-season" style="display:none">
-      <label>季度 / 演出期間</label>
+      <label>目前上演期間（顯示用，可留空）</label>
       <input type="text" id="f-musical-season" placeholder="例：2026.03 ~ 2026.05　或　2026 三演">
     </div>
     <div class="field" id="musical-only-method" style="display:none">
@@ -453,15 +456,13 @@ body.read-only-mode .fav-badge{display:none}
 
     <div class="field" id="namu-field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋"></div>
 
-    <!-- ── 音樂劇專用：主要演員（自動完成輸入，取代舊版勾選清單） ── -->
+    <!-- ── 音樂劇專用：季度區塊（取代舊版單一共用的「主要演員」欄位）──
+         每一季各自獨立：季名、演出期間、專屬卡司。卡司在這裡明確定義，
+         不會從多刷紀錄反推——這是季度→專屬卡司架構的資料來源本體。 -->
     <div class="field" id="musical-only-cast" style="display:none">
-      <label>主要演員（可輸入「角色 | 演員A, 演員B」一次新增多位同角色演員，或直接輸入演員姓名，逗號分隔多位）</label>
-      <div class="tag-input-wrap" id="form-cast-tag-wrap">
-        <div class="tag-input-chips" id="form-cast-chips"></div>
-        <input type="text" id="form-cast-input" placeholder="例：男主角 | 演員A, 演員B" autocomplete="off"
-          oninput="onCastInputType('form')" onkeydown="onCastInputKeydown(event,'form')">
-        <div class="tag-suggest-dropdown" id="form-cast-suggest" style="display:none"></div>
-      </div>
+      <label>季度設定（每一季各自的專屬卡司）</label>
+      <div id="season-blocks-container"></div>
+      <button type="button" class="icon-btn" onclick="addSeasonBlock()" style="margin-top:.4rem"><i class="ti ti-plus"></i> 新增季度</button>
     </div>
 
     <div class="field"><label>筆記 / 心得</label><textarea id="f-note" placeholder="想記錄什麼都可以…"></textarea></div>
@@ -1654,9 +1655,23 @@ function filterByStatus(val){
 // 這個函式不會寫入任何資料，單純是「用新的方式去看舊的資料」。
 // ════════════════════════════════════════════════════════════════
 function getMusicalSeasons(d){
-  if(d.seasons && d.seasons.length) return d.seasons;
-
   const history=d.viewing_history||[];
+
+  if(d.seasons && d.seasons.length){
+    // 新架構：卡司是「編輯音樂劇」表單裡明確定義好的（d.seasons[].actors），不是從紀錄反推。
+    // 場次紀錄還是放在 d.viewing_history 那個扁平陣列裡，只是用季度名稱去比對歸屬到哪一季。
+    return d.seasons.map((s,i)=>({
+      id:s.id||('season_'+i),
+      name:s.name,
+      period:s.period||'',
+      cast:s.actors||[],
+      records:history.filter(h=>h && ((h.season||'').trim())===(s.name||'').trim())
+    }));
+  }
+
+  // 相容舊資料（這部劇目還沒用新的「編輯音樂劇」季度表單設定過任何季度）：
+  // 沒有明確定義的卡司可用，只能先從紀錄反推一個大概的候選名單頂著用，
+  // 建議使用者透過編輯音樂劇表單補上正式的季度卡司設定。
   const order=[];
   const bySeasonName=new Map();
   history.forEach(h=>{
@@ -1666,19 +1681,75 @@ function getMusicalSeasons(d){
   });
 
   if(!order.length){
-    // 完全沒有任何場次記錄：回傳一個空季度，卡司先繼承舊的 actors_all／actors 當作候選名單
     const fallbackCast=(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[]);
-    return [{id:'season_default',name:'第一季',cast:fallbackCast,records:[]}];
+    return [{id:'season_default',name:'第一季',period:'',cast:fallbackCast,records:[]}];
   }
 
   return order.map((name,i)=>{
     const records=bySeasonName.get(name);
-    // 這一季的專屬卡司＝這一季所有場次記錄裡實際出現過的演員聯集起來；
-    // 如果這一季完全沒人被記錄過（例如只填了日期沒勾卡司），才退回舊的全劇候選名單。
     const seasonCast=normalizeCastArray(records.flatMap(h=>(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:(h.cast||[])));
     const fallbackCast=(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[]);
-    return {id:'season_legacy_'+i,name,cast:seasonCast.length?seasonCast:fallbackCast,records};
+    return {id:'season_legacy_'+i,name,period:'',cast:seasonCast.length?seasonCast:fallbackCast,records};
   });
+}
+
+// ════════════════════════════════════════════════════════════════
+// 「編輯音樂劇」表單裡的動態季度區塊：季度名稱／演出期間／專屬卡司都在這裡明確定義，
+// 是季度資料的唯一來源（不是從多刷紀錄反推）。formSeasonsState 是表單編輯中的暫存資料，
+// 每個季度區塊的卡司輸入用獨立的 tag-input scope（'season-0'、'season-1'…），互不干擾。
+// ════════════════════════════════════════════════════════════════
+let formSeasonsState=[];
+
+function renderSeasonBlockHtml(index,season){
+  return `<div class="season-block" data-season-index="${index}">
+    ${formSeasonsState.length>1?`<button type="button" class="season-block-remove" onclick="removeSeasonBlock(${index})" title="刪除這一季"><i class="ti ti-trash"></i></button>`:''}
+    <div class="field"><label>季度名稱</label><input type="text" id="season-${index}-name" value="${esc(season.name||'')}" placeholder="例：第一季（初演）"></div>
+    <div class="field"><label>演出期間（可選）</label><input type="text" id="season-${index}-period" value="${esc(season.period||'')}" placeholder="例：2026.06.30 ~ 2026.09.13"></div>
+    <div class="field" style="margin-bottom:0">
+      <label>本季專屬演員（可輸入「角色 | 演員A, 演員B」，或直接輸入演員姓名）</label>
+      <div class="tag-input-wrap" id="season-${index}-cast-tag-wrap">
+        <div class="tag-input-chips" id="season-${index}-cast-chips"></div>
+        <input type="text" id="season-${index}-cast-input" placeholder="例：男主角 | 演員A, 演員B" autocomplete="off"
+          oninput="onCastInputType('season-${index}')" onkeydown="onCastInputKeydown(event,'season-${index}')">
+        <div class="tag-suggest-dropdown" id="season-${index}-cast-suggest" style="display:none"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderSeasonBlocksContainer(){
+  const el=document.getElementById('season-blocks-container');
+  if(!el) return;
+  if(!formSeasonsState.length){
+    el.innerHTML='<p style="font-size:12px;color:#999;margin:.3rem 0">目前還沒有任何季度，按下方「新增季度」開始設定。</p>';
+    return;
+  }
+  el.innerHTML=formSeasonsState.map((s,i)=>renderSeasonBlockHtml(i,s)).join('');
+  formSeasonsState.forEach((s,i)=>{ initCastTagInput('season-'+i, s.actors||[]); });
+}
+
+// 在改變區塊數量（新增/刪除季度）之前，先把使用者目前在畫面上打的內容（季名/期間/卡司）
+// 同步存回 formSeasonsState，不然重新渲染會把還沒存的輸入內容弄丟。
+function syncSeasonBlocksFromDOM(){
+  formSeasonsState.forEach((s,i)=>{
+    if(document.getElementById('season-'+i+'-name')){
+      s.name=fieldVal('season-'+i+'-name');
+      s.period=fieldVal('season-'+i+'-period');
+      s.actors=getCastChipsData('season-'+i);
+    }
+  });
+}
+
+function addSeasonBlock(){
+  syncSeasonBlocksFromDOM();
+  formSeasonsState.push({name:'',period:'',actors:[]});
+  renderSeasonBlocksContainer();
+}
+
+function removeSeasonBlock(index){
+  syncSeasonBlocksFromDOM();
+  formSeasonsState.splice(index,1);
+  renderSeasonBlocksContainer();
 }
 
 // 依目前選擇的季度分頁籤，渲染「主要演員」區塊：
@@ -1738,7 +1809,7 @@ function renderMusicalDetail(d){
       ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
     </div>
     <div id="musical-add-show-wrap"></div>
-    <div id="musical-season-filter">${renderSeasonTabBar(history,d.id)}</div>
+    <div id="musical-season-filter">${renderSeasonTabBar(d,d.id)}</div>
     <div id="musical-timeline-filter">${renderTimelineFilterBar(history,d.id)}</div>
     <div id="musical-timeline">${renderMusicalTimeline(filterByShowStatus(history,currentTimelineFilter),d.id)}</div>
   `;
@@ -1757,18 +1828,20 @@ function filterBySeason(history,seasonVal){
   return history.filter(h=>getShowSeason(h)===seasonVal);
 }
 
-// 季度分頁籤列：只有這部劇目「真的有人標過季度」才會顯示，沒人用過季度功能的劇目維持原本簡單畫面。
-function renderSeasonTabBar(history,dramaId){
-  const seasons=[...new Set(history.map(getShowSeason).filter(Boolean))];
-  if(!seasons.length) return '';
-  const hasUnclassified=history.some(h=>!getShowSeason(h));
-  const options=[['all','全部'], ...seasons.map(s=>[s,s])];
-  if(hasUnclassified) options.push(['__none__','未分季']);
+// 季度分頁籤列：分頁籤的來源是「編輯音樂劇表單裡定義好的季度」（getMusicalSeasons），
+// 不是「多刷紀錄裡出現過的季度標籤」——這樣就算某一季剛設定好卡司、還一場都沒記錄過，
+// 也一樣會出現分頁籤可以點（只是底下的紀錄列表會是空的），不會因為沒有紀錄就找不到那一季。
+// 只有「這部劇目真的有定義季度」時才顯示分頁籤，舊資料完全沒設定過季度就維持原本簡單畫面。
+function renderSeasonTabBar(d,dramaId){
+  const hasRealSeasons=d.seasons && d.seasons.length>0;
+  if(!hasRealSeasons) return '';
+  const seasons=getMusicalSeasons(d);
+  const history=d.viewing_history||[];
+  const options=[['all','全部',history.length], ...seasons.map(s=>[s.name,s.name,s.records.length])];
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.5rem">
-    ${options.map(([val,label])=>{
-      const count = val==='all' ? history.length : filterBySeason(history,val).length;
-      return `<button class="filter-chip${currentSeasonFilter===val?' active':''}" onclick="setSeasonFilter('${jsStr(val)}','${jsStr(dramaId)}')">${esc(label)} (${count})</button>`;
-    }).join('')}
+    ${options.map(([val,label,count])=>
+      `<button class="filter-chip${currentSeasonFilter===val?' active':''}" onclick="setSeasonFilter('${jsStr(val)}','${jsStr(dramaId)}')">${esc(label)} (${count})</button>`
+    ).join('')}
   </div>`;
 }
 
@@ -1799,7 +1872,7 @@ function setSeasonFilter(seasonVal,dramaId){
   if(castEl) castEl.innerHTML=renderSeasonScopedCast(d,seasonVal);
 
   const seasonEl=document.getElementById('musical-season-filter');
-  if(seasonEl) seasonEl.innerHTML=renderSeasonTabBar(fullHistory,dramaId);
+  if(seasonEl) seasonEl.innerHTML=renderSeasonTabBar(d,dramaId);
 
   const seasonScoped=filterBySeason(fullHistory,seasonVal);
 
@@ -1895,15 +1968,21 @@ async function openAddShowForm(dramaId, editShowId){
   // 不要只信任舊的 actors_all 快取——如果這部劇目的 actors_all 是在修正「一人分飾多角」
   // 去重 bug 之前就存檔的，裡面可能漏掉了某些角色（同名演員的第二個角色）。
   // 這裡重新彙整可以自動補回漏掉的資料，並直接存回去，一勞永逸修好舊資料。
-  const fullRoster = aggregateActorsAll(d.actors, d);
-  if(JSON.stringify(fullRoster)!==JSON.stringify(d.actors_all||[])){
-    d.actors_all = fullRoster;
+  const fullRosterFromLegacy = aggregateActorsAll(d.actors, d);
+  if(JSON.stringify(fullRosterFromLegacy)!==JSON.stringify(d.actors_all||[])){
+    d.actors_all = fullRosterFromLegacy;
     save();
   }
 
   // 如果正在編輯一筆已經標過季度的紀錄，一開始就把候選名單縮小到「那一季專屬的卡司」，
   // 不要混入其他季度的人——這是季度→專屬卡司架構的核心：候選清單不再是整部劇共用一份。
   const seasonsForRoster=getMusicalSeasons(d);
+  // 防呆：d.actors／actors_all 理論上會在 saveForm() 存檔時自動從 seasons 聯集出來，
+  // 但萬一有資料是繞過那段邏輯寫入的（例如舊資料還沒觸發過衍生），這裡直接從 seasons
+  // 現場聯集一份頂著用——seasons 才是卡司資料真正的來源本體，不能讓候選名單開天窗。
+  const fullRoster = fullRosterFromLegacy.length
+    ? fullRosterFromLegacy
+    : normalizeCastArray(seasonsForRoster.flatMap(s=>s.cast));
   const initialSeasonVal=existingShow?(existingShow.season||'').trim():'';
   const matchedInitialSeason=initialSeasonVal?seasonsForRoster.find(s=>s.name===initialSeasonVal):null;
   const roster=matchedInitialSeason?matchedInitialSeason.cast:fullRoster;
@@ -1927,7 +2006,11 @@ async function openAddShowForm(dramaId, editShowId){
 
   // 季度候選清單：從這部劇目「已經用過」的季度名稱裡取不重複的值，方便下拉快速選擇同一個季度，
   // 也可以直接輸入新的季度名稱（例如「第一季」「2024재연」都可以自由填）。
-  const existingSeasons=[...new Set((d.viewing_history||[]).map(h=>(h&&h.season||'').trim()).filter(Boolean))];
+  // 季度建議清單：優先用「編輯音樂劇」表單裡明確定義好的季度名稱（權威來源），
+  // 這樣就算某一季還沒有任何場次記錄，新增場次時也挑得到；沒有定義過季度的舊資料才退回歷史標籤。
+  const existingSeasons=(d.seasons&&d.seasons.length)
+    ? d.seasons.map(s=>s.name).filter(Boolean)
+    : [...new Set((d.viewing_history||[]).map(h=>(h&&h.season||'').trim()).filter(Boolean))];
 
   wrap.innerHTML=`
     <div style="background:#fff;border:1px solid #E5E5F0;border-radius:12px;padding:1rem;margin-bottom:1rem">
@@ -2209,6 +2292,8 @@ function openAdd(){
     setFieldVal('f-air','');
     fillYearSel('f-year','');
     initCastTagInput('form', []);
+    formSeasonsState=[{name:'',period:'',actors:[]}];
+    renderSeasonBlocksContainer();
     setFormCategory('drama');
 
     // 選單重置
@@ -2271,7 +2356,11 @@ function openEdit(id){
   if((d.category||'drama')==='musical'){
     // wait for actor list load (setFormCategory awaits it) before populating chips
     setTimeout(()=>{
-      initCastTagInput('form', d.actors || []);
+      formSeasonsState = (d.seasons && d.seasons.length)
+        ? d.seasons.map(s=>({name:s.name||'',period:s.period||'',actors:s.actors||[]}))
+        // 舊資料還沒用季度表單設定過：先用既有的候選名單墊成一個季度，方便使用者接手拆分成正式的多季結構
+        : [{name:'',period:'',actors:(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[])}];
+      renderSeasonBlocksContainer();
     }, 350);
   }
   openModal('form-modal');
@@ -2309,14 +2398,26 @@ function saveForm(){
 
   let data;
   if(category==='musical'){
-    const cast=getCastChipsData('form');
+    // 先把畫面上還沒同步的季度輸入（季名／期間／卡司）存回 formSeasonsState，這是季度資料的唯一來源，
+    // 不是從多刷紀錄反推。空白季名自動補成「第N季」，避免存出一個沒有名字的季度。
+    syncSeasonBlocksFromDOM();
+    const seasons=formSeasonsState.map((s,i)=>({
+      id:'season_'+i,
+      name:(s.name||'').trim()||('第'+(i+1)+'季'),
+      period:(s.period||'').trim(),
+      actors:s.actors||[]
+    }));
+    // 向下相容：d.actors／d.actors_all 保留給還沒改用 seasons 結構的功能讀取
+    // （人物總表、演員詳細頁、搜尋…），內容是所有季度卡司的聯集，依「角色＋姓名」去重。
+    const unionCast=normalizeCastArray(seasons.flatMap(s=>s.actors));
     data={
       name,orig,category,
       status:'',rating:0,genre:'',genres:[],
       platform:'',viewMethod:fieldVal('f-musical-method'),
       airDate:'',yearDone:'',season:fieldVal('f-musical-season').trim(),
-      actors:cast,
-      actors_all:aggregateActorsAll(cast,existing), // 匯總目前填寫的卡司＋歷史所有場次記錄過的卡司
+      seasons,
+      actors:unionCast,
+      actors_all:aggregateActorsAll(unionCast,existing), // 匯總目前填寫的卡司＋歷史所有場次記錄過的卡司
       directors:[],director:'',writers:[],writer:'',
       note:fieldVal('f-note').trim(),
       poster,namu:fieldVal('f-namu').trim()
