@@ -1681,6 +1681,31 @@ function getMusicalSeasons(d){
   });
 }
 
+// 依目前選擇的季度分頁籤，渲染「主要演員」區塊：
+// 選「全部」→ 依季度群組化顯示每一季各自的卡司（只有一季的話就不特別分組，直接顯示）；
+// 選特定季度 → 只顯示那一季專屬的卡司，不會混入其他季度的人。
+function renderSeasonScopedCast(d,seasonVal){
+  const seasons=getMusicalSeasons(d);
+  const empty='<div style="font-size:12px;color:#aaa;">尚無主要演員資料</div>';
+
+  if(seasonVal==='all'){
+    if(seasons.length<=1){
+      const cast=seasons[0]?seasons[0].cast:[];
+      return cast.length?renderCastGrouped(cast,true):empty;
+    }
+    return seasons.map(s=>{
+      const castHtml=s.cast.length?renderCastGrouped(s.cast,true):'<div style="font-size:12px;color:#aaa;">尚無資料</div>';
+      return `<div style="margin-bottom:.8rem"><div style="font-size:12px;font-weight:700;color:#8B86D4;margin-bottom:.35rem">${esc(s.name)}</div>${castHtml}</div>`;
+    }).join('');
+  }
+
+  // '__none__'（未分季）在 getMusicalSeasons() 裡對應到「未分類場次」這個季度名稱
+  const lookupName=seasonVal==='__none__'?'未分類場次':seasonVal;
+  const season=seasons.find(s=>s.name===lookupName);
+  const cast=season?season.cast:[];
+  return cast.length?renderCastGrouped(cast,true):'<div style="font-size:12px;color:#aaa;">這一季尚無主要演員資料</div>';
+}
+
 function renderMusicalDetail(d){
   const genreList=d.genres&&d.genres.length?d.genres:(d.genre?d.genre.split(',').map(g=>g.trim()).filter(Boolean):[]);
   const posterUrl=posterSrc(d);
@@ -1699,7 +1724,6 @@ function renderMusicalDetail(d){
       ${posterHtml}
       <div style="flex:1;min-width:0">
         <div style="font-size:20px;font-weight:700;color:#1A1A2E;line-height:1.3">${esc(d.name)}</div>
-        ${d.season?`<div style="font-size:13px;color:#999;margin-top:2px;font-weight:500">${esc(d.season)}</div>`:''}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">
           <span class="badge" style="background:#EEEDFE;color:#3C3489"><i class="ti ti-music" style="font-size:11px;margin-right:3px"></i>音樂劇</span>
           ${d.viewMethod?`<span class="badge" style="background:#F5F5FA;color:#666">${esc(d.viewMethod)}</span>`:''}
@@ -1708,11 +1732,7 @@ function renderMusicalDetail(d){
       </div>
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
-    <div id="actors-display-area" style="margin-top:10px;">
-    ${(d.actors && d.actors.length > 0)
-        ? renderCastGrouped(d.actors, true)
-        : '<div style="font-size:12px; color:#aaa;">尚無主要演員資料</div>'}
-    </div>
+    <div id="actors-display-area" style="margin-top:10px;">${renderSeasonScopedCast(d,currentSeasonFilter)}</div>
     <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem">
       <span id="musical-stats-line">多刷紀錄（共 ${totalShows} 場${totalSpent>0?' · 共花費 NT$'+Math.round(totalSpent).toLocaleString():''}）</span>
       ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
@@ -1774,6 +1794,9 @@ function setSeasonFilter(seasonVal,dramaId){
   const d=db.find(x=>x.id===dramaId);
   if(!d) return;
   const fullHistory=(d.viewing_history||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const castEl=document.getElementById('actors-display-area');
+  if(castEl) castEl.innerHTML=renderSeasonScopedCast(d,seasonVal);
 
   const seasonEl=document.getElementById('musical-season-filter');
   if(seasonEl) seasonEl.innerHTML=renderSeasonTabBar(fullHistory,dramaId);
@@ -1872,11 +1895,18 @@ async function openAddShowForm(dramaId, editShowId){
   // 不要只信任舊的 actors_all 快取——如果這部劇目的 actors_all 是在修正「一人分飾多角」
   // 去重 bug 之前就存檔的，裡面可能漏掉了某些角色（同名演員的第二個角色）。
   // 這裡重新彙整可以自動補回漏掉的資料，並直接存回去，一勞永逸修好舊資料。
-  const roster = aggregateActorsAll(d.actors, d);
-  if(JSON.stringify(roster)!==JSON.stringify(d.actors_all||[])){
-    d.actors_all = roster;
+  const fullRoster = aggregateActorsAll(d.actors, d);
+  if(JSON.stringify(fullRoster)!==JSON.stringify(d.actors_all||[])){
+    d.actors_all = fullRoster;
     save();
   }
+
+  // 如果正在編輯一筆已經標過季度的紀錄，一開始就把候選名單縮小到「那一季專屬的卡司」，
+  // 不要混入其他季度的人——這是季度→專屬卡司架構的核心：候選清單不再是整部劇共用一份。
+  const seasonsForRoster=getMusicalSeasons(d);
+  const initialSeasonVal=existingShow?(existingShow.season||'').trim():'';
+  const matchedInitialSeason=initialSeasonVal?seasonsForRoster.find(s=>s.name===initialSeasonVal):null;
+  const roster=matchedInitialSeason?matchedInitialSeason.cast:fullRoster;
   const hasRoster = roster.length>0;
   if(!hasRoster && musicalActors.length===0) await loadMusicalActors();
 
@@ -1918,7 +1948,8 @@ async function openAddShowForm(dramaId, editShowId){
           </select>
         </div>
         <div class="field"><label>季度（可選，例：第一季）</label>
-          <input type="text" id="show-season" list="show-season-options" placeholder="例：第一季">
+          <input type="text" id="show-season" list="show-season-options" placeholder="例：第一季"
+            oninput="refreshShowCastForSeason('${jsStr(dramaId)}','${editShowId?jsStr(editShowId):''}')">
           <datalist id="show-season-options">
             ${existingSeasons.map(s=>`<option value="${esc(s)}"></option>`).join('')}
           </datalist>
@@ -1955,6 +1986,27 @@ async function openAddShowForm(dramaId, editShowId){
     setFieldVal('show-currency', existingShow.currency||'TWD');
     setFieldVal('show-note', existingShow.note||'');
   }
+}
+
+// 解決「卡司勾選清單過長」的問題：新增/編輯紀錄時，季度欄位每次輸入都會呼叫這裡，
+// 把候選演員清單即時縮小到「目前輸入的這個季度」專屬的卡司，不會混入其他季度的人。
+// 如果輸入的是全新、還沒有任何紀錄用過的季度名稱，就先退回顯示全劇的候選名單，
+// 確保使用者一開始建立新季度時還是挑得到人（那一季當然還沒有「專屬」卡司可言）。
+function refreshShowCastForSeason(dramaId,editShowId){
+  const d=db.find(x=>x.id===dramaId);
+  if(!d) return;
+  const wrapEl=document.getElementById('show-viewed-actors-wrap');
+  if(!wrapEl) return; // 目前是文字輸入模式（沒有候選名單可以勾選），沒有東西需要刷新
+
+  const seasonVal=fieldVal('show-season').trim();
+  const seasons=getMusicalSeasons(d);
+  const matchedSeason=seasonVal?seasons.find(s=>s.name===seasonVal):null;
+  const roster=matchedSeason?matchedSeason.cast:aggregateActorsAll(d.actors,d);
+
+  const existingShow=editShowId?(d.viewing_history||[]).find(h=>h.id===editShowId):null;
+  const existingCast=existingShow?((existingShow.viewed_actors&&existingShow.viewed_actors.length)?existingShow.viewed_actors:existingShow.cast):[];
+
+  wrapEl.innerHTML=renderCastCheckboxList(roster,existingCast);
 }
 
 // 關閉「新增／編輯場次」表單（供取消按鈕與儲存完成後共用，容器不存在時安全跳過）
