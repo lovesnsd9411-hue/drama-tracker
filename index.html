@@ -796,6 +796,32 @@ async function saveActor(id,updates){
   }
 }
 
+// 把一位「虛擬演員」（目前只出現在電視劇資料裡、還沒有正式紀錄的人）升級成正式的 musical_actors 節點，
+// 讓電視劇演員也能設定照片／類型（本來這個編輯功能只對有正式紀錄的音樂劇演員開放）。
+async function createActorRecord(name,profile_image,actor_type){
+  name=name.trim();
+  if(!name) return null;
+  if(!sb){
+    const local={id:'local-'+uid(),name,profile_image:profile_image||null,actor_type:actor_type||null};
+    musicalActors.push(local);
+    musicalActors.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+    return local;
+  }
+  try{
+    const {data,error}=await sb.from('musical_actors')
+      .insert({name,profile_image:profile_image||null,actor_type:actor_type||null})
+      .select('id,name,profile_image,actor_type').single();
+    if(error) throw error;
+    musicalActors.push(data);
+    musicalActors.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+    return data;
+  }catch(e){
+    console.error('Failed to create actor record',e);
+    alert('建立演員資料失敗，請檢查網路連線');
+    return null;
+  }
+}
+
 // 演員改名：把資料庫裡所有引用到舊姓名的卡司欄位（主要演員／候選名單／每場紀錄）都同步改成新姓名，
 // 確保改名後場次統計、聚合顯示都還能正確對應到同一個人，不會憑空冒出一個「0場」的新節點。
 function renameActorEverywhere(oldName,newName){
@@ -806,8 +832,9 @@ function renameActorEverywhere(oldName,newName){
     return c;
   });
   db.forEach(item=>{
-    if(!item || item.category!=='musical') return;
-    if(item.actors) item.actors=renameList(item.actors);
+    if(!item) return;
+    if(item.actors) item.actors=renameList(item.actors); // 電視劇／音樂劇都有這個欄位
+    if((item.category||'drama')!=='musical') return; // 以下欄位只有音樂劇才有
     if(item.actors_all) item.actors_all=renameList(item.actors_all);
     (item.viewing_history||[]).forEach(h=>{
       if(!h) return;
@@ -821,15 +848,26 @@ function renameActorEverywhere(oldName,newName){
 // 編輯演員資料（姓名／照片網址），從詳細資訊卡片裡的「編輯」按鈕觸發
 // 目前正在編輯哪一位演員（開啟編輯視窗時記錄，儲存/取消時用得到）
 let actorEditingId=null;
+// 目前編輯的是不是「虛擬演員」——只出現在電視劇資料裡、還沒有正式 musical_actors 紀錄的人。
+// 這種情況下存檔時要改成「建立新紀錄」而不是「更新既有紀錄」。
+let actorEditingIsVirtual=false;
+let actorEditingOriginalName=''; // 虛擬演員存檔時，如果姓名有改，要用這個原始姓名去改資料庫裡的舊引用
 
 // 編輯演員資料：打開一般頁面表單（不用瀏覽器原生 prompt()，避免在會封鎖原生對話框的
 // 瀏覽器／webview／PWA 環境裡完全沒反應），並先把目前的姓名／照片網址回填進去。
-function editActor(id){
+// fallbackName：當這個人還沒有正式的 musical_actors 紀錄時（例如只出現在電視劇資料裡的演員），
+// 用姓名頂著開啟編輯視窗，讓電視劇演員也能設定照片／類型，存檔時再幫他建立正式紀錄。
+function editActor(id,fallbackName){
   // 用 String() 比對：dataset.id 一定是字串，但 Supabase 的 id 欄位如果是數字型別（例如 bigint），
   // 直接用 === 比對會因為型別不同（"67" !== 67）永遠找不到，導致這裡靜默失敗、視窗完全不會跳出來。
-  const actor=musicalActors.find(a=>String(a.id)===String(id));
-  if(!actor) return;
+  let actor=musicalActors.find(a=>String(a.id)===String(id));
+  actorEditingIsVirtual=!actor;
+  if(!actor){
+    if(!fallbackName) return;
+    actor={id,name:fallbackName,profile_image:null,actor_type:null};
+  }
   actorEditingId=id;
+  actorEditingOriginalName=actor.name;
   setFieldVal('actor-edit-name',actor.name||'');
   setFieldVal('actor-edit-image',actor.profile_image||'');
   setFieldVal('actor-edit-type',actor.actor_type||'');
@@ -840,6 +878,7 @@ function editActor(id){
 
 function closeActorEditModal(){
   actorEditingId=null;
+  actorEditingIsVirtual=false;
   const bg=document.getElementById('actor-edit-modal-bg');
   if(bg) bg.classList.remove('open');
 }
@@ -853,29 +892,43 @@ function updateActorEditPreview(){
   previewEl.innerHTML=actorAvatarHtml({name,profile_image:url||null},'avatar-sm');
 }
 
-// 按下「儲存」：驗證姓名、避免撞名，姓名有改的話同步更新資料庫裡所有引用到這個人的地方，
-// 最後把姓名／照片網址一起寫回 musical_actors。
+// 按下「儲存」：驗證姓名、避免撞名，姓名有改的話同步更新資料庫裡所有引用到這個人的地方。
+// 如果編輯的是「虛擬演員」（只出現在電視劇資料裡，還沒有正式紀錄），存檔時直接幫他建立一筆新紀錄；
+// 否則正常更新既有的 musical_actors 紀錄。
 async function submitActorEdit(){
   const id=actorEditingId;
-  const actor=musicalActors.find(a=>String(a.id)===String(id));
-  if(!actor) return;
+  const isVirtual=actorEditingIsVirtual;
 
   const trimmedName=fieldVal('actor-edit-name').trim();
   if(!trimmedName){ alert('姓名不能是空的'); return; }
   const newProfileImage=fieldVal('actor-edit-image').trim();
   const newActorType=fieldVal('actor-edit-type').trim();
 
-  if(trimmedName!==actor.name){
-    // 避免改名之後跟另一位已存在的演員撞名，變成誤把兩個人合併成同一個
-    const conflict=musicalActors.find(a=>String(a.id)!==String(id) && a.name===trimmedName);
+  if(!isVirtual){
+    const actor=musicalActors.find(a=>String(a.id)===String(id));
+    if(!actor) return;
+    if(trimmedName!==actor.name){
+      // 避免改名之後跟另一位已存在的演員撞名，變成誤把兩個人合併成同一個
+      const conflict=musicalActors.find(a=>String(a.id)!==String(id) && a.name===trimmedName);
+      if(conflict){
+        alert(`已經有另一位演員叫做「${trimmedName}」了，請換一個名字；如果本來就是同一個人，可以改用「演員資料庫」的清理工具合併。`);
+        return;
+      }
+      renameActorEverywhere(actor.name,trimmedName);
+    }
+    await saveActor(id,{name:trimmedName,profile_image:newProfileImage||null,actor_type:newActorType||null});
+  }else{
+    // 虛擬演員：先確認新姓名沒有撞到既有的正式紀錄，姓名有改的話同步更新電視劇資料裡的舊引用，
+    // 最後建立一筆正式的 musical_actors 紀錄（把照片／類型也一起存進去）。
+    const conflict=musicalActors.find(a=>a.name===trimmedName);
     if(conflict){
       alert(`已經有另一位演員叫做「${trimmedName}」了，請換一個名字；如果本來就是同一個人，可以改用「演員資料庫」的清理工具合併。`);
       return;
     }
-    renameActorEverywhere(actor.name,trimmedName);
+    if(trimmedName!==actorEditingOriginalName) renameActorEverywhere(actorEditingOriginalName,trimmedName);
+    await createActorRecord(trimmedName,newProfileImage,newActorType);
   }
 
-  await saveActor(id,{name:trimmedName,profile_image:newProfileImage||null,actor_type:newActorType||null});
   closeActorEditModal();
   renderActorsGrid();
   // 如果目前正打開這位演員的詳細卡片，改名後網址也要跟著換成新名字
@@ -1303,7 +1356,9 @@ function fillRatingSel(id,cur){
 function onRatingChange(){
   const rating=parseFloat(fieldVal('f-rating'))||0;
   if(rating>0){
-    setFieldVal('f-status','done');
+    // 只在目前狀態還是預設的「觀看中」時才自動幫忙跳去「看完」；
+    // 如果使用者已經手動選了「棄劇」，代表就是想要「棄劇但留下評分」，不要覆蓋掉。
+    if(fieldVal('f-status')==='ongoing') setFieldVal('f-status','done');
     const yearSel=document.getElementById('f-year');
     if(yearSel && !yearSel.value){
       yearSel.value=NY; // jump to current year automatically
@@ -2532,7 +2587,9 @@ function saveForm(){
     const genres=genreInput.split(',').map(g=>g.trim()).filter(Boolean);
     const actors=fieldVal('f-actors').split(',').map(s=>s.trim()).filter(Boolean);
     const rating=parseFloat(fieldVal('f-rating'))||0;
-    const status=rating>0?'done':fieldVal('f-status');
+    // 直接採用使用者在「觀看狀態」選的值即可；不要因為有評分就強制蓋成「看完」，
+    // 否則「棄劇但仍想留下評分」的狀態永遠存不進去（評分不代表狀態，只是使用者自己選的參考分數）。
+    const status=fieldVal('f-status');
     const directors=fieldVal('f-director').split(',').map(s=>s.trim()).filter(Boolean);
     const writers=fieldVal('f-writer').split(',').map(s=>s.trim()).filter(Boolean);
     const episodeRaw=fieldVal('f-episode').trim();
@@ -2870,10 +2927,18 @@ function renderActorPage(name){
 
   const actionsEl=document.getElementById('actor-card-actions');
   if(actionsEl){
-    actionsEl.innerHTML = actorRecord && !isReadOnly
-      ? `<button class="icon-btn edit-btn" data-action="edit" style="font-size:12px;padding:4px 10px" data-id="${esc(actorRecord.id)}"><i class="ti ti-pencil"></i> 編輯</button>
-         <button class="icon-btn delete-btn" data-action="delete" style="font-size:12px;padding:4px 10px;color:#B91C1C;border-color:#F5C6C6" data-id="${esc(actorRecord.id)}" data-name="${esc(actorRecord.name)}"><i class="ti ti-trash"></i> 刪除</button>`
-      : '';
+    if(isReadOnly){
+      actionsEl.innerHTML='';
+    }else{
+      // 編輯功能對每個人都開放，就算還沒有正式紀錄（只出現在電視劇資料裡的「虛擬演員」）也能編輯，
+      // 存檔時會自動幫他建立正式紀錄；刪除則只對已經有正式紀錄的人開放，虛擬演員沒有紀錄可以刪。
+      const editId=actorRecord?actorRecord.id:('virtual:'+name);
+      let html=`<button class="icon-btn edit-btn" data-action="edit" style="font-size:12px;padding:4px 10px" data-id="${esc(editId)}" data-name="${esc(name)}"><i class="ti ti-pencil"></i> 編輯</button>`;
+      if(actorRecord){
+        html+=`<button class="icon-btn delete-btn" data-action="delete" style="font-size:12px;padding:4px 10px;color:#B91C1C;border-color:#F5C6C6" data-id="${esc(actorRecord.id)}" data-name="${esc(actorRecord.name)}"><i class="ti ti-trash"></i> 刪除</button>`;
+      }
+      actionsEl.innerHTML=html;
+    }
   }
 
   const tagsEl=document.getElementById('actor-page-tags');
@@ -3002,7 +3067,7 @@ if(!window.__actorClickDelegationBound){
     const editBtn=e.target.closest('.edit-btn') || e.target.closest('button[data-action="edit"]');
     if(editBtn){
       console.log('🔥 系統成功偵測到編輯按鈕被點擊了！data-id =', editBtn.dataset.id);
-      editActor(editBtn.dataset.id);
+      editActor(editBtn.dataset.id, editBtn.dataset.name);
       return;
     }
     const deleteBtn=e.target.closest('.delete-btn') || e.target.closest('button[data-action="delete"]');
@@ -3182,10 +3247,10 @@ function renderActorsGrid(){
     return;
   }
 
-  // 依總觀看次數排序時，替前兩名（且次數 > 0）加上淡淡的名次角標，呼應「為什麼排最前面」
+  // 依總觀看次數排序時，替前五名（且次數 > 0）加上淡淡的名次角標，呼應「為什麼排最前面」
   grid.innerHTML=list.map((a,i)=>`
     <div class="actor-grid-card" onclick="openActorPage('${jsStr(a.name)}')">
-      ${(actorsSortMode==='count' && i<2 && a.count>0)?`<span class="agc-rank">${i+1}</span>`:''}
+      ${(actorsSortMode==='count' && i<5 && a.count>0)?`<span class="agc-rank">${i+1}</span>`:''}
       ${actorAvatarHtml(a,'avatar-sm')}
       <div class="agc-name">${esc(a.name)}</div>
       <div class="agc-type-tag">${esc(a.typeLabel)}</div>
