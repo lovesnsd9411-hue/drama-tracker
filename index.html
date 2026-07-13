@@ -37,12 +37,28 @@ input,select,textarea,button{font-family:inherit}
 .stat-n{font-size:24px;font-weight:700}
 .stat-l{font-size:12px;color:#888;margin-top:2px;font-weight:500}
 
-/* ── 年度儀表板：看劇總數量／歷史總投資金額 ── */
-.annual-dashboard{display:flex;gap:1.5rem;padding:1rem 1.3rem;background:linear-gradient(135deg,#2D2B55,#4A4580);border-radius:16px;margin-bottom:1.25rem;flex-wrap:wrap;justify-content:center;color:#fff}
-.annual-dashboard .ad-item{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:120px}
-.annual-dashboard .ad-num{font-size:26px;font-weight:800}
-.annual-dashboard .ad-num.ad-masked{letter-spacing:2px;color:#FCD34D}
-.annual-dashboard .ad-label{font-size:12px;opacity:.85;font-weight:600}
+/* ── 年度儀表板：可切換年度，電視劇／音樂劇／本年度花費三欄，歷史累計固定顯示在右上角 ── */
+.annual-dashboard{padding:1rem 1.1rem 1.1rem;background:linear-gradient(135deg,#2D2B55,#4A4580);border-radius:16px;margin-bottom:1.25rem;color:#fff}
+.ad-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px}
+.ad-yr-select-wrap{position:relative}
+.ad-yr-select{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:800;color:#fff;background:rgba(255,255,255,.14);border:none;border-radius:20px;padding:6px 12px 6px 14px;cursor:pointer;font-family:inherit}
+.ad-yr-select i{font-size:11px;opacity:.85}
+.ad-yr-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:.5px solid #E5E5F0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;min-width:100px;z-index:20}
+.ad-yr-menu.open{display:flex;flex-direction:column;gap:2px}
+.ad-yr-menu button{display:block;width:100%;background:none;border:none;text-align:left;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;color:#666;font-family:inherit}
+.ad-yr-menu button:hover{background:#F3F3F8}
+.ad-yr-menu button.on{color:#3C3489;background:#EEEDFE}
+.ad-alltime{display:flex;align-items:center;gap:6px;font-size:11.5px;color:rgba(255,255,255,.75);font-weight:600}
+.ad-alltime i{font-size:13px;opacity:.8}
+.ad-alltime b{color:#fff;font-variant-numeric:tabular-nums;font-weight:800}
+.ad-alltime b.ad-masked{letter-spacing:1px;color:#FCD34D}
+.ad-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.ad-item{display:flex;flex-direction:column;align-items:center;gap:1px;padding:0 6px;position:relative}
+.ad-item:not(:first-child)::before{content:'';position:absolute;left:0;top:10%;bottom:10%;width:1px;background:rgba(255,255,255,.18)}
+.ad-icon{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;margin-bottom:6px;font-size:13px}
+.ad-num{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.ad-num.ad-masked{letter-spacing:2px;color:#FCD34D}
+.ad-label{font-size:11px;opacity:.78;font-weight:600;margin-top:2px}
 
 .toolbar{display:flex;gap:8px;margin-bottom:.75rem;align-items:center;flex-wrap:wrap}
 .toolbar input{flex:1;min-width:160px}
@@ -1286,7 +1302,7 @@ function seedData(){
   ];
 }
 
-const rLabel=r=>r==0?'未評分':'⭐ '+parseFloat(r).toFixed(1);
+const rLabel=r=>'⭐ '+parseFloat(r).toFixed(1);
 function posterSrc(d){
   if(!d.poster)return '';
   if(d.poster.startsWith('http://')||d.poster.startsWith('https://')) return d.poster;
@@ -1744,35 +1760,96 @@ function renderTable(list,el){
   el.innerHTML=desktopTable+mobileList;
 }
 
-// ── 年度儀表板：當前年度看劇總數量／歷史總投資金額 ──
-// 看劇總數量：影劇算「該年度看完」的部數，音樂劇算「該年度已觀看」的場次數，兩者相加。
-// 歷史總投資金額：不限年度，累計所有音樂劇場次（已觀看＋持有票券）換算成台幣後的總金額。
-function computeAnnualStats(){
-  const yearStr=String(NY);
-  let watchCount=0,totalSpent=0;
+// ── 年度儀表板：可切換年度，電視劇／音樂劇／本年度花費分開顯示，歷史累計花費固定顯示不受年度切換影響 ──
+let dashboardYear=NY; // 目前儀表板顯示的年度，預設今年
+
+// 蒐集資料庫裡實際出現過的年份（電視劇看完年度／音樂劇場次日期），一定包含今年，方便還沒有資料的當年也能選
+function getAvailableDashboardYears(){
+  const years=new Set([NY]);
+  db.forEach(d=>{
+    if((d.category||'drama')==='musical'){
+      (d.viewing_history||[]).forEach(h=>{
+        const y=parseInt((h&&h.date||'').slice(0,4),10);
+        if(!isNaN(y)) years.add(y);
+      });
+    }else{
+      const y=parseInt(d.yearDone,10);
+      if(!isNaN(y)) years.add(y);
+    }
+  });
+  return [...years].sort((a,b)=>b-a);
+}
+
+// 電視劇算「該年度看完」的部數；音樂劇算「該年度已觀看」的場次數與花費，兩者分開回傳，不再合併成單一數字。
+function computeAnnualStats(year){
+  const yearStr=String(year);
+  let dramaCount=0,musicalCount=0,yearSpent=0;
   db.forEach(d=>{
     if((d.category||'drama')==='musical'){
       const history=d.viewing_history||[];
-      watchCount+=history.filter(h=>countsTowardWorks(h)&&(h.date||'').startsWith(yearStr)).length;
-      totalSpent+=history.filter(countsTowardSpend).reduce((s,h)=>s+convertToTWD(h.amount,h.currency||'TWD'),0);
+      musicalCount+=history.filter(h=>countsTowardWorks(h)&&(h.date||'').startsWith(yearStr)).length;
+      yearSpent+=history.filter(h=>countsTowardSpend(h)&&(h.date||'').startsWith(yearStr)).reduce((s,h)=>s+convertToTWD(h.amount,h.currency||'TWD'),0);
     }else if(d.yearDone===yearStr){
-      watchCount++;
+      dramaCount++;
     }
   });
-  return {year:NY,watchCount,totalSpent};
+  return {year,dramaCount,musicalCount,yearSpent};
+}
+
+// 歷史累計花費：不限年度，加總所有音樂劇場次（已觀看＋持有票券）換算成台幣後的總金額。
+function computeAllTimeSpent(){
+  let total=0;
+  db.forEach(d=>{
+    if((d.category||'drama')!=='musical') return;
+    (d.viewing_history||[]).forEach(h=>{
+      if(countsTowardSpend(h)) total+=convertToTWD(h.amount,h.currency||'TWD');
+    });
+  });
+  return total;
 }
 
 function renderAnnualDashboard(){
   const el=document.getElementById('annual-dashboard');
   if(!el) return;
-  const s=computeAnnualStats();
-  const amountHtml=isGuestMode
-    ?'<span class="ad-num ad-masked">$ *****</span>'
-    :`<span class="ad-num">NT$${Math.round(s.totalSpent).toLocaleString()}</span>`;
+  const years=getAvailableDashboardYears();
+  if(!years.includes(dashboardYear)) dashboardYear=NY; // 防呆：目前選的年度萬一不在清單裡（理論上不會），退回今年
+  const s=computeAnnualStats(dashboardYear);
+  const allTimeSpent=computeAllTimeSpent();
+  const allTimeHtml=isGuestMode?'<b class="ad-masked">$ *****</b>':`<b>NT$${Math.round(allTimeSpent).toLocaleString()}</b>`;
+  const yearSpentHtml=isGuestMode?'<span class="ad-num ad-masked">$ *****</span>':`<span class="ad-num">NT$${Math.round(s.yearSpent).toLocaleString()}</span>`;
   el.innerHTML=`
-    <div class="ad-item"><div class="ad-num">${s.watchCount}</div><div class="ad-label">${s.year} 年看劇總數量</div></div>
-    <div class="ad-item">${amountHtml}<div class="ad-label">歷史總投資金額</div></div>`;
+    <div class="ad-top">
+      <div class="ad-yr-select-wrap" id="ad-yr-wrap">
+        <button class="ad-yr-select" onclick="toggleDashboardYearMenu(event)">${s.year} 年 <i class="ti ti-chevron-down"></i></button>
+        <div class="ad-yr-menu" id="ad-yr-menu">
+          ${years.map(y=>`<button class="${y===dashboardYear?'on':''}" onclick="setDashboardYear(${y})">${y} 年</button>`).join('')}
+        </div>
+      </div>
+      <div class="ad-alltime"><i class="ti ti-history"></i> 歷史累計 ${allTimeHtml}</div>
+    </div>
+    <div class="ad-stats">
+      <div class="ad-item"><span class="ad-icon"><i class="ti ti-device-tv"></i></span><div class="ad-num">${s.dramaCount}</div><div class="ad-label">電視劇看完部數</div></div>
+      <div class="ad-item"><span class="ad-icon"><i class="ti ti-music"></i></span><div class="ad-num">${s.musicalCount}</div><div class="ad-label">音樂劇觀看場次</div></div>
+      <div class="ad-item"><span class="ad-icon"><i class="ti ti-wallet"></i></span>${yearSpentHtml}<div class="ad-label">本年度花費</div></div>
+    </div>`;
 }
+
+function toggleDashboardYearMenu(e){
+  if(e) e.stopPropagation();
+  const menu=document.getElementById('ad-yr-menu');
+  if(menu) menu.classList.toggle('open');
+}
+function setDashboardYear(y){
+  dashboardYear=y;
+  renderAnnualDashboard();
+}
+document.addEventListener('click', function(e){
+  const wrap=document.getElementById('ad-yr-wrap');
+  if(wrap && !wrap.contains(e.target)){
+    const menu=document.getElementById('ad-yr-menu');
+    if(menu) menu.classList.remove('open');
+  }
+});
 
 function renderStats(){
   const t=db.length,done=db.filter(d=>d.status==='done').length,on=db.filter(d=>d.status==='ongoing').length,dropped=db.filter(d=>d.status==='dropped').length;
