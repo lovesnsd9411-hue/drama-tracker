@@ -30,6 +30,13 @@ input,select,textarea,button{font-family:inherit}
 .stat-n{font-size:24px;font-weight:700}
 .stat-l{font-size:12px;color:#888;margin-top:2px;font-weight:500}
 
+/* ── 年度儀表板：看劇總數量／歷史總投資金額 ── */
+.annual-dashboard{display:flex;gap:1.5rem;padding:1rem 1.3rem;background:linear-gradient(135deg,#2D2B55,#4A4580);border-radius:16px;margin-bottom:1.25rem;flex-wrap:wrap;justify-content:center;color:#fff}
+.annual-dashboard .ad-item{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:120px}
+.annual-dashboard .ad-num{font-size:26px;font-weight:800}
+.annual-dashboard .ad-num.ad-masked{letter-spacing:2px;color:#FCD34D}
+.annual-dashboard .ad-label{font-size:12px;opacity:.85;font-weight:600}
+
 .toolbar{display:flex;gap:8px;margin-bottom:.75rem;align-items:center;flex-wrap:wrap}
 .toolbar input{flex:1;min-width:160px}
 .search-wrap{position:relative;flex:1;min-width:160px;display:flex}
@@ -298,6 +305,9 @@ body.read-only-mode .rt-c-acts{display:none}
 body.read-only-mode #det-edit{display:none}
 body.read-only-mode #det-fav{display:none}
 body.read-only-mode .fav-badge{display:none}
+
+/* ── 訪客模式（分享連結進入）：隱藏音樂劇相關頁籤，僅保留電視劇內容 ── */
+body.guest-mode #main-cat-musical-btn{display:none}
 </style>
 </head>
 <body>
@@ -316,12 +326,14 @@ body.read-only-mode .fav-badge{display:none}
     </div>
   </div>
 
+  <div class="annual-dashboard" id="annual-dashboard"></div>
+
   <div class="stats" id="stats"></div>
 
   <div class="cat-toggle" id="main-cat-toggle" style="margin-bottom:.75rem">
     <button type="button" class="cat-btn on" onclick="setMainCategory('')">全部</button>
     <button type="button" class="cat-btn" onclick="setMainCategory('drama')"><i class="ti ti-device-tv"></i> 影劇</button>
-    <button type="button" class="cat-btn" onclick="setMainCategory('musical')"><i class="ti ti-music"></i> 音樂劇</button>
+    <button type="button" class="cat-btn" id="main-cat-musical-btn" onclick="setMainCategory('musical')"><i class="ti ti-music"></i> 音樂劇</button>
   </div>
 
   <div class="toolbar">
@@ -588,6 +600,10 @@ function formatShowAmount(h){
   return `NT$${amt.toLocaleString()}`;
 }
 let isReadOnly=false;
+// isGuestMode：透過分享連結（share 模式）進站時為 true。
+// 訪客模式下：音樂劇總表／音樂劇演員頁籤隱藏、年度儀表板的投資金額遮罩、
+// 且完全不對 musical_actors 資料表發出 fetch，音樂劇資料也會在載入後立刻從 db 剔除。
+let isGuestMode=false;
 let mainCategory=''; // '' = all, 'drama', 'musical'
 // hashchange 是非同步事件；如果從演員卡片點作品後才把 detail-modal 打開，
 // 稍後才觸發的 handleRoute() 還是會把它立刻關掉（因為裡面有「路由改變就關掉 detail-modal」的清理邏輯），
@@ -649,7 +665,9 @@ async function loadFromCloud(){
     try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
     if(!db.length) seedData();
   }
-  await loadMusicalActors();
+  stripMusicalDataForGuest();
+  // 訪客模式下完全不對 musical_actors 資料表發出 fetch 請求，從根本隔絕音樂劇資料外洩的可能性。
+  if(!isGuestMode) await loadMusicalActors();
   render();
   handleRoute();
 }
@@ -1214,6 +1232,7 @@ function setView(v){
 }
 
 function setMainCategory(cat){
+  if(isGuestMode && cat==='musical') cat='drama'; // 訪客模式：不允許切到音樂劇總表
   mainCategory=cat;
   document.querySelectorAll('#main-cat-toggle .cat-btn').forEach((btn,i)=>{
     const cats=['','drama','musical'];
@@ -1511,7 +1530,7 @@ function getFiltered(){
 }
 
 function render(){
-  renderChips();renderStats();
+  renderChips();renderStats();renderAnnualDashboard();
   const list=getFiltered();
   const total=db.length;
   const countEl=document.getElementById('result-count');
@@ -1628,6 +1647,36 @@ function renderTable(list,el){
     </div>`).join('')}</div>`;
 
   el.innerHTML=desktopTable+mobileList;
+}
+
+// ── 年度儀表板：當前年度看劇總數量／歷史總投資金額 ──
+// 看劇總數量：影劇算「該年度看完」的部數，音樂劇算「該年度已觀看」的場次數，兩者相加。
+// 歷史總投資金額：不限年度，累計所有音樂劇場次（已觀看＋持有票券）換算成台幣後的總金額。
+function computeAnnualStats(){
+  const yearStr=String(NY);
+  let watchCount=0,totalSpent=0;
+  db.forEach(d=>{
+    if((d.category||'drama')==='musical'){
+      const history=d.viewing_history||[];
+      watchCount+=history.filter(h=>countsTowardWorks(h)&&(h.date||'').startsWith(yearStr)).length;
+      totalSpent+=history.filter(countsTowardSpend).reduce((s,h)=>s+convertToTWD(h.amount,h.currency||'TWD'),0);
+    }else if(d.yearDone===yearStr){
+      watchCount++;
+    }
+  });
+  return {year:NY,watchCount,totalSpent};
+}
+
+function renderAnnualDashboard(){
+  const el=document.getElementById('annual-dashboard');
+  if(!el) return;
+  const s=computeAnnualStats();
+  const amountHtml=isGuestMode
+    ?'<span class="ad-num ad-masked">$ *****</span>'
+    :`<span class="ad-num">NT$${Math.round(s.totalSpent).toLocaleString()}</span>`;
+  el.innerHTML=`
+    <div class="ad-item"><div class="ad-num">${s.watchCount}</div><div class="ad-label">${s.year} 年看劇總數量</div></div>
+    <div class="ad-item">${amountHtml}<div class="ad-label">歷史總投資金額</div></div>`;
 }
 
 function renderStats(){
@@ -2557,8 +2606,16 @@ function showExpiredScreen(){
 
 function applyReadOnlyMode(){
   isReadOnly=true;
-  document.body.classList.add('read-only-mode');
+  isGuestMode=true;
+  document.body.classList.add('read-only-mode','guest-mode');
   setSyncStatus('👀 唯讀模式','#888');
+}
+
+// 訪客模式的後端資料隔絕：把音樂劇相關項目從記憶體中的 db 直接剔除，
+// 確保之後任何渲染／篩選都不會再碰到音樂劇資料（音樂劇演員清單則從一開始就不發出 fetch，見 loadFromCloud）。
+function stripMusicalDataForGuest(){
+  if(!isGuestMode) return;
+  db=db.filter(d=>(d.category||'drama')!=='musical');
 }
 
 function openModal(id){const el=document.getElementById(id);if(el)el.classList.add('open')}
@@ -2591,6 +2648,7 @@ if(shareMode==='expired'){
     setSyncStatus('⚠️ 離線模式','#B91C1C');
     try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
     if(!db.length) seedData();
+    stripMusicalDataForGuest();
     render();
     handleRoute();
   }
