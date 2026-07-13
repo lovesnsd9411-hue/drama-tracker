@@ -25,7 +25,7 @@ input,select,textarea,button{font-family:inherit}
 
 /* ── 更多功能：把次要工具（匯出/匯入/修正狀態/分享清單/匯率設定）收進下拉選單 ── */
 .more-menu-wrap{position:relative}
-.more-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:.5px solid #E5E5F0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:6px;min-width:160px;z-index:60}
+.more-menu{display:none;position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:.5px solid #E5E5F0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:6px;min-width:160px;z-index:60}
 .more-menu.open{display:flex;flex-direction:column;gap:2px}
 .more-menu-item{display:flex;align-items:center;gap:8px;background:none;border:none;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#444;font-weight:600;white-space:nowrap;width:100%}
 .more-menu-item:hover{background:#F3F3F8}
@@ -88,9 +88,15 @@ input,select,textarea,button{font-family:inherit}
 /* 人物總表頁面：搜尋列、篩選器、大面積網格 */
 .actors-search-bar{display:flex;gap:8px;margin-top:.6rem}
 .actors-search-bar input{flex:1;padding:.6rem .9rem;border:1px solid #E0E0EE;border-radius:12px;font-size:14px}
+.actors-sort-select{flex:none;width:auto;padding:.6rem .8rem;border:1px solid #E0E0EE;border-radius:12px;font-size:13px;font-weight:600;color:#3C3489;background-color:#EEEDFE}
+.actors-statbar{display:flex;gap:1.5rem;justify-content:center;background:linear-gradient(135deg,#2D2B55,#4A4580);color:#fff;border-radius:14px;padding:.8rem 1rem;margin:0 1rem 1rem}
+.actors-statbar .as-item{display:flex;flex-direction:column;align-items:center;gap:1px}
+.actors-statbar .as-num{font-size:20px;font-weight:800}
+.actors-statbar .as-label{font-size:11px;opacity:.8;font-weight:600}
 .actors-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;padding:1rem;max-width:1100px;margin:0 auto}
 .actor-grid-card{background:#F8F8FB;border:1px solid #EFEFF5;border-radius:16px;padding:1.2rem .8rem 1rem;cursor:pointer;transition:all .15s;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
 .actor-grid-card:hover{border-color:#AFA9EC;background:#F3F2FC;transform:translateY(-2px)}
+.agc-rank{position:absolute;top:8px;left:8px;font-size:10px;font-weight:800;color:#D97706;background:#fff;border:1px solid #F0E0C0;border-radius:7px;padding:0 5px}
 .actor-avatar-fallback{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8B86D4,#3C3489);color:#fff;font-weight:700;flex-shrink:0}
 /* 圓形頭像：img 跟找不到照片時的字母 fallback 共用同一組尺寸/圓框/陰影，兩種情況外觀完全一致，
    不會因為有沒有照片而讓卡片高度或形狀跑掉。object-fit:cover 確保任何比例的照片都會被裁成正圓不變形。 */
@@ -322,6 +328,9 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
   <div class="header">
     <div class="app-title">🎬 <span id="sync-status" style="font-size:11px;font-weight:500;color:#aaa;vertical-align:middle"></span></div>
     <div class="actions" id="admin-actions">
+      <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
+      <button class="btn-primary" onclick="openAdd()">+ 新增</button>
+      <button class="icon-btn" onclick="openActorsModal()"><i class="ti ti-users"></i> 演員資料庫</button>
       <div class="more-menu-wrap" id="more-menu-wrap">
         <button class="icon-btn" onclick="toggleMoreMenu(event)" title="更多功能"><i class="ti ti-dots-vertical"></i></button>
         <div class="more-menu" id="more-menu">
@@ -332,9 +341,6 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
           <button class="more-menu-item" onclick="promptExchangeRate();closeMoreMenu()"><i class="ti ti-currency-won"></i> 匯率設定</button>
         </div>
       </div>
-      <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
-      <button class="icon-btn" onclick="openActorsModal()"><i class="ti ti-users"></i> 演員資料庫</button>
-      <button class="btn-primary" onclick="openAdd()">+ 新增</button>
     </div>
   </div>
 
@@ -3014,6 +3020,7 @@ if(!window.__actorClickDelegationBound){
 // ── 人物總表：獨立頁面 ──
 let actorsSearchQuery='';
 let actorsCategoryFilter='all'; // 'all' | 'musical' | 'drama'
+let actorsSortMode='count'; // 'count'（總觀看次數由多到少，預設） | 'name'（姓名 A→Z）
 
 // 導向人物總表頁面（取代原本開啟 modal 的做法）
 function openActorsModal(){
@@ -3118,8 +3125,10 @@ function getFilteredActorsList(){
       };
     })
     .filter(a=>actorsCategoryFilter==='all' || a.categories.includes(actorsCategoryFilter))
-    // 預設依總觀看次數由多到少排序，最常看的演員排最前面；次數相同時依姓名排序，順序才穩定不會亂跳
-    .sort((a,b)=> b.count-a.count || a.name.localeCompare(b.name,'ko'));
+    .sort((a,b)=> actorsSortMode==='name'
+      ? a.name.localeCompare(b.name,'ko')
+      // 依總觀看次數由多到少排序，最常看的演員排最前面；次數相同時依姓名排序，順序才穩定不會亂跳
+      : (b.count-a.count || a.name.localeCompare(b.name,'ko')));
 }
 
 function renderActorsCategoryFilterBar(){
@@ -3140,6 +3149,21 @@ function setActorsCategoryFilter(val){
   renderActorsCategoryFilterBar();
   renderActorsGrid();
 }
+function setActorsSortMode(val){
+  actorsSortMode=val;
+  renderActorsGrid();
+}
+
+// 統計列：目前篩選條件下共有幾位演員、累計總觀看次數，讓「資料庫」的規模感一眼看得到
+function renderActorsStatBar(list){
+  const el=document.getElementById('actors-statbar');
+  if(!el) return;
+  const totalActors=list.length;
+  const totalCount=list.reduce((s,a)=>s+a.count,0);
+  el.innerHTML=`
+    <div class="as-item"><span class="as-num">${totalActors}</span><span class="as-label">位演員</span></div>
+    <div class="as-item"><span class="as-num">${totalCount}</span><span class="as-label">累計觀看次數</span></div>`;
+}
 
 // 人物總表的大面積網格渲染（取代原本擠成一團的小晶片清單）
 function renderActorsGrid(){
@@ -3147,6 +3171,7 @@ function renderActorsGrid(){
   if(!grid) return; // 防呆：容器不存在就不繼續
 
   const list=getFilteredActorsList();
+  renderActorsStatBar(list);
 
   if(!list.length){
     // 用有沒有套用搜尋/篩選條件來判斷訊息：完全沒有任何演員資料，跟「篩選條件太窄找不到人」是兩種情況
@@ -3157,8 +3182,10 @@ function renderActorsGrid(){
     return;
   }
 
-  grid.innerHTML=list.map(a=>`
+  // 依總觀看次數排序時，替前兩名（且次數 > 0）加上淡淡的名次角標，呼應「為什麼排最前面」
+  grid.innerHTML=list.map((a,i)=>`
     <div class="actor-grid-card" onclick="openActorPage('${jsStr(a.name)}')">
+      ${(actorsSortMode==='count' && i<2 && a.count>0)?`<span class="agc-rank">${i+1}</span>`:''}
       ${actorAvatarHtml(a,'avatar-sm')}
       <div class="agc-name">${esc(a.name)}</div>
       <div class="agc-type-tag">${esc(a.typeLabel)}</div>
@@ -3441,9 +3468,14 @@ async function deleteMusicalActorRow(id){
     </div>
     <div class="actors-search-bar">
       <input type="text" id="actors-search-input" placeholder="搜尋演員姓名…" oninput="setActorsSearch(this.value)">
+      <select class="actors-sort-select" id="actors-sort-select" onchange="setActorsSortMode(this.value)">
+        <option value="count">依總觀看次數</option>
+        <option value="name">依姓名 A→Z</option>
+      </select>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:.6rem" id="actors-category-filter"></div>
   </div>
+  <div id="actors-statbar" class="actors-statbar"></div>
   <p style="color:#888;font-size:12px;padding:.6rem 1rem 0">點擊演員可查看詳細演出紀錄，括號內為該演員的「總觀看場次」</p>
   <div id="actors-grid" class="actors-grid"></div>
 </div>
