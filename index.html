@@ -2013,8 +2013,7 @@ function renderMusicalTimeline(history,dramaId,hideCast){
       <div style="background:#F8F8FB;border-radius:12px;padding:.75rem .9rem;font-size:13px;position:relative">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div>
-            <div style="font-weight:700;color:#1A1A2E">${esc(h.date||'')}${h.time?' '+esc(h.time):''}</div>
-            ${h.note?`<div style="margin-top:2px;color:#888;font-size:12px">${esc(h.note)}</div>`:''}
+            <div style="font-weight:700;color:#1A1A2E">${esc(h.date||'')}${h.time?' '+esc(h.time):''}${h.note?` <span style="font-weight:500;color:#888;font-size:12px">${esc(h.note)}</span>`:''}</div>
             <span class="show-status-badge ${showStatusClass(status)}">${esc(status)}</span>
             ${(()=>{if(hideCast)return '';const castData=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
               return castData&&castData.length?`<div style="margin-top:6px">${renderCastChipsInline(castData,false)}</div>`:'';})()}
