@@ -425,7 +425,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
 
     <div class="row3" id="drama-only-row3">
       <div class="field"><label>觀看狀態</label>
-        <select id="f-status"><option value="done">看完</option><option value="ongoing">觀看中</option><option value="dropped">棄劇</option></select>
+        <select id="f-status" onchange="onStatusChange()"><option value="done">看完</option><option value="ongoing">觀看中</option><option value="dropped">棄劇</option></select>
       </div>
       <div class="field"><label>評分</label><select id="f-rating" onchange="onRatingChange()"></select></div>
       <div class="field"><label>看完年度</label><select id="f-year"><option value="">—</option></select></div>
@@ -1356,14 +1356,16 @@ function fillRatingSel(id,cur){
 function onRatingChange(){
   const rating=parseFloat(fieldVal('f-rating'))||0;
   if(rating>0){
-    // 只在目前狀態還是預設的「觀看中」時才自動幫忙跳去「看完」；
-    // 如果使用者已經手動選了「棄劇」，代表就是想要「棄劇但留下評分」，不要覆蓋掉。
-    if(fieldVal('f-status')==='ongoing') setFieldVal('f-status','done');
+    setFieldVal('f-status','done');
     const yearSel=document.getElementById('f-year');
     if(yearSel && !yearSel.value){
       yearSel.value=NY; // jump to current year automatically
     }
   }
+}
+// 選「棄劇」時評分直接歸零（棄劇代表沒看完，不留下評分）；選其他狀態則不動評分。
+function onStatusChange(){
+  if(fieldVal('f-status')==='dropped') setFieldVal('f-rating',0);
 }
 function fillYearSel(id,cur){
   const s=document.getElementById(id);
@@ -2476,7 +2478,8 @@ function openEdit(id){
   const dupWM=document.getElementById('dup-warning-musical');
   if(dupWM) dupWM.style.display='none';
   setFieldVal('f-status',d.status||'ongoing');
-  fillRatingSel('f-rating',d.rating||0);
+  // 棄劇一律視為未評分：就算舊資料本身還留著評分（例如這筆是在改成這套規則之前存的），編輯時也直接顯示 0 分
+  fillRatingSel('f-rating', d.status==='dropped' ? 0 : (d.rating||0));
   setFieldVal('f-air',d.airDate||'');
   setFieldVal('f-episode', d.episode!=null ? String(d.episode) : '');
 
@@ -2586,10 +2589,9 @@ function saveForm(){
     const genreInput=getGenreCheckboxValues();
     const genres=genreInput.split(',').map(g=>g.trim()).filter(Boolean);
     const actors=fieldVal('f-actors').split(',').map(s=>s.trim()).filter(Boolean);
-    const rating=parseFloat(fieldVal('f-rating'))||0;
-    // 直接採用使用者在「觀看狀態」選的值即可；不要因為有評分就強制蓋成「看完」，
-    // 否則「棄劇但仍想留下評分」的狀態永遠存不進去（評分不代表狀態，只是使用者自己選的參考分數）。
     const status=fieldVal('f-status');
+    // 棄劇一律視為未評分：就算評分欄位還留著舊值（例如編輯一部已經評過分、後來才改選棄劇的劇），存檔時強制歸零。
+    const rating=status==='dropped' ? 0 : (parseFloat(fieldVal('f-rating'))||0);
     const directors=fieldVal('f-director').split(',').map(s=>s.trim()).filter(Boolean);
     const writers=fieldVal('f-writer').split(',').map(s=>s.trim()).filter(Boolean);
     const episodeRaw=fieldVal('f-episode').trim();
