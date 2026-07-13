@@ -333,7 +333,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
         </div>
       </div>
       <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
-      <button class="icon-btn" onclick="openActorsModal()"><i class="ti ti-masks-theater"></i> 🎭 人物總表</button>
+      <button class="icon-btn" onclick="openActorsModal()"><i class="ti ti-users"></i> 演員資料庫</button>
       <button class="btn-primary" onclick="openAdd()">+ 新增</button>
     </div>
   </div>
@@ -863,7 +863,7 @@ async function submitActorEdit(){
     // 避免改名之後跟另一位已存在的演員撞名，變成誤把兩個人合併成同一個
     const conflict=musicalActors.find(a=>String(a.id)!==String(id) && a.name===trimmedName);
     if(conflict){
-      alert(`已經有另一位演員叫做「${trimmedName}」了，請換一個名字；如果本來就是同一個人，可以改用「人物總表」的清理工具合併。`);
+      alert(`已經有另一位演員叫做「${trimmedName}」了，請換一個名字；如果本來就是同一個人，可以改用「演員資料庫」的清理工具合併。`);
       return;
     }
     renameActorEverywhere(actor.name,trimmedName);
@@ -3436,7 +3436,7 @@ async function deleteMusicalActorRow(id){
   <div class="actor-page-header">
     <div style="display:flex;justify-content:space-between;align-items:center">
       <button class="icon-btn" onclick="closeActorsListPage()"><i class="ti ti-arrow-left"></i> 返回</button>
-      <h3 style="margin:0;font-size:16px">🎭 人物總表</h3>
+      <h3 style="margin:0;font-size:16px"><i class="ti ti-users"></i> 演員資料庫</h3>
       <button class="icon-btn" onclick="openActorsCleanupPreview()" style="color:#B45309;border-color:#F5D9A8"><i class="ti ti-broom"></i></button>
     </div>
     <div class="actors-search-bar">
