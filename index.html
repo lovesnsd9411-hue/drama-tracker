@@ -2992,8 +2992,10 @@ function renderActorPage(name){
   const musicalCount=getActorShowCount(name);
   // 電視劇累計次數：電視劇沒有「多刷場次」的概念，累計次數＝符合條件（此演員參演）的劇集數
   const dramaCount=dramaWorks.length;
-  const ratedWorks=works.filter(w=>w.rating&&w.rating>0);
-  const avgRating=ratedWorks.length ? (ratedWorks.reduce((s,w)=>s+parseFloat(w.rating),0)/ratedWorks.length) : 0;
+  // 平均評分只計電視劇：「看完」一定有評分、「棄劇」評分固定是 0.0（也是一個真實的評分，要算進去拉低平均），
+  // 只有「觀看中」是還沒評分，不算數。音樂劇目前沒有逐部評分的欄位，先不計入。
+  const ratedWorks=works.filter(w=>(w.category||'drama')!=='musical' && (w.status==='done'||w.status==='dropped'));
+  const avgRating=ratedWorks.length ? (ratedWorks.reduce((s,w)=>s+parseFloat(w.rating||0),0)/ratedWorks.length) : 0;
 
   const nameEl=document.getElementById('actor-page-name');
   if(nameEl) nameEl.textContent = name;
@@ -3037,7 +3039,9 @@ function renderActorPage(name){
     if(dramaWorks.length) html += stat(dramaCount,'電視劇累計次數');
     const spendTWD=getActorSpendTWD(name);
     if(spendTWD>0) html += stat(moneyLabel(spendTWD),'累計花費（台幣）');
-    if(avgRating>0) html += stat('⭐ '+avgRating.toFixed(1),'平均評分');
+    // 用「有沒有算進平均的作品」來判斷要不要顯示，而不是看平均數字是否大於 0——
+    // 不然平均剛好是 0.0（例如只棄劇過）會被誤判成「沒有評分」，整個統計格反而不見。
+    if(ratedWorks.length) html += stat('⭐ '+avgRating.toFixed(1),'平均評分');
     summaryEl.innerHTML = html;
   }
 
