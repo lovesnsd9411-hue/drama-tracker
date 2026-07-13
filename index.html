@@ -113,6 +113,9 @@ input,select,textarea,button{font-family:inherit}
 .actor-grid-card{background:#F8F8FB;border:1px solid #EFEFF5;border-radius:16px;padding:1.2rem .8rem 1rem;cursor:pointer;transition:all .15s;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
 .actor-grid-card:hover{border-color:#AFA9EC;background:#F3F2FC;transform:translateY(-2px)}
 .agc-rank{position:absolute;top:8px;left:8px;font-size:10px;font-weight:800;color:#D97706;background:#fff;border:1px solid #F0E0C0;border-radius:7px;padding:0 5px}
+.agc-fav-btn{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:#fff;border:1px solid #EFEFF5;color:#bbb;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.agc-fav-btn:hover{color:#F59E0B;border-color:#F5D9A8}
+.agc-fav-btn.on{color:#F59E0B;border-color:#F5D9A8}
 .actor-avatar-fallback{display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#8B86D4,#3C3489);color:#fff;font-weight:700;flex-shrink:0}
 /* 圓形頭像：img 跟找不到照片時的字母 fallback 共用同一組尺寸/圓框/陰影，兩種情況外觀完全一致，
    不會因為有沒有照片而讓卡片高度或形狀跑掉。object-fit:cover 確保任何比例的照片都會被裁成正圓不變形。 */
@@ -3008,18 +3011,19 @@ function renderActorPage(name){
 
   const actionsEl=document.getElementById('actor-card-actions');
   if(actionsEl){
-    if(isReadOnly){
-      actionsEl.innerHTML='';
-    }else{
+    // 最愛是存在這台裝置 localStorage 的個人偏好，不會動到共用資料，訪客模式也照樣開放。
+    const isFav=isActorFavorite(name);
+    let html=`<button class="icon-btn" onclick="toggleActorFavorite('${jsStr(name)}')" style="font-size:12px;padding:4px 10px;color:${isFav?'#F59E0B':''}"><i class="ti ti-star${isFav?'-filled':''}"></i> ${isFav?'取消最愛':'設為最愛'}</button>`;
+    if(!isReadOnly){
       // 編輯功能對每個人都開放，就算還沒有正式紀錄（只出現在電視劇資料裡的「虛擬演員」）也能編輯，
       // 存檔時會自動幫他建立正式紀錄；刪除則只對已經有正式紀錄的人開放，虛擬演員沒有紀錄可以刪。
       const editId=actorRecord?actorRecord.id:('virtual:'+name);
-      let html=`<button class="icon-btn edit-btn" data-action="edit" style="font-size:12px;padding:4px 10px" data-id="${esc(editId)}" data-name="${esc(name)}"><i class="ti ti-pencil"></i> 編輯</button>`;
+      html+=`<button class="icon-btn edit-btn" data-action="edit" style="font-size:12px;padding:4px 10px" data-id="${esc(editId)}" data-name="${esc(name)}"><i class="ti ti-pencil"></i> 編輯</button>`;
       if(actorRecord){
         html+=`<button class="icon-btn delete-btn" data-action="delete" style="font-size:12px;padding:4px 10px;color:#B91C1C;border-color:#F5C6C6" data-id="${esc(actorRecord.id)}" data-name="${esc(actorRecord.name)}"><i class="ti ti-trash"></i> 刪除</button>`;
       }
-      actionsEl.innerHTML=html;
     }
+    actionsEl.innerHTML=html;
   }
 
   const tagsEl=document.getElementById('actor-page-tags');
@@ -3170,6 +3174,23 @@ let actorsSearchQuery='';
 let actorsCategoryFilter='all'; // 'all' | 'musical' | 'drama'
 let actorsSortMode='count'; // 'count'（總觀看次數由多到少，預設） | 'name'（姓名 A→Z）
 
+// 演員最愛：存在這台裝置的 localStorage（跟劇目資料不同，不經過 Supabase 同步）。
+// 用姓名當鍵值，不綁 musical_actors 的 id，這樣連「還沒有正式紀錄、只出現在電視劇資料裡」的
+// 虛擬演員也能直接設最愛，不用先幫他建檔。
+const FAVORITE_ACTORS_KEY='favorite-actor-names';
+let favoriteActorNames=new Set();
+try{ favoriteActorNames=new Set(JSON.parse(localStorage.getItem(FAVORITE_ACTORS_KEY)||'[]')); }catch{}
+
+function isActorFavorite(name){ return favoriteActorNames.has(name); }
+function toggleActorFavorite(name,event){
+  if(event){ event.stopPropagation(); }
+  if(favoriteActorNames.has(name)) favoriteActorNames.delete(name);
+  else favoriteActorNames.add(name);
+  localStorage.setItem(FAVORITE_ACTORS_KEY, JSON.stringify([...favoriteActorNames]));
+  renderActorsGrid();
+  if(location.hash.startsWith('#actor/')) renderActorPage(name);
+}
+
 // 導向人物總表頁面（取代原本開啟 modal 的做法）
 function openActorsModal(){
   location.hash='actors';
@@ -3269,6 +3290,7 @@ function getFilteredActorsList(){
         profile_image:a.profile_image,
         typeLabel:tags.label,
         categories:tags.categories,
+        favorite:isActorFavorite(a.name),
         count:musicalCount+dramaCount // 總觀看次數＝音樂劇累計次數＋電視劇累計次數
       };
     })
@@ -3276,7 +3298,10 @@ function getFilteredActorsList(){
     .sort((a,b)=> actorsSortMode==='name'
       ? a.name.localeCompare(b.name,'ko')
       // 依總觀看次數由多到少排序，最常看的演員排最前面；次數相同時依姓名排序，順序才穩定不會亂跳
-      : (b.count-a.count || a.name.localeCompare(b.name,'ko')));
+      : (b.count-a.count || a.name.localeCompare(b.name,'ko')))
+    // 標成最愛的演員無條件排最前面，不管目前選的是哪種排序方式——
+    // 這樣就算某個喜歡的演員看得不多、排序排不上前面，也一定看得到他。
+    .sort((a,b)=>(b.favorite?1:0)-(a.favorite?1:0));
 }
 
 function renderActorsCategoryFilterBar(){
@@ -3330,10 +3355,12 @@ function renderActorsGrid(){
     return;
   }
 
-  // 依總觀看次數排序時，替前五名（且次數 > 0）加上淡淡的名次角標，呼應「為什麼排最前面」
+  // 依總觀看次數排序時，替前五名加上淡淡的名次角標，呼應「為什麼排最前面」；
+  // 已經是最愛的演員不用角標——他排最前面是因為被設成最愛，不是因為次數排名，標上去容易誤導。
   grid.innerHTML=list.map((a,i)=>`
     <div class="actor-grid-card" onclick="openActorPage('${jsStr(a.name)}')">
-      ${(actorsSortMode==='count' && i<5 && a.count>0)?`<span class="agc-rank">${i+1}</span>`:''}
+      ${(actorsSortMode==='count' && i<5 && a.count>0 && !a.favorite)?`<span class="agc-rank">${i+1}</span>`:''}
+      <button class="agc-fav-btn${a.favorite?' on':''}" onclick="toggleActorFavorite('${jsStr(a.name)}',event)" title="${a.favorite?'取消最愛':'設為最愛'}"><i class="ti ti-star${a.favorite?'-filled':''}"></i></button>
       ${actorAvatarHtml(a,'avatar-sm')}
       <div class="agc-name">${esc(a.name)}</div>
       <div class="agc-type-tag">${esc(a.typeLabel)}</div>
