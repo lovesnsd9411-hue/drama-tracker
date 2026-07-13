@@ -1520,7 +1520,11 @@ function getFiltered(){
     else if(pFilter.role==='director') list=list.filter(d=>(d.directors&&d.directors.length?d.directors:(d.director?[d.director]:[])).includes(pFilter.name));
     else if(pFilter.role==='writer') list=list.filter(d=>(d.writers&&d.writers.length?d.writers:(d.writer?[d.writer]:[])).includes(pFilter.name));
   }
-  if(aSort==='rating-desc') list.sort((a,b)=>parseFloat(b.rating||0)-parseFloat(a.rating||0));
+  if(mainCategory==='musical'){
+    // 音樂劇總表：不適用影劇的評分／年度排序（音樂劇沒有這兩個欄位），一律依總觀看次數（多刷紀錄的已觀看場次數）由多到少排序
+    list.sort((a,b)=> musicalCardStats(b).count-musicalCardStats(a).count);
+  }
+  else if(aSort==='rating-desc') list.sort((a,b)=>parseFloat(b.rating||0)-parseFloat(a.rating||0));
   else if(aSort==='rating-asc') list.sort((a,b)=>parseFloat(a.rating||0)-parseFloat(b.rating||0));
   else if(aSort==='name') list.sort((a,b)=>a.name.localeCompare(b.name,'zh'));
   else if(aSort==='year-desc') list.sort((a,b)=>(b.yearDone||0)-(a.yearDone||0));
