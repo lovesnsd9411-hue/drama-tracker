@@ -23,6 +23,13 @@ input,select,textarea,button{font-family:inherit}
 .app-title{font-size:22px;font-weight:700;color:#1A1A2E}
 .actions{display:flex;gap:8px;align-items:center}
 
+/* ── 更多功能：把次要工具（匯出/匯入/修正狀態/分享清單/匯率設定）收進下拉選單 ── */
+.more-menu-wrap{position:relative}
+.more-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:.5px solid #E5E5F0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.14);padding:6px;min-width:160px;z-index:60}
+.more-menu.open{display:flex;flex-direction:column;gap:2px}
+.more-menu-item{display:flex;align-items:center;gap:8px;background:none;border:none;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#444;font-weight:600;white-space:nowrap;width:100%}
+.more-menu-item:hover{background:#F3F3F8}
+
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem}
 .stat{background:#fff;border-radius:14px;border:.5px solid #E5E5F0;padding:.9rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.04);transition:all .15s}
 .stat:hover{border-color:#B8B5E8;box-shadow:0 3px 10px rgba(0,0,0,.08)}
@@ -315,14 +322,19 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
   <div class="header">
     <div class="app-title">🎬 <span id="sync-status" style="font-size:11px;font-weight:500;color:#aaa;vertical-align:middle"></span></div>
     <div class="actions" id="admin-actions">
-      <button class="icon-btn" onclick="exportData()"><i class="ti ti-download"></i> 匯出</button>
-      <button class="icon-btn" onclick="document.getElementById('imp').click()"><i class="ti ti-upload"></i> 匯入</button>
-      <button class="icon-btn" onclick="fixRatedStatus()" title="一次性修正：把有評分但狀態不是看完的劇修正"><i class="ti ti-wand"></i> 修正狀態</button>
-      <button class="icon-btn" onclick="openShareModal()" title="產生唯讀分享連結"><i class="ti ti-share"></i> 分享清單</button>
+      <div class="more-menu-wrap" id="more-menu-wrap">
+        <button class="icon-btn" onclick="toggleMoreMenu(event)" title="更多功能"><i class="ti ti-dots-vertical"></i></button>
+        <div class="more-menu" id="more-menu">
+          <button class="more-menu-item" onclick="exportData();closeMoreMenu()"><i class="ti ti-download"></i> 匯出</button>
+          <button class="more-menu-item" onclick="document.getElementById('imp').click();closeMoreMenu()"><i class="ti ti-upload"></i> 匯入</button>
+          <button class="more-menu-item" onclick="fixRatedStatus();closeMoreMenu()"><i class="ti ti-wand"></i> 修正狀態</button>
+          <button class="more-menu-item" onclick="openShareModal();closeMoreMenu()"><i class="ti ti-share"></i> 分享清單</button>
+          <button class="more-menu-item" onclick="promptExchangeRate();closeMoreMenu()"><i class="ti ti-currency-won"></i> 匯率設定</button>
+        </div>
+      </div>
       <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
-     <button class="icon-btn" onclick="openActorsModal()"><i class="ti ti-masks-theater"></i> 🎭 人物總表</button>
-<button class="icon-btn" onclick="promptExchangeRate()" title="設定韓元對台幣匯率"><i class="ti ti-currency-won"></i> 匯率設定</button>
-<button class="btn-primary" onclick="openAdd()">+ 新增</button>
+      <button class="icon-btn" onclick="openActorsModal()"><i class="ti ti-masks-theater"></i> 🎭 人物總表</button>
+      <button class="btn-primary" onclick="openAdd()">+ 新增</button>
     </div>
   </div>
 
@@ -2551,6 +2563,19 @@ function fixRatedStatus(){
     alert('沒有發現需要修正的資料，全部都正確！');
   }
 }
+
+// ── 更多功能下拉選單 ──
+function toggleMoreMenu(e){
+  if(e) e.stopPropagation();
+  document.getElementById('more-menu').classList.toggle('open');
+}
+function closeMoreMenu(){
+  document.getElementById('more-menu').classList.remove('open');
+}
+document.addEventListener('click', function(e){
+  const wrap=document.getElementById('more-menu-wrap');
+  if(wrap && !wrap.contains(e.target)) closeMoreMenu();
+});
 
 // ── Share / read-only mode ──
 function openShareModal(){
