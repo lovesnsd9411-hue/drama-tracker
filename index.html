@@ -306,8 +306,8 @@ body.read-only-mode #det-edit{display:none}
 body.read-only-mode #det-fav{display:none}
 body.read-only-mode .fav-badge{display:none}
 
-/* ── 訪客模式（分享連結進入）：隱藏音樂劇相關頁籤，僅保留電視劇內容 ── */
-body.guest-mode #main-cat-musical-btn{display:none}
+/* ── 訪客模式（分享連結進入，且分享範圍選「只分享電視劇」時）：隱藏音樂劇相關頁籤 ── */
+body.guest-hide-musical #main-cat-musical-btn{display:none}
 </style>
 </head>
 <body>
@@ -511,6 +511,13 @@ body.guest-mode #main-cat-musical-btn{display:none}
     <div class="modal-title">分享唯讀連結</div>
     <p style="font-size:13px;color:#888;margin-bottom:1rem;line-height:1.6">產生一個任何人都能打開的唯讀連結，對方只能瀏覽，不能新增、編輯或刪除。</p>
     <div class="field">
+      <label>分享範圍</label>
+      <select id="share-scope">
+        <option value="drama" selected>只分享電視劇（音樂劇完全隱藏）</option>
+        <option value="all">分享全部（音樂劇的金額會自動遮蔽）</option>
+      </select>
+    </div>
+    <div class="field">
       <label>連結有效期限</label>
       <select id="share-expiry">
         <option value="1">1 天後失效</option>
@@ -591,6 +598,7 @@ function promptExchangeRate(){
 
 // 依幣別格式化單筆金額顯示；韓元會額外附上約略台幣金額方便閱讀
 function formatShowAmount(h){
+  if(isGuestMode) return '$ *****'; // 訪客模式：不管幣別，個別場次金額一律遮蔽
   const amt=parseFloat(h.amount)||0;
   const cur=h.currency||'TWD';
   if(cur==='KRW'){
@@ -601,9 +609,12 @@ function formatShowAmount(h){
 }
 let isReadOnly=false;
 // isGuestMode：透過分享連結（share 模式）進站時為 true。
-// 訪客模式下：音樂劇總表／音樂劇演員頁籤隱藏、年度儀表板的投資金額遮罩、
-// 且完全不對 musical_actors 資料表發出 fetch，音樂劇資料也會在載入後立刻從 db 剔除。
+// 訪客模式下：年度儀表板的投資金額一律遮罩、且完全不對 musical_actors 資料表發出 fetch。
 let isGuestMode=false;
+// guestShareScope：分享連結裡的 ?scope= 參數，決定訪客模式要不要看到音樂劇：
+// 'drama'（預設）：音樂劇資料在載入後立刻從 db 剔除，音樂劇頁籤也隱藏，友人只看得到電視劇。
+// 'all'：音樂劇正常顯示（頁籤、清單、詳情都看得到），但所有金額（總金額／單場金額）一律遮蔽成 $ *****。
+let guestShareScope='drama';
 let mainCategory=''; // '' = all, 'drama', 'musical'
 // hashchange 是非同步事件；如果從演員卡片點作品後才把 detail-modal 打開，
 // 稍後才觸發的 handleRoute() 還是會把它立刻關掉（因為裡面有「路由改變就關掉 detail-modal」的清理邏輯），
@@ -1232,7 +1243,7 @@ function setView(v){
 }
 
 function setMainCategory(cat){
-  if(isGuestMode && cat==='musical') cat='drama'; // 訪客模式：不允許切到音樂劇總表
+  if(isGuestMode && guestShareScope==='drama' && cat==='musical') cat='drama'; // 訪客模式選了「只分享電視劇」：不允許切到音樂劇總表
   mainCategory=cat;
   document.querySelectorAll('#main-cat-toggle .cat-btn').forEach((btn,i)=>{
     const cats=['','drama','musical'];
@@ -1569,6 +1580,11 @@ function musicalCardStats(d){
   return {count,spent};
 }
 
+// 統一的金額顯示：訪客模式下一律遮蔽成 $ *****（不管幣別、不管是單場還是加總金額）
+function moneyLabel(amountTWD){
+  return isGuestMode ? '$ *****' : '$'+Math.round(amountTWD).toLocaleString();
+}
+
 function renderGallery(list,el){
   el.className='gallery';
   el.innerHTML=list.map(d=>`
@@ -1585,7 +1601,7 @@ function renderGallery(list,el){
         <div class="po-name">${esc(d.name)}</div>
         <div class="po-score">${[d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'',episodeLabel(d)].filter(Boolean).join(' · ')}</div>
         ${d.category==='musical'
-          ?(()=>{const s=musicalCardStats(d);return `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> ${s.count}場${s.spent>0?' · $'+Math.round(s.spent).toLocaleString():''}</span>`;})()
+          ?(()=>{const s=musicalCardStats(d);return `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> ${s.count}場${s.spent>0?' · '+moneyLabel(s.spent):''}</span>`;})()
           :`<span class="po-badge ${d.status==='done'?'po-done':d.status==='dropped'?'po-dropped':'po-ongoing'}">${d.status==='done'?'看完':d.status==='dropped'?'棄劇':'觀看中'}</span>`}
       </div>
     </div>`).join('');
@@ -1613,7 +1629,7 @@ function renderTable(list,el){
           <div class="rt-orig">${d.orig?esc(d.orig):''}${episodeLabel(d)?' · '+episodeLabel(d):''}</div>
         </div>
         <div class="rt-cell rt-c-rating rt-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'—'}</div>
-        <div class="rt-cell rt-c-status">${d.category==='musical'?(()=>{const s=musicalCardStats(d);return `<span class="badge" style="background:#EEEDFE;color:#3C3489">${s.count}場${s.spent>0?' · $'+Math.round(s.spent).toLocaleString():''}</span>`;})():statusBadge(d.status)}</div>
+        <div class="rt-cell rt-c-status">${d.category==='musical'?(()=>{const s=musicalCardStats(d);return `<span class="badge" style="background:#EEEDFE;color:#3C3489">${s.count}場${s.spent>0?' · '+moneyLabel(s.spent):''}</span>`;})():statusBadge(d.status)}</div>
         <div class="rt-cell rt-c-year rt-muted">${d.category==='musical'?'—':(d.yearDone?d.yearDone+'年':'—')}</div>
         <div class="rt-cell rt-c-platform rt-muted">${d.platform?esc(d.platform):'—'}</div>
         <div class="rt-cell rt-c-acts">
@@ -1907,7 +1923,7 @@ function renderMusicalTabContent(dramaId){
     contentEl.innerHTML=`
       <div class="musical-dashboard">
         <div class="dash-item"><div class="dash-num">${totalShows}</div><div class="dash-label">全季加總觀看次數</div></div>
-        <div class="dash-item"><div class="dash-num">NT$${Math.round(totalSpent).toLocaleString()}</div><div class="dash-label">全季加總花費</div></div>
+        <div class="dash-item"><div class="dash-num">${moneyLabel(totalSpent)}</div><div class="dash-label">全季加總花費</div></div>
       </div>
       <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;margin-top:1.2rem">
         <span>所有多刷紀錄（共 ${history.length} 筆）</span>
@@ -1928,7 +1944,7 @@ function renderMusicalTabContent(dramaId){
         ${seasonCast.length?renderCastGrouped(seasonCast,true):'<div style="font-size:12px;color:#aaa;">此季尚無卡司資料</div>'}
       </div>
       <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;margin-top:1.2rem">
-        <span>${esc(currentSeasonFilter)}（共 ${seasonShows} 場${seasonSpent>0?' · 共花費 NT$'+Math.round(seasonSpent).toLocaleString():''}）</span>
+        <span>${esc(currentSeasonFilter)}（共 ${seasonShows} 場${seasonSpent>0?' · 共花費 '+moneyLabel(seasonSpent):''}）</span>
         ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
       </div>
       <div id="musical-timeline-filter">${renderTimelineFilterBar(seasonHistory,d.id)}</div>
@@ -2539,20 +2555,22 @@ function openShareModal(){
   document.getElementById('share-link-field').style.display='none';
   document.getElementById('share-copied-msg').style.display='none';
   document.getElementById('share-expiry').value='7';
+  document.getElementById('share-scope').value='drama';
   openModal('share-modal');
 }
 
 function generateShareLink(){
   const days=parseInt(document.getElementById('share-expiry').value);
+  const scope=document.getElementById('share-scope').value; // 'drama'（預設，隱藏音樂劇）或 'all'（分享全部，金額遮蔽）
   const baseUrl=window.location.origin+window.location.pathname;
-  let url;
-  if(days===0){
-    // permanent link - no expires param at all
-    url=`${baseUrl}?mode=share`;
-  }else{
-    const expiresAt=Date.now()+days*24*60*60*1000;
-    url=`${baseUrl}?mode=share&expires=${expiresAt}`;
+  const params=new URLSearchParams();
+  params.set('mode','share');
+  if(scope==='all') params.set('scope','all');
+  if(days!==0){
+    // days===0 is a permanent link - no expires param at all
+    params.set('expires',String(Date.now()+days*24*60*60*1000));
   }
+  const url=`${baseUrl}?${params.toString()}`;
   const out=document.getElementById('share-link-output');
   out.value=url;
   document.getElementById('share-link-field').style.display='block';
@@ -2593,6 +2611,12 @@ function detectShareMode(){
   return 'readonly';
 }
 
+// 分享範圍：'drama'（預設，音樂劇完全隱藏、不出現在 db 裡）或 'all'（音樂劇正常顯示，但金額一律遮蔽）
+function detectShareScope(){
+  const params=new URLSearchParams(window.location.search);
+  return params.get('scope')==='all' ? 'all' : 'drama';
+}
+
 function showExpiredScreen(){
   document.body.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center;font-family:'Nunito','PingFang TC',sans-serif">
@@ -2608,13 +2632,15 @@ function applyReadOnlyMode(){
   isReadOnly=true;
   isGuestMode=true;
   document.body.classList.add('read-only-mode','guest-mode');
+  if(guestShareScope==='drama') document.body.classList.add('guest-hide-musical');
   setSyncStatus('👀 唯讀模式','#888');
 }
 
-// 訪客模式的後端資料隔絕：把音樂劇相關項目從記憶體中的 db 直接剔除，
-// 確保之後任何渲染／篩選都不會再碰到音樂劇資料（音樂劇演員清單則從一開始就不發出 fetch，見 loadFromCloud）。
+// 訪客模式的後端資料隔絕：分享範圍選「只分享電視劇」時，把音樂劇相關項目從記憶體中的 db 直接剔除，
+// 確保之後任何渲染／篩選都不會再碰到音樂劇資料（音樂劇演員清單無論哪種分享範圍都不會發出 fetch，見 loadFromCloud）。
+// 分享範圍選「全部」時則保留音樂劇項目，改由畫面渲染時把金額遮蔽（見 isGuestMode 相關的金額顯示邏輯）。
 function stripMusicalDataForGuest(){
-  if(!isGuestMode) return;
+  if(!isGuestMode || guestShareScope!=='drama') return;
   db=db.filter(d=>(d.category||'drama')!=='musical');
 }
 
@@ -2634,6 +2660,7 @@ function jsStr(s){
 }
 
 const shareMode=detectShareMode();
+guestShareScope=detectShareScope();
 
 if(shareMode==='expired'){
   // CRITICAL: do not initialize Supabase or load any data when link is expired
@@ -2831,7 +2858,7 @@ function renderActorPage(name){
     if(musicalWorks.length) html += stat(musicalCount,'音樂劇累計次數');
     if(dramaWorks.length) html += stat(dramaCount,'電視劇累計次數');
     const spendTWD=getActorSpendTWD(name);
-    if(spendTWD>0) html += stat('NT$'+Math.round(spendTWD).toLocaleString(),'累計花費（台幣）');
+    if(spendTWD>0) html += stat(moneyLabel(spendTWD),'累計花費（台幣）');
     if(avgRating>0) html += stat('⭐ '+avgRating.toFixed(1),'平均評分');
     summaryEl.innerHTML = html;
   }
