@@ -3094,8 +3094,22 @@ function stripMusicalDataForGuest(){
 
 function openModal(id){const el=document.getElementById(id);if(el)el.classList.add('open')}
 function closeModal(id){const el=document.getElementById(id);if(el)el.classList.remove('open')}
-document.querySelectorAll('.modal-bg').forEach(el=>el.addEventListener('click',e=>{if(e.target===el)closeModal(el.id)}));
-document.getElementById('actor-card-bg')?.addEventListener('click',e=>{if(e.target===e.currentTarget)closeActorPage()});
+
+// 「點遮罩關閉」只能在「按下」跟「放開」都發生在遮罩本身時才觸發——
+// 不然在輸入框裡反白文字，滑鼠不小心拖到遮罩外面才放開，click 事件的 target 會是遮罩，
+// 明明只是在選字，卻被誤判成「點擊外部關閉」，整個表單（跟剛打的資料）就這樣不見了。
+function bindOverlayClose(el,closeFn){
+  if(!el) return;
+  let downOnOverlay=false;
+  el.addEventListener('mousedown',e=>{ downOnOverlay=(e.target===el); });
+  el.addEventListener('click',e=>{ if(e.target===el && downOnOverlay) closeFn(); });
+}
+// 等整份 HTML 都解析完再綁定：像 actor-edit-modal-bg 這種畫面下方才定義的遮罩，
+// 這個 <script> 執行的當下還沒被解析出來，querySelectorAll 抓不到，要等 DOMContentLoaded。
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('.modal-bg').forEach(el=>bindOverlayClose(el,()=>closeModal(el.id)));
+  bindOverlayClose(document.getElementById('actor-card-bg'),closeActorPage);
+});
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 // 安全地把一個字串嵌入 onclick="fn('...')" 這種單引號 JS 字串參數裡。
@@ -3962,7 +3976,7 @@ async function deleteMusicalActorRow(id){
 <!-- 編輯演員資料：改用一般的頁面表單（不用瀏覽器原生 prompt()）——
      有些瀏覽器／webview／PWA 環境會直接封鎖 prompt()/alert()，點了完全沒反應，
      使用者也看不到任何錯誤訊息。用一般表單同時也能讓「照片網址」有地方即時預覽。 -->
-<div id="actor-edit-modal-bg" class="modal-bg" onclick="if(event.target===event.currentTarget)closeActorEditModal()">
+<div id="actor-edit-modal-bg" class="modal-bg">
   <div class="modal" style="width:min(420px,92vw)">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
       <h3 class="modal-title" style="margin-bottom:0">編輯演員</h3>
