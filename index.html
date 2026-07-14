@@ -41,8 +41,7 @@ input,select,textarea,button{font-family:inherit}
 .annual-dashboard{padding:1rem 1.1rem 1.1rem;background:linear-gradient(135deg,#2D2B55,#4A4580);border-radius:16px;margin-bottom:1.25rem;color:#fff}
 .ad-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px}
 .ad-yr-select-wrap{position:relative}
-.ad-yr-select{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:800;color:#fff;background:rgba(255,255,255,.14);border:none;border-radius:20px;padding:6px 12px 6px 14px;cursor:pointer;font-family:inherit}
-.ad-yr-select i{font-size:11px;opacity:.85}
+.ad-yr-select{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:800;color:#fff;background:rgba(255,255,255,.14);border:none;border-radius:20px;padding:6px 14px;cursor:pointer;font-family:inherit}
 .ad-yr-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:.5px solid #E5E5F0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;min-width:100px;z-index:20}
 .ad-yr-menu.open{display:flex;flex-direction:column;gap:2px}
 .ad-yr-menu button{display:block;width:100%;background:none;border:none;text-align:left;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;color:#666;font-family:inherit}
@@ -55,7 +54,6 @@ input,select,textarea,button{font-family:inherit}
 .ad-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
 .ad-item{display:flex;flex-direction:column;align-items:center;gap:1px;padding:0 6px;position:relative}
 .ad-item:not(:first-child)::before{content:'';position:absolute;left:0;top:10%;bottom:10%;width:1px;background:rgba(255,255,255,.18)}
-.ad-icon{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;margin-bottom:6px;font-size:13px}
 .ad-num{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
 .ad-num.ad-masked{letter-spacing:2px;color:#FCD34D}
 .ad-label{font-size:11px;opacity:.78;font-weight:600;margin-top:2px}
@@ -1823,7 +1821,7 @@ function renderAnnualDashboard(){
   el.innerHTML=`
     <div class="ad-top">
       <div class="ad-yr-select-wrap" id="ad-yr-wrap">
-        <button class="ad-yr-select" onclick="toggleDashboardYearMenu(event)">${s.year} 年 <i class="ti ti-chevron-down"></i></button>
+        <button class="ad-yr-select" onclick="toggleDashboardYearMenu(event)">${s.year} 年</button>
         <div class="ad-yr-menu" id="ad-yr-menu">
           ${years.map(y=>`<button class="${y===dashboardYear?'on':''}" onclick="setDashboardYear(${y})">${y} 年</button>`).join('')}
         </div>
@@ -1831,9 +1829,9 @@ function renderAnnualDashboard(){
       <div class="ad-alltime"><i class="ti ti-history"></i> 歷史累計 ${allTimeHtml}</div>
     </div>
     <div class="ad-stats">
-      <div class="ad-item"><span class="ad-icon"><i class="ti ti-device-tv"></i></span><div class="ad-num">${s.dramaCount}</div><div class="ad-label">電視劇看完部數</div></div>
-      <div class="ad-item"><span class="ad-icon"><i class="ti ti-music"></i></span><div class="ad-num">${s.musicalCount}</div><div class="ad-label">音樂劇觀看場次</div></div>
-      <div class="ad-item"><span class="ad-icon"><i class="ti ti-wallet"></i></span>${yearSpentHtml}<div class="ad-label">本年度花費</div></div>
+      <div class="ad-item"><div class="ad-num">${s.dramaCount}</div><div class="ad-label">電視劇看完部數</div></div>
+      <div class="ad-item"><div class="ad-num">${s.musicalCount}</div><div class="ad-label">音樂劇觀看場次</div></div>
+      <div class="ad-item">${yearSpentHtml}<div class="ad-label">本年度花費</div></div>
     </div>`;
 }
 
