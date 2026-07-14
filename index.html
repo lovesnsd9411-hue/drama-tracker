@@ -141,6 +141,21 @@ input,select,textarea,button{font-family:inherit}
 .dash-item{display:flex;flex-direction:column;align-items:center;gap:2px}
 .dash-num{font-size:26px;font-weight:800;color:#3C3489}
 .dash-label{font-size:12px;color:#666;font-weight:600}
+
+/* ── 音樂劇總覽分頁：各角色觀看次數（依角色分組，兩欄網格） ── */
+.season-stat-block{margin-bottom:1rem}
+.season-stat-block:last-child{margin-bottom:0}
+.season-stat-name{font-size:12.5px;font-weight:700;color:#3C3489;margin-bottom:.5rem;display:flex;align-items:baseline;gap:6px}
+.season-stat-name .season-total{font-size:11px;font-weight:600;color:#999}
+.role-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (max-width:480px){.role-stat-grid{grid-template-columns:1fr}}
+.role-stat-block{background:#F8F8FB;border:1px solid #EFEFF5;border-radius:11px;padding:.5rem .65rem}
+.role-stat-role{font-size:11px;font-weight:700;color:#1A1A2E;margin-bottom:5px;display:flex;align-items:baseline;gap:5px}
+.role-stat-role .role-total{font-size:10px;font-weight:600;color:#999}
+.role-stat-actors{display:flex;flex-wrap:wrap;gap:4px}
+.role-actor-chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border-radius:16px;padding:2px 5px 2px 9px;font-size:11.5px}
+.role-actor-chip .name{color:#1A1A2E;font-weight:600}
+.role-actor-chip .n{background:#F3F2FC;color:#3C3489;font-weight:700;font-size:10px;border-radius:12px;padding:1px 6px;font-variant-numeric:tabular-nums}
 .filter-chip:hover{border-color:#8B86D4;color:#3C3489}
 .filter-chip.active{background:#3C3489;color:#fff;border-color:#3C3489}
 .show-status-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-top:4px}
@@ -2129,8 +2144,76 @@ function setTopTab(tab,dramaId){
   renderMusicalTabContent(dramaId);
 }
 
+// 統計「這一季」每個角色被實際記錄看過的演員與次數：只計入「已觀看」的場次，
+// 依角色分組（同一角色常常有 2〜3 位演員輪演），角色底下的演員依次數由多到少排序。
+// 完全沒被記錄看過的角色／演員不會出現在結果裡（不用顯示「0 次」）。
+// 角色的排列順序依照「編輯音樂劇」表單裡定義候選卡司時的順序；紀錄裡出現過、但候選名單沒有的角色排在最後。
+function getSeasonRoleActorStats(season){
+  const roleOrder=[]; const seenRoles=new Set();
+  (season.cast||[]).forEach(c=>{
+    const role=(typeof c==='string')?'':(c.role||'');
+    if(!seenRoles.has(role)){ seenRoles.add(role); roleOrder.push(role); }
+  });
+  const roleMap=new Map(); // role -> Map(name -> count)
+  season.records.filter(countsTowardWorks).forEach(h=>{
+    const raw=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
+    (raw||[]).forEach(c=>{
+      if(!c) return;
+      const role=(typeof c==='string')?'':(c.role||'');
+      const name=(typeof c==='string')?c:(c.name||'');
+      if(!name) return;
+      if(!roleMap.has(role)) roleMap.set(role,new Map());
+      const actorMap=roleMap.get(role);
+      actorMap.set(name,(actorMap.get(name)||0)+1);
+      if(!seenRoles.has(role)){ seenRoles.add(role); roleOrder.push(role); }
+    });
+  });
+  return roleOrder.filter(role=>roleMap.has(role)).map(role=>{
+    const actorMap=roleMap.get(role);
+    const actors=[...actorMap.entries()]
+      .map(([name,count])=>({name,count}))
+      .sort((a,b)=>b.count-a.count || a.name.localeCompare(b.name,'ko'));
+    const total=actors.reduce((s,a)=>s+a.count,0);
+    return {role,total,actors};
+  });
+}
+
+// 「總覽」分頁的各角色觀看次數：每一季一個區塊（完全沒有觀看紀錄的季度不顯示），
+// 區塊裡用兩欄網格列出這一季每個角色，角色底下是實際演出且被記錄看過的演員晶片。
+function renderOverviewActorStats(d){
+  const seasons=getMusicalSeasons(d);
+  const blocks=seasons.map(season=>{
+    const roles=getSeasonRoleActorStats(season);
+    if(!roles.length) return '';
+    const seasonTotal=roles.reduce((s,r)=>s+r.total,0);
+    const roleBlocksHtml=roles.map(r=>`
+      <div class="role-stat-block">
+        ${r.role?`<div class="role-stat-role">${esc(r.role)} <span class="role-total">共 ${r.total} 次</span></div>`:''}
+        <div class="role-stat-actors">${r.actors.map(a=>`<span class="role-actor-chip" onclick="openActorPage('${jsStr(a.name)}')" style="cursor:pointer"><span class="name">${esc(a.name)}</span><span class="n">${a.count}</span></span>`).join('')}</div>
+      </div>`).join('');
+    return `
+      <div class="season-stat-block">
+        <div class="season-stat-name">${esc(season.name)} <span class="season-total">共 ${seasonTotal} 次</span></div>
+        <div class="role-stat-grid">${roleBlocksHtml}</div>
+      </div>`;
+  }).filter(Boolean).join('');
+  return blocks || '<div style="font-size:12px;color:#aaa;padding:.5rem 0 0">尚無觀看紀錄</div>';
+}
+
+// 展開／收起完整場次紀錄（日期、票券狀態等逐筆資料）；預設收起，「各角色觀看次數」才是總覽分頁的主要內容。
+function toggleFullRecordsView(){
+  const el=document.getElementById('musical-full-records');
+  const btn=document.getElementById('toggle-full-records-btn');
+  if(!el||!btn) return;
+  const isOpen=el.style.display!=='none';
+  el.style.display=isOpen?'none':'block';
+  btn.innerHTML=isOpen
+    ?'<i class="ti ti-chevron-down"></i> 查看完整場次紀錄'
+    :'<i class="ti ti-chevron-up"></i> 收起完整場次紀錄';
+}
+
 // 依目前選定的頂層分頁，渲染下半部內容：
-// 「總覽」＝全季加總儀表板＋所有紀錄的簡化列表（不顯示卡司，避免資訊過載）；
+// 「總覽」＝全季加總儀表板＋各角色觀看次數（依角色分組，可展開查看完整逐筆紀錄）；
 // 特定季度＝該季專屬卡司＋只過濾出該季的多刷紀錄。
 function renderMusicalTabContent(dramaId){
   const d=db.find(x=>x.id===dramaId);
@@ -2147,10 +2230,14 @@ function renderMusicalTabContent(dramaId){
         <div class="dash-item"><div class="dash-num">${moneyLabel(totalSpent)}</div><div class="dash-label">全季加總花費</div></div>
       </div>
       <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;margin-top:1.2rem">
-        <span>所有多刷紀錄（共 ${history.length} 筆）</span>
+        <span>各角色觀看次數</span>
         ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
       </div>
-      <div id="musical-timeline">${renderMusicalTimeline(history,d.id,true)}</div>
+      ${renderOverviewActorStats(d)}
+      <button class="icon-btn" onclick="toggleFullRecordsView()" id="toggle-full-records-btn" style="margin-top:1rem;font-size:12px;width:100%;justify-content:center"><i class="ti ti-chevron-down"></i> 查看完整場次紀錄（共 ${history.length} 筆）</button>
+      <div id="musical-full-records" style="display:none;margin-top:.8rem">
+        <div id="musical-timeline">${renderMusicalTimeline(history,d.id,true)}</div>
+      </div>
     `;
   }else{
     const seasons=getMusicalSeasons(d);
