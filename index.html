@@ -188,6 +188,11 @@ input,select,textarea,button{font-family:inherit}
 .cat-btn{background:none;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;color:#888;font-size:13px;font-weight:600;transition:all .15s;display:flex;align-items:center;gap:5px}
 .cat-btn.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
 
+.method-toggle{display:flex;gap:4px;background:#E8E8F0;border-radius:10px;padding:3px}
+.method-btn{flex:1;background:none;border:none;border-radius:8px;padding:7px 10px;cursor:pointer;color:#888;font-size:13px;font-weight:700;transition:all .15s;font-family:inherit}
+.method-btn.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+.show-method-badge{background:#EEEDFE;color:#3C3489}
+
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.75rem}
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 11px;border-radius:20px;font-weight:600}
 .chip-filter{background:#EEEDFE;color:#3C3489;border:.5px solid #AFA9EC}
@@ -530,15 +535,6 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
     <div class="field" id="musical-only-season" style="display:none">
       <label>目前上演期間（顯示用，可留空）</label>
       <input type="text" id="f-musical-season" placeholder="例：2026.03 ~ 2026.05　或　2026 三演">
-    </div>
-    <div class="field" id="musical-only-method" style="display:none">
-      <label>觀看方式</label>
-      <select id="f-musical-method">
-        <option value="現場觀劇">現場觀劇</option>
-        <option value="線上轉播">線上轉播</option>
-        <option value="錄影播映">錄影播映</option>
-        <option value="影音平台">影音平台</option>
-      </select>
     </div>
 
     <div class="field" id="namu-field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋"></div>
@@ -1463,7 +1459,7 @@ async function setFormCategory(cat){
     if(el) el.style.display=isMusical?'none':'';
   });
   // musical-only field groups
-  ['musical-only-name','musical-only-season','musical-only-method','musical-only-cast'].forEach(id=>{
+  ['musical-only-name','musical-only-season','musical-only-cast'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display=isMusical?'':'none';
   });
@@ -2157,7 +2153,6 @@ function renderMusicalDetail(d){
         <div style="font-size:20px;font-weight:700;color:#1A1A2E;line-height:1.3">${esc(d.name)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">
           <span class="badge" style="background:#EEEDFE;color:#3C3489"><i class="ti ti-music" style="font-size:11px;margin-right:3px"></i>音樂劇</span>
-          ${d.viewMethod?`<span class="badge" style="background:#F5F5FA;color:#666">${esc(d.viewMethod)}</span>`:''}
           ${namuUrl?`<a href="${esc(namuUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#3C3489;font-weight:600;text-decoration:none;background:#EEEDFE;padding:4px 10px;border-radius:20px"><i class="ti ti-external-link"></i> 나무위키${d.namu?'':' (搜尋)'}</a>`:''}
         </div>
       </div>
@@ -2368,6 +2363,7 @@ function renderMusicalTimeline(history,dramaId,hideCast){
           <div>
             <div style="font-weight:700;color:#1A1A2E">${esc(h.date||'')}${h.time?' '+esc(h.time):''}${h.note?` <span style="font-weight:500;color:#888;font-size:12px">${esc(h.note)}</span>`:''}</div>
             <span class="show-status-badge ${showStatusClass(status)}">${esc(status)}</span>
+            ${h.method&&h.method!=='現場'?`<span class="show-status-badge show-method-badge">${esc(h.method)}</span>`:''}
             ${(()=>{if(hideCast)return '';const castData=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
               return castData&&castData.length?`<div style="margin-top:6px">${renderCastChipsInline(castData,false)}</div>`:'';})()}
           </div>
@@ -2382,6 +2378,21 @@ function renderMusicalTimeline(history,dramaId,hideCast){
       </div>`;
     }).join('')}
   </div>`;
+}
+
+// 觀看方式只有「現場」才有場次（午/晚場）、活動、演出狀態、金額這些概念——
+// 線上/錄播一定是已經完整看完才會補記錄，也沒有午晚場跟謝幕活動可言，所以切換時直接收起來，不用填。
+function applyShowMethodVisibility(method){
+  const isLive = method==='現場';
+  ['show-time-field','show-note-field','show-status-field','show-amount-field'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display = isLive?'':'none';
+  });
+}
+function pickShowMethod(btn){
+  document.querySelectorAll('#show-method-toggle .method-btn').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  applyShowMethodVisibility(btn.dataset.v);
 }
 
 async function openAddShowForm(dramaId, editShowId){
@@ -2445,11 +2456,19 @@ async function openAddShowForm(dramaId, editShowId){
     ? d.seasons.map(s=>s.name).filter(Boolean)
     : [...new Set((d.viewing_history||[]).map(h=>(h&&h.season||'').trim()).filter(Boolean))];
 
+  const initialMethod = existingShow ? (existingShow.method||'現場') : '現場';
+
   wrap.innerHTML=`
     <div style="background:#fff;border:1px solid #E5E5F0;border-radius:12px;padding:1rem;margin-bottom:1rem">
+      <div class="field">
+        <label>觀看方式</label>
+        <div class="method-toggle" id="show-method-toggle">
+          ${['現場','線上','錄播'].map(m=>`<button type="button" class="method-btn${m===initialMethod?' on':''}" data-v="${m}" onclick="pickShowMethod(this)">${m}</button>`).join('')}
+        </div>
+      </div>
       <div class="row2">
         <div class="field"><label>觀看日期</label><input type="date" id="show-date"></div>
-        <div class="field"><label>場次</label>
+        <div class="field" id="show-time-field"><label>場次</label>
           <select id="show-time">
             <option value="">未指定</option>
             <option value="午場">午場</option>
@@ -2457,9 +2476,9 @@ async function openAddShowForm(dramaId, editShowId){
           </select>
         </div>
       </div>
-      <div class="field"><label>活動（可選）</label><input type="text" id="show-note" placeholder="例：謝幕拍照、簽名會"></div>
+      <div class="field" id="show-note-field"><label>活動（可選）</label><input type="text" id="show-note" placeholder="例：謝幕拍照、簽名會"></div>
       <div class="row2">
-        <div class="field"><label>演出狀態</label>
+        <div class="field" id="show-status-field"><label>演出狀態</label>
           <select id="show-status">
             ${SHOW_STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}
           </select>
@@ -2473,7 +2492,7 @@ async function openAddShowForm(dramaId, editShowId){
         </div>
       </div>
       ${castFieldHtml}
-      <div class="field"><label>金額（可選）</label>
+      <div class="field" id="show-amount-field"><label>金額（可選）</label>
         <div style="display:flex;gap:6px">
           <input type="text" id="show-amount" placeholder="例：1800" inputmode="numeric" style="flex:1;min-width:0">
           <select id="show-currency" style="width:88px;flex-shrink:0">
@@ -2488,6 +2507,7 @@ async function openAddShowForm(dramaId, editShowId){
       </div>
     </div>`;
 
+  applyShowMethodVisibility(initialMethod);
   if(!hasRoster) initCastTagInput('show', existingCast);
 
   // 編輯模式：回填日期／場次／演出狀態／金額／活動筆記
@@ -2545,12 +2565,18 @@ async function saveShow(dramaId, editShowId) {
   const date = fieldVal('show-date');
   if(!date){alert('請選擇觀看日期');return}
 
-  const time = fieldVal('show-time');
-  const showStatus = fieldVal('show-status','已觀看')||'已觀看';
+  const methodBtn = document.querySelector('#show-method-toggle .method-btn.on');
+  const method = methodBtn ? methodBtn.dataset.v : '現場';
+  const isLive = method==='現場';
+
+  // 線上／錄播一定是已經完整看完才會補記錄，場次(午晚場)、活動、金額都沒有意義，
+  // 演出狀態也直接視為「已觀看」，不受表單上（已收起、可能還殘留舊值的）欄位影響。
+  const time = isLive ? fieldVal('show-time') : '';
+  const showStatus = isLive ? (fieldVal('show-status','已觀看')||'已觀看') : '已觀看';
   const season = fieldVal('show-season').trim();
-  const amount = fieldVal('show-amount').trim();
+  const amount = isLive ? fieldVal('show-amount').trim() : '';
   const currency = fieldVal('show-currency','TWD')||'TWD';
-  const note = fieldVal('show-note').trim();
+  const note = isLive ? fieldVal('show-note').trim() : '';
 
   // 卡司：此劇目若已有候選名單，會顯示勾選清單，讀取被勾選的演員；
   // 否則退回文字輸入（角色｜演員 tag-input）。兩種情況都存進 viewed_actors 欄位。
@@ -2565,7 +2591,7 @@ async function saveShow(dramaId, editShowId) {
     if(idx>-1){
       d.viewing_history[idx] = {
         ...d.viewing_history[idx],
-        date, time, showStatus, season, viewed_actors,
+        date, time, showStatus, season, viewed_actors, method,
         amount: amount ? parseFloat(amount) : null,
         currency,
         note
@@ -2577,6 +2603,7 @@ async function saveShow(dramaId, editShowId) {
       date,
       time,
       showStatus,
+      method,
       season,
       viewed_actors,
       amount: amount ? parseFloat(amount) : null,
@@ -2728,7 +2755,6 @@ function openAdd(){
     const dupWM=document.getElementById('dup-warning-musical');
     if(dupWM) dupWM.style.display='none';
 
-    setFieldVal('f-musical-method','現場觀劇');
     setFieldVal('f-status','ongoing');
     fillRatingSel('f-rating',0);
     setFieldVal('f-air','');
@@ -2772,7 +2798,6 @@ function openEdit(id){
 
   setFieldVal('f-platform',d.platform||'');
   setFieldVal('f-musical-season',d.season||'');
-  setFieldVal('f-musical-method',d.viewMethod||'現場觀劇');
   setFieldVal('f-namu',d.namu||'');
   setFieldVal('f-actors',(d.actors||[]).join(', '));
   initCastTagInput('cameo', d.cameoActors||[]);
@@ -2860,7 +2885,7 @@ function saveForm(){
     data={
       name,orig,category,
       status:'',rating:0,genre:'',genres:[],
-      platform:'',viewMethod:fieldVal('f-musical-method'),
+      platform:'',
       airDate:'',yearDone:'',season:fieldVal('f-musical-season').trim(),
       seasons,
       actors:unionCast,
