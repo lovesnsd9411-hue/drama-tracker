@@ -358,7 +358,10 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
 <body>
 <div class="app">
   <div class="header">
-    <div class="app-title">🎬 <span id="sync-status" style="font-size:11px;font-weight:500;color:#aaa;vertical-align:middle"></span></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="app-title">🎬 <span id="sync-status" style="font-size:11px;font-weight:500;color:#aaa;vertical-align:middle"></span></div>
+      <button class="icon-btn" id="login-trigger-btn" onclick="openLoginModal()" style="display:none"><i class="ti ti-login"></i> 登入</button>
+    </div>
     <div class="actions" id="admin-actions">
       <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
       <button class="icon-btn" onclick="openActorsModal()"><i class="ti ti-users"></i> 演員資料庫</button>
@@ -371,6 +374,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
           <button class="more-menu-item" onclick="fixRatedStatus();closeMoreMenu()"><i class="ti ti-wand"></i> 修正狀態</button>
           <button class="more-menu-item" onclick="openShareModal();closeMoreMenu()"><i class="ti ti-share"></i> 分享清單</button>
           <button class="more-menu-item" onclick="promptExchangeRate();closeMoreMenu()"><i class="ti ti-currency-won"></i> 匯率設定</button>
+          <button class="more-menu-item" id="logout-menu-item" onclick="logout();closeMoreMenu()" style="display:none;color:#B91C1C"><i class="ti ti-logout"></i> 登出</button>
         </div>
       </div>
     </div>
@@ -558,6 +562,21 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
   </div>
 </div>
 
+<!-- 管理者登入 modal：只有登入後才有編輯/刪除/新增等權限，資料庫本身也是靠 Supabase RLS 規則
+     只允許登入的擁有者寫入，不是只靠前端隱藏按鈕（前端隱藏擋不住直接呼叫 API）。 -->
+<div class="modal-bg" id="login-modal">
+  <div class="modal" style="width:min(360px,92vw)">
+    <div class="modal-title">管理者登入</div>
+    <div class="field"><label for="login-email">Email</label><input type="text" id="login-email" placeholder="you@example.com" autocomplete="username"></div>
+    <div class="field"><label for="login-password">密碼</label><input type="password" id="login-password" placeholder="密碼" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitLogin()"></div>
+    <div id="login-error" style="display:none;font-size:12px;color:#B91C1C;margin-bottom:.75rem;font-weight:600"></div>
+    <div class="mfooter">
+      <button class="icon-btn" onclick="closeModal('login-modal')">取消</button>
+      <button class="btn-primary" onclick="submitLogin()">登入</button>
+    </div>
+  </div>
+</div>
+
 <!-- 分享連結 modal -->
 <div class="modal-bg" id="share-modal">
   <div class="modal" style="width:min(420px,95vw)">
@@ -661,6 +680,11 @@ function formatShowAmount(h){
   return `NT$${amt.toLocaleString()}`;
 }
 let isReadOnly=false;
+// isAuthenticated：是否已經用擁有者帳號登入 Supabase Auth。
+// 非分享連結進站時，isReadOnly 現在同時取決於「有沒有登入」——沒登入一律唯讀，
+// 真正的寫入權限交給 Supabase 的 Row Level Security 規則檔（登入的擁有者才能寫，光有 anon key 不行），
+// 前端這裡只是照著這個狀態把編輯 UI 藏起來，不是安全機制本身。
+let isAuthenticated=false;
 // isGuestMode：透過分享連結（share 模式）進站時為 true。
 // 訪客模式下：年度儀表板的投資金額一律遮罩、且完全不對 musical_actors 資料表發出 fetch。
 let isGuestMode=false;
@@ -728,6 +752,18 @@ function initSupabase(){
 
 async function loadFromCloud(){
   setSyncStatus('☁️ 同步中…','#888');
+  // 分享連結（訪客模式）已經在外面同步設定過 isReadOnly 了，不用再檢查登入狀態；
+  // 非分享連結進站時，先確認有沒有登入，沒登入一律當唯讀（實際擋寫入的是 Supabase 那邊的 RLS 規則）。
+  if(!isGuestMode){
+    try{
+      const {data:{session}}=await sb.auth.getSession();
+      isAuthenticated=!!session;
+    }catch(e){
+      console.error('Failed to check auth session',e);
+      isAuthenticated=false;
+    }
+    if(!isAuthenticated) applyUnauthenticatedReadOnly();
+  }
   try{
     const {data,error}=await sb.from('dramas').select('id,data').order('id',{ascending:true}).limit(1);
     if(error) throw error;
@@ -752,6 +788,9 @@ async function loadFromCloud(){
     try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
     if(!db.length) seedData();
   }
+  // 資料讀取成功會把同步狀態蓋成「已同步」，但沒登入的話要繼續顯示「唯讀模式」，不能讓使用者誤以為自己能編輯。
+  if(!isGuestMode && !isAuthenticated) setSyncStatus('👀 唯讀模式（尚未登入）','#888');
+  updateAuthUI();
   stripMusicalDataForGuest();
   // 訪客模式下完全不對 musical_actors 資料表發出 fetch 請求，從根本隔絕音樂劇資料外洩的可能性。
   if(!isGuestMode) await loadMusicalActors();
@@ -2960,6 +2999,64 @@ function applyReadOnlyMode(){
   document.body.classList.add('read-only-mode','guest-mode');
   if(guestShareScope==='drama') document.body.classList.add('guest-hide-musical');
   setSyncStatus('👀 唯讀模式','#888');
+}
+
+// ── 擁有者登入（Supabase Auth）──
+// 分享連結（訪客模式）不用登入，維持原樣；非分享連結進站時，有沒有登入決定是不是唯讀。
+// 真正擋住寫入的是 Supabase 那邊的 Row Level Security 規則（只有登入的擁有者能寫），
+// 這裡只是照登入狀態把編輯 UI 藏起來，方便使用，不是安全機制本身。
+function updateAuthUI(){
+  const loginBtn=document.getElementById('login-trigger-btn');
+  const logoutItem=document.getElementById('logout-menu-item');
+  if(loginBtn) loginBtn.style.display=(!isGuestMode && !isAuthenticated)?'flex':'none';
+  if(logoutItem) logoutItem.style.display=isAuthenticated?'flex':'none';
+}
+
+function applyUnauthenticatedReadOnly(){
+  isReadOnly=true;
+  document.body.classList.add('read-only-mode');
+  setSyncStatus('👀 唯讀模式（尚未登入）','#888');
+}
+
+function openLoginModal(){
+  const errEl=document.getElementById('login-error');
+  if(errEl) errEl.style.display='none';
+  setFieldVal('login-email','');
+  setFieldVal('login-password','');
+  openModal('login-modal');
+}
+
+async function submitLogin(){
+  const email=fieldVal('login-email').trim();
+  const password=fieldVal('login-password');
+  const errEl=document.getElementById('login-error');
+  if(!sb){
+    if(errEl){ errEl.textContent='目前是離線模式，無法登入'; errEl.style.display='block'; }
+    return;
+  }
+  if(!email||!password){
+    if(errEl){ errEl.textContent='請輸入 Email 和密碼'; errEl.style.display='block'; }
+    return;
+  }
+  try{
+    const {error}=await sb.auth.signInWithPassword({email,password});
+    if(error) throw error;
+    closeModal('login-modal');
+    isAuthenticated=true;
+    isReadOnly=false;
+    document.body.classList.remove('read-only-mode');
+    setSyncStatus('☁️ 已同步','#0F6E56');
+    updateAuthUI();
+    render();
+  }catch(e){
+    console.error('Login failed',e);
+    if(errEl){ errEl.textContent='登入失敗，請確認 Email 和密碼是否正確'; errEl.style.display='block'; }
+  }
+}
+
+async function logout(){
+  if(sb) await sb.auth.signOut().catch(()=>{});
+  location.reload();
 }
 
 // 訪客模式的後端資料隔絕：分享範圍選「只分享電視劇」時，把音樂劇相關項目從記憶體中的 db 直接剔除，
