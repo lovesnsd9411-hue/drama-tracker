@@ -3018,12 +3018,23 @@ function applyUnauthenticatedReadOnly(){
   setSyncStatus('👀 唯讀模式（尚未登入）','#888');
 }
 
+// 登入成功過的 email 記在這台裝置的 localStorage，下次打開登入視窗會自動帶入，
+// 少數真的需要重新登入的情況（換瀏覽器、清過資料、登出過）只需要打密碼就好。
+const LOGIN_EMAIL_KEY='remembered-login-email';
+
 function openLoginModal(){
   const errEl=document.getElementById('login-error');
   if(errEl) errEl.style.display='none';
-  setFieldVal('login-email','');
+  const rememberedEmail=localStorage.getItem(LOGIN_EMAIL_KEY)||'';
+  setFieldVal('login-email',rememberedEmail);
   setFieldVal('login-password','');
   openModal('login-modal');
+  // 如果 email 已經記住了，游標直接跳到密碼欄，不用使用者自己點一下
+  setTimeout(()=>{
+    const focusId=rememberedEmail?'login-password':'login-email';
+    const el=document.getElementById(focusId);
+    if(el) el.focus();
+  },50);
 }
 
 async function submitLogin(){
@@ -3041,6 +3052,7 @@ async function submitLogin(){
   try{
     const {error}=await sb.auth.signInWithPassword({email,password});
     if(error) throw error;
+    localStorage.setItem(LOGIN_EMAIL_KEY,email);
     closeModal('login-modal');
     isAuthenticated=true;
     isReadOnly=false;
