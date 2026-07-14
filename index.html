@@ -490,11 +490,12 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <label class="genre-cb"><input type="checkbox" value="喜劇"> 喜劇</label>
       <label class="genre-cb"><input type="checkbox" value="古裝"> 古裝</label>
       <label class="genre-cb"><input type="checkbox" value="職場"> 職場</label>
-      <label class="genre-cb"><input type="checkbox" value="年代劇"> 年代劇</label>
+      <label class="genre-cb"><input type="checkbox" value="醫療"> 醫療</label>
       <label class="genre-cb"><input type="checkbox" value="法政"> 法政</label>
       <label class="genre-cb"><input type="checkbox" value="狗血"> 狗血</label>
       <label class="genre-cb"><input type="checkbox" value="青春"> 青春</label>
       <label class="genre-cb"><input type="checkbox" value="驚悚"> 驚悚</label>
+      <label class="genre-cb"><input type="checkbox" value="年代劇"> 年代劇</label>
     </div>
   </div>
   <div class="field">
@@ -1410,6 +1411,9 @@ function seedData(){
 }
 
 const rLabel=r=>'⭐ '+parseFloat(r).toFixed(1);
+// 棄劇一律強制存成 0.0 分（不是「還沒評分」），所以卡片/詳細頁該顯示分數的地方也要認得這個情況，
+// 不能只看 rating>0——不然明明已經存了 0.0，畫面卻還是誤判成「未評分」。
+function hasRating(d){ return d.rating>0 || d.status==='dropped'; }
 function posterSrc(d){
   if(!d.poster)return '';
   if(d.poster.startsWith('http://')||d.poster.startsWith('https://')) return d.poster;
@@ -1436,7 +1440,7 @@ function setView(v){
   render();
 }
 
-function setMainCategory(cat){
+function setMainCategory(cat,skipRender){
   if(isGuestMode && guestShareScope==='drama' && cat==='musical') cat='drama'; // 訪客模式選了「只分享電視劇」：不允許切到音樂劇總表
   mainCategory=cat;
   document.querySelectorAll('#main-cat-toggle .cat-btn').forEach((btn,i)=>{
@@ -1444,7 +1448,7 @@ function setMainCategory(cat){
     btn.classList.toggle('on',cats[i]===cat);
   });
   // clear genre/platform filters since they may not apply across categories
-  render();
+  if(!skipRender) render();
 }
 
 async function setFormCategory(cat){
@@ -1819,7 +1823,7 @@ function renderGallery(list,el){
       <div class="poster-placeholder" style="display:${d.poster?'none':'flex'}"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(d.name)}</div>${d.orig?`<div class="ph-orig">${esc(d.orig)}</div>`:''}</div>
       <div class="poster-overlay">
         <div class="po-name">${esc(d.name)}</div>
-        <div class="po-score">${[d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'',episodeLabel(d)].filter(Boolean).join(' · ')}</div>
+        <div class="po-score">${[hasRating(d)?'⭐ '+parseFloat(d.rating).toFixed(1):'',episodeLabel(d)].filter(Boolean).join(' · ')}</div>
         ${d.category==='musical'
           ?(()=>{const s=musicalCardStats(d);return `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> ${s.count}場${s.spent>0?' · '+moneyLabel(s.spent):''}</span>`;})()
           :`<span class="po-badge ${d.status==='done'?'po-done':d.status==='dropped'?'po-dropped':'po-ongoing'}">${d.status==='done'?'看完':d.status==='dropped'?'棄劇':'觀看中'}</span>`}
@@ -1848,7 +1852,7 @@ function renderTable(list,el){
           <div class="rt-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:12px;margin-right:3px"></i>':''}${esc(d.name)}</div>
           <div class="rt-orig">${d.orig?esc(d.orig):''}${episodeLabel(d)?' · '+episodeLabel(d):''}</div>
         </div>
-        <div class="rt-cell rt-c-rating rt-score">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'—'}</div>
+        <div class="rt-cell rt-c-rating rt-score">${hasRating(d)?'⭐ '+parseFloat(d.rating).toFixed(1):'—'}</div>
         <div class="rt-cell rt-c-status">${d.category==='musical'?(()=>{const s=musicalCardStats(d);return `<span class="badge" style="background:#EEEDFE;color:#3C3489">${s.count}場${s.spent>0?' · '+moneyLabel(s.spent):''}</span>`;})():statusBadge(d.status)}</div>
         <div class="rt-cell rt-c-year rt-muted">${d.category==='musical'?'—':(d.yearDone?d.yearDone+'年':'—')}</div>
         <div class="rt-cell rt-c-platform rt-muted">${d.platform?esc(d.platform):'—'}</div>
@@ -1868,7 +1872,7 @@ function renderTable(list,el){
         <div class="rc-name">${d.favorite?'<i class="ti ti-star-filled" style="color:#F59E0B;font-size:11px;margin-right:3px"></i>':''}${esc(d.name)}</div>
         ${d.orig?`<div class="rc-orig">${esc(d.orig)}</div>`:''}
         <div class="rc-badges">
-          ${d.rating&&d.rating>0?`<span class="rc-badge rc-badge-score">⭐ ${parseFloat(d.rating).toFixed(1)}</span>`:''}
+          ${hasRating(d)?`<span class="rc-badge rc-badge-score">⭐ ${parseFloat(d.rating).toFixed(1)}</span>`:''}
           ${statusBadge(d.status)}
           ${episodeLabel(d)?`<span class="rc-badge">${episodeLabel(d)}</span>`:''}
           ${d.yearDone?`<span class="rc-badge">${d.yearDone}年</span>`:''}
@@ -1976,8 +1980,10 @@ document.addEventListener('click', function(e){
   }
 });
 
+// 全部／看完／觀看中／棄劇這排統計，只算電視劇——音樂劇沒有「狀態」這個概念，不該混進來counter。
 function renderStats(){
-  const t=db.length,done=db.filter(d=>d.status==='done').length,on=db.filter(d=>d.status==='ongoing').length,dropped=db.filter(d=>d.status==='dropped').length;
+  const dramaList=db.filter(d=>(d.category||'drama')==='drama');
+  const t=dramaList.length,done=dramaList.filter(d=>d.status==='done').length,on=dramaList.filter(d=>d.status==='ongoing').length,dropped=dramaList.filter(d=>d.status==='dropped').length;
   const cur=aFilter.type==='status'?aFilter.val:'';
   document.getElementById('stats').innerHTML=`
     <div class="stat${cur===''?' stat-active':''}" onclick="filterByStatus('')" style="cursor:pointer"><div class="stat-n">${t}</div><div class="stat-l">全部</div></div>
@@ -1987,6 +1993,8 @@ function renderStats(){
 }
 
 function filterByStatus(val){
+  // 這排統計一律代表電視劇，就算目前停留在音樂劇分頁點下去，也要直接切回影劇分頁再套用篩選。
+  setMainCategory('drama',true);
   if(!val){
     aFilter={type:'',val:''};
     document.getElementById('ftype').value='';
@@ -2702,7 +2710,7 @@ function openDetail(id){
       <div style="flex:1;min-width:0">
         <div style="font-size:20px;font-weight:700;color:#1A1A2E;line-height:1.3">${esc(d.name)}</div>
         ${d.orig?`<div style="font-size:13px;color:#999;margin-top:2px;font-weight:500">${esc(d.orig)}</div>`:''}
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">${statusBadge(d.status)}<span style="font-size:16px;font-weight:700;color:#D97706">${d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'未評分'}</span>${(()=>{const namuUrl=d.namu||(d.orig?'https://namu.wiki/Search?q='+encodeURIComponent(d.orig):'');return namuUrl?`<a href="${esc(namuUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#3C3489;font-weight:600;text-decoration:none;background:#EEEDFE;padding:4px 10px;border-radius:20px"><i class="ti ti-external-link"></i> 나무위키${d.namu?'':' (搜尋)'}</a>`:''})()}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">${statusBadge(d.status)}<span style="font-size:16px;font-weight:700;color:#D97706">${hasRating(d)?'⭐ '+parseFloat(d.rating).toFixed(1):'未評分'}</span>${(()=>{const namuUrl=d.namu||(d.orig?'https://namu.wiki/Search?q='+encodeURIComponent(d.orig):'');return namuUrl?`<a href="${esc(namuUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#3C3489;font-weight:600;text-decoration:none;background:#EEEDFE;padding:4px 10px;border-radius:20px"><i class="ti ti-external-link"></i> 나무위키${d.namu?'':' (搜尋)'}</a>`:''})()}</div>
       </div>
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
@@ -3255,7 +3263,7 @@ function renderActorWorksList(list, el, name){
       <div class="poster-placeholder" style="display:${d.poster?'none':'flex'}"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(d.name)}</div>${d.orig?`<div class="ph-orig">${esc(d.orig)}</div>`:''}</div>
       <div class="poster-overlay">
         <div class="po-name">${nameLabel}</div>
-        <div class="po-score">${[d.rating&&d.rating>0?'⭐ '+parseFloat(d.rating).toFixed(1):'',episodeLabel(d)].filter(Boolean).join(' · ')}</div>
+        <div class="po-score">${[hasRating(d)?'⭐ '+parseFloat(d.rating).toFixed(1):'',episodeLabel(d)].filter(Boolean).join(' · ')}</div>
         ${badge}
       </div>
     </div>`;
