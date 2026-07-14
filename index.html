@@ -511,6 +511,15 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
     </div>
     <div class="field" id="drama-only-air"><label>首播日期</label><input type="date" id="f-air"></div>
     <div class="field" id="drama-only-actors"><label>主角（逗號分隔）</label><input type="text" id="f-actors" placeholder="宋慧喬, 李道賢"></div>
+    <div class="field" id="drama-only-cameo">
+      <label>客串／特別演出（可選）</label>
+      <div class="tag-input-wrap" id="cameo-cast-tag-wrap">
+        <div class="tag-input-chips" id="cameo-cast-chips"></div>
+        <input type="text" id="cameo-cast-input" placeholder="角色｜演員，或直接打名字" autocomplete="off"
+          oninput="onCastInputType('cameo')" onkeydown="onCastInputKeydown(event,'cameo')">
+        <div class="tag-suggest-dropdown" id="cameo-cast-suggest" style="display:none"></div>
+      </div>
+    </div>
     <div class="row2" id="drama-only-crew">
       <div class="field"><label>導演（逗號分隔）</label><input type="text" id="f-director" placeholder="安吉鎬, 朴勳政"></div>
       <div class="field"><label>編劇（逗號分隔）</label><input type="text" id="f-writer" placeholder="金恩淑, 朴海英"></div>
@@ -1071,8 +1080,8 @@ function actorAvatarHtml(actor,sizeClass){
 //      找不到的名字直接寫入 musical_actors 並綁定。
 // ════════════════════════════════════════════════════════════════
 
-// scope -> 'form' (新增/編輯劇目表單) 或 'show' (新增場次表單)
-const castChipsStore = { form: [], show: [] };
+// scope -> 'form' (新增/編輯劇目表單的音樂劇主要演員) 或 'show' (新增場次表單) 或 'cameo' (電視劇的客串／特別演出)
+const castChipsStore = { form: [], show: [], cameo: [] };
 
 function castScopeIds(scope){
   return {
@@ -1448,7 +1457,7 @@ async function setFormCategory(cat){
   const isMusical=cat==='musical';
 
   // drama-only field groups
-  ['drama-only-names','drama-only-row3','drama-only-genre-platform','drama-only-episode','drama-only-air','drama-only-actors','drama-only-crew'].forEach(id=>{
+  ['drama-only-names','drama-only-row3','drama-only-genre-platform','drama-only-episode','drama-only-air','drama-only-actors','drama-only-cameo','drama-only-crew'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display=isMusical?'none':'';
   });
@@ -2680,6 +2689,7 @@ function openDetail(id){
       ${dWriters.length?`<div class="meta-row"><span class="meta-label">編劇</span>${dWriters.map(p=>`<span class="ppill" onclick="setPerson('${esc(p)}','writer')">${esc(p)} 🔍</span>`).join('')}</div>`:''}
     </div>
     ${d.actors&&d.actors.length?`<div class="meta-row" style="margin-bottom:1rem"><span class="meta-label" style="font-size:12px">主角</span>${d.actors.map(a=>`<span class="ppill" onclick="openActorPage('${esc(a)}')">${esc(a)} 🔍</span>`).join('')}</div>`:''}
+    ${d.cameoActors&&d.cameoActors.length?`<div class="sec-title" style="margin-top:0">客串／特別演出</div><div style="margin-bottom:1rem">${renderCastChipsInline(d.cameoActors,true)}</div>`:''}
     ${d.note?`<div style="background:#F8F8FB;border-radius:12px;padding:.85rem;font-size:13px;line-height:1.7;margin-bottom:1rem;font-weight:500;color:#444">${esc(d.note)}</div>`:''}
     ${rel}`;
   document.getElementById('det-edit').onclick=()=>{closeModal('detail-modal');openEdit(id)};
@@ -2723,6 +2733,7 @@ function openAdd(){
     setFieldVal('f-air','');
     fillYearSel('f-year','');
     initCastTagInput('form', []);
+    initCastTagInput('cameo', []);
     formSeasonsState=[{name:'',period:'',actors:[]}];
     renderSeasonBlocksContainer();
     setFormCategory('drama');
@@ -2763,6 +2774,7 @@ function openEdit(id){
   setFieldVal('f-musical-method',d.viewMethod||'現場觀劇');
   setFieldVal('f-namu',d.namu||'');
   setFieldVal('f-actors',(d.actors||[]).join(', '));
+  initCastTagInput('cameo', d.cameoActors||[]);
   setFieldVal('f-director',d.directors&&d.directors.length?d.directors.join(', '):(d.director||''));
   setFieldVal('f-writer',d.writers&&d.writers.length?d.writers.join(', '):(d.writer||''));
   setFieldVal('f-note',d.note||'');
@@ -2868,7 +2880,8 @@ function saveForm(){
     const writers=fieldVal('f-writer').split(',').map(s=>s.trim()).filter(Boolean);
     const episodeRaw=fieldVal('f-episode').trim();
     const episode=episodeRaw ? parseInt(episodeRaw,10) : null;
-    data={name,orig,category,status,rating,genre:genreInput,genres,platform:fieldVal('f-platform').trim(),airDate:fieldVal('f-air'),yearDone:fieldVal('f-year'),episode,actors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:fieldVal('f-note').trim(),poster,namu:fieldVal('f-namu').trim()};
+    const cameoActors=getCastChipsData('cameo');
+    data={name,orig,category,status,rating,genre:genreInput,genres,platform:fieldVal('f-platform').trim(),airDate:fieldVal('f-air'),yearDone:fieldVal('f-year'),episode,actors,cameoActors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:fieldVal('f-note').trim(),poster,namu:fieldVal('f-namu').trim()};
   }
   if(editId){const i=db.findIndex(x=>x.id===editId);if(i>-1)db[i]={...db[i],...data}}
   else db.unshift({id:uid(),addedAt:Date.now(),...data});
@@ -3127,11 +3140,11 @@ if(shareMode==='expired'){
 // ==========================================
 
 // 判斷某部作品是否算這位演員的作品：
-// 一般劇集只看 actors；音樂劇則額外涵蓋 actors_all（候選名單）與每場實際紀錄的卡司，
-// 確保只在某幾場被記錄過、但沒被列進主要演員的演員，也找得到這部作品。
+// 一般劇集看 actors（主角）跟 cameoActors（客串／特別演出）；音樂劇則額外涵蓋 actors_all（候選名單）
+// 與每場實際紀錄的卡司，確保只在某幾場被記錄過、但沒被列進主要演員的演員，也找得到這部作品。
 function actorAppearsIn(d,name){
   if((d.category||'drama')!=='musical'){
-    return castNames(d.actors).includes(name);
+    return castNames(d.actors).includes(name) || castNames(d.cameoActors).includes(name);
   }
   if(castNames(d.actors).includes(name)) return true;
   if(castNames(d.actors_all).includes(name)) return true;
@@ -3192,7 +3205,9 @@ function renderActorWorksList(list, el, name){
       ? (personalCount>0
           ? `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> ${personalCount}次</span>`
           : `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> 候選卡司</span>`)
-      : `<span class="po-badge ${d.status==='done'?'po-done':d.status==='dropped'?'po-dropped':'po-ongoing'}">${d.status==='done'?'看完':d.status==='dropped'?'棄劇':'觀看中'}</span>`;
+      : isCameoOnlyAppearance(d,name)
+        ? `<span class="po-badge" style="background:#fff;color:#3C3489;border:1px solid #AFA9EC">客串</span>`
+        : `<span class="po-badge ${d.status==='done'?'po-done':d.status==='dropped'?'po-dropped':'po-ongoing'}">${d.status==='done'?'看完':d.status==='dropped'?'棄劇':'觀看中'}</span>`;
     return `
     <div class="poster-card" onclick="openWorkFromActorCard('${d.id}')">
       ${d.favorite?`<div class="fav-badge"><i class="ti ti-star-filled"></i></div>`:''}
@@ -3479,10 +3494,16 @@ function actorTypeCategory(actorType){
   return (t.includes('影劇')||t.includes('電視')) ? 'drama' : 'musical';
 }
 
-// 該演員參演的電視劇（非音樂劇）作品數。電視劇沒有「場次」概念，這裡的「次數」＝符合條件的劇集數，
+// 該演員參演的電視劇（非音樂劇）作品數，主角跟客串都算。電視劇沒有「場次」概念，這裡的「次數」＝符合條件的劇集數，
 // 跟 getActorShowCount()（音樂劇累計場次）搭配使用，兩者相加就是總觀看次數。
 function getDramaWorkCount(name){
-  return db.filter(d=>(d.category||'drama')!=='musical' && castNames(d.actors).includes(name)).length;
+  return db.filter(d=>(d.category||'drama')!=='musical' && (castNames(d.actors).includes(name)||castNames(d.cameoActors).includes(name))).length;
+}
+
+// 判斷這位演員在這部劇裡「只是客串」而不是主角：只有主角欄位裡沒有他，但客串欄位裡有，才算數。
+function isCameoOnlyAppearance(d,name){
+  if((d.category||'drama')==='musical') return false;
+  return castNames(d.cameoActors).includes(name) && !castNames(d.actors).includes(name);
 }
 
 // 整合總表清單：以 musical_actors 表為主，額外把「只出現在電視劇資料、但還沒被登記成正式節點」的
@@ -3498,7 +3519,7 @@ function getUnifiedActorRoster(){
     const isMusical=(d.category||'drama')==='musical';
     const names=isMusical
       ? castNames((d.actors_all&&d.actors_all.length)?d.actors_all:d.actors)
-      : castNames(d.actors);
+      : [...castNames(d.actors),...castNames(d.cameoActors)];
     names.forEach(name=>{
       if(!name) return;
       if(!byName[name]){
