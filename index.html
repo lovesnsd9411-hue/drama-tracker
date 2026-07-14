@@ -436,6 +436,9 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
         <div style="display:flex;gap:8px;margin-top:4px">
           <input type="text" id="f-poster-url" placeholder="https://..." oninput="onPosterUrlInput()" style="flex:1">
         </div>
+        <label style="font-size:12px;color:#aaa;font-weight:600;display:block;margin-top:8px">或直接上傳圖片檔（存到 Supabase Storage，不怕原網站的圖片失效）</label>
+        <input type="file" id="f-poster-file" accept="image/*" onchange="handlePosterFileUpload(event)" style="margin-top:4px">
+        <div id="f-poster-upload-status" style="font-size:11px;color:#aaa;margin-top:4px"></div>
       </div>
       <input type="hidden" id="f-poster">
     </div>
@@ -669,9 +672,32 @@ let posterDebounce=null;
 // ── Supabase setup ──
 const SUPABASE_URL='https://edqzgytotxfkkbbvojcm.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkcXpneXRvdHhma2tiYnZvamNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODEwMzYsImV4cCI6MjA5NzY1NzAzNn0.nPbuccnMRedaf9H4WH6WCtgg3muaaNKNcXZwMVK8z5Q';
+// 圖片檔案上傳用的 Storage bucket 名稱。使用前要先到 Supabase 後台的 Storage 分頁手動建立這個 bucket
+// （設成 Public，並允許 anon 角色 insert/select），程式碼本身沒辦法建立 bucket。
+const STORAGE_BUCKET='photos';
 let sb=null;
 let sbRowId=null; // the id of the single row we use to store all data
 let saveDebounce=null;
+
+// 把使用者選的圖片檔上傳到 Supabase Storage，回傳可以直接拿來用的公開網址；
+// 失敗（離線模式、檔案太大、bucket 還沒建立…）回傳 null 並跳出提示，呼叫端可以請使用者改貼網址。
+async function uploadImageFile(file){
+  if(!file) return null;
+  if(!sb){ alert('目前是離線模式，無法上傳檔案，請改貼圖片網址'); return null; }
+  if(file.size>5*1024*1024){ alert('檔案太大了（上限 5MB），請選小一點的圖片，或改貼圖片網址'); return null; }
+  const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
+  const path=`${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+  try{
+    const {error:upErr}=await sb.storage.from(STORAGE_BUCKET).upload(path,file);
+    if(upErr) throw upErr;
+    const {data}=sb.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  }catch(e){
+    console.error('Upload failed',e);
+    alert('上傳失敗，請確認 Supabase Storage 裡已經建立好「'+STORAGE_BUCKET+'」這個 bucket（見說明），或改貼圖片網址');
+    return null;
+  }
+}
 
 function setSyncStatus(text,color){
   const el=document.getElementById('sync-status');
@@ -888,6 +914,8 @@ function editActor(id,fallbackName){
   setFieldVal('actor-edit-name',actor.name||'');
   setFieldVal('actor-edit-image',actor.profile_image||'');
   setFieldVal('actor-edit-type',actor.actor_type||'');
+  const uploadStatus=document.getElementById('actor-edit-upload-status');
+  if(uploadStatus) uploadStatus.textContent='';
   updateActorEditPreview();
   const bg=document.getElementById('actor-edit-modal-bg');
   if(bg) bg.classList.add('open');
@@ -907,6 +935,24 @@ function updateActorEditPreview(){
   const name=fieldVal('actor-edit-name').trim()||'?';
   const url=fieldVal('actor-edit-image').trim();
   previewEl.innerHTML=actorAvatarHtml({name,profile_image:url||null},'avatar-sm');
+}
+
+// 選好照片檔後上傳到 Supabase Storage，成功的話把回傳的網址填進「照片網址」欄位——
+// 之後存檔／預覽都跟貼網址走同一條路，不用另外處理。
+async function handleActorImageFileUpload(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const statusEl=document.getElementById('actor-edit-upload-status');
+  if(statusEl) statusEl.textContent='上傳中…';
+  const url=await uploadImageFile(file);
+  if(url){
+    setFieldVal('actor-edit-image',url);
+    updateActorEditPreview();
+    if(statusEl) statusEl.textContent='✓ 上傳完成';
+  }else if(statusEl){
+    statusEl.textContent='';
+  }
+  event.target.value=''; // 清空 file input，下次選同一個檔案也能重新觸發 onchange
 }
 
 // 按下「儲存」：驗證姓名、避免撞名，姓名有改的話同步更新資料庫裡所有引用到這個人的地方。
@@ -1505,6 +1551,24 @@ function onPosterUrlInput(){
     const prev=document.getElementById('poster-preview');
     if(prev) prev.innerHTML=`<div class="poster-opt selected"><img src="${esc(url)}" onerror="this.style.opacity=0.3"><div class="po-title">自訂網址</div></div>`;
   }
+}
+
+// 選好海報檔案後上傳到 Supabase Storage，成功的話把回傳的網址填進「圖片網址」欄位，
+// 直接沿用既有的 onPosterUrlInput() 邏輯（跟貼網址是同一條路）。
+async function handlePosterFileUpload(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const statusEl=document.getElementById('f-poster-upload-status');
+  if(statusEl) statusEl.textContent='上傳中…';
+  const url=await uploadImageFile(file);
+  if(url){
+    setFieldVal('f-poster-url',url);
+    onPosterUrlInput();
+    if(statusEl) statusEl.textContent='✓ 上傳完成';
+  }else if(statusEl){
+    statusEl.textContent='';
+  }
+  event.target.value='';
 }
 
 // ── Filter ──
@@ -2520,6 +2584,8 @@ function openAdd(){
 
     const posterPrev=document.getElementById('poster-preview');
     if(posterPrev) posterPrev.innerHTML='';
+    const posterUploadStatus=document.getElementById('f-poster-upload-status');
+    if(posterUploadStatus) posterUploadStatus.textContent='';
     const dupW=document.getElementById('dup-warning');
     if(dupW) dupW.style.display='none';
     const dupWM=document.getElementById('dup-warning-musical');
@@ -2551,6 +2617,8 @@ function openEdit(id){
   setFieldVal('f-name',d.name||'');
   setFieldVal('f-orig',d.orig||'');
   setFieldVal('f-musical-name',d.orig||d.name||'');
+  const posterUploadStatus=document.getElementById('f-poster-upload-status');
+  if(posterUploadStatus) posterUploadStatus.textContent='';
   const dupW=document.getElementById('dup-warning');
   if(dupW) dupW.style.display='none';
   const dupWM=document.getElementById('dup-warning-musical');
@@ -3687,6 +3755,11 @@ async function deleteMusicalActorRow(id){
     <div class="field">
       <label for="actor-edit-image">照片網址（可留空）</label>
       <input type="text" id="actor-edit-image" placeholder="https://..." oninput="updateActorEditPreview()">
+      <div style="margin-top:6px">
+        <label style="font-size:12px;color:#aaa;font-weight:600">或直接上傳照片檔（存到 Supabase Storage，不怕原網站的圖片失效）</label>
+        <input type="file" id="actor-edit-image-file" accept="image/*" onchange="handleActorImageFileUpload(event)" style="margin-top:4px">
+        <div id="actor-edit-upload-status" style="font-size:11px;color:#aaa;margin-top:4px"></div>
+      </div>
     </div>
     <div class="field">
       <label for="actor-edit-type">演員類型（可從清單選，也可以自己輸入）</label>
