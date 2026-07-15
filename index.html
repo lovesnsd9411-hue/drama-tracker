@@ -2126,21 +2126,24 @@ function reassignCastRoles(dramaId){
   if(!confirm('要依照目前的季度候選卡司，幫所有還沒標角色的歷史場次自動補上角色嗎？只會補「目前是空白」的，已經標好角色的不會被改動。')) return;
 
   const seasons=getMusicalSeasons(d);
-  // 找不到「同一季」的專屬對照時，退回全劇所有季度候選名單聯集當備援（同一位演員換季度演同角色的情況很常見）。
+  // 名字／角色都先 trim 再比對——候選名單如果是分好幾次陸續輸入的，很容易不小心多打或少打一個空白，
+  // 沒有 trim 的話「신준식」跟「신준식 」會被當成兩個不同的人，怎麼樣都對不起來。
+  // 角色只看 trim 後還有沒有內容：純空白（例如打錯只按了空白鍵）也視為「還沒標角色」，不能拿來當對照。
   const globalLookup={};
   seasons.forEach(s=>(s.cast||[]).forEach(c=>{
-    const name=typeof c==='string'?c:c.name;
-    const role=typeof c==='string'?'':(c.role||'');
+    const name=(typeof c==='string'?c:c.name||'').trim();
+    const role=(typeof c==='string'?'':(c.role||'')).trim();
     if(name && role && !(name in globalLookup)) globalLookup[name]=role;
   }));
 
   let updatedCount=0;
+  const stillBlankNames=new Set();
   (d.viewing_history||[]).forEach(h=>{
     const season=seasons.find(s=>s.name===(h.season||'').trim());
     const seasonLookup={};
     if(season) (season.cast||[]).forEach(c=>{
-      const name=typeof c==='string'?c:c.name;
-      const role=typeof c==='string'?'':(c.role||'');
+      const name=(typeof c==='string'?c:c.name||'').trim();
+      const role=(typeof c==='string'?'':(c.role||'')).trim();
       if(name && role) seasonLookup[name]=role;
     });
     const list=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
@@ -2148,17 +2151,23 @@ function reassignCastRoles(dramaId){
     list.forEach((a,i)=>{
       if(!a) return;
       const isStr=typeof a==='string';
-      const name=isStr?a:a.name;
-      const curRole=isStr?'':(a.role||'');
+      const name=(isStr?a:a.name||'').trim();
+      const curRole=(isStr?'':(a.role||'')).trim();
       if(curRole) return; // 已經有角色的不動
       const role=seasonLookup[name]||globalLookup[name];
       if(role){ list[i]={role,name}; updatedCount++; }
+      else if(name){ stillBlankNames.add(name); }
     });
   });
 
-  if(updatedCount===0){ alert('沒有找到可以補上角色的演員（可能都已經標好角色，或候選名單裡沒有對應的名字）'); return; }
+  // 補完之後還是有名字找不到角色，通常代表候選名單裡這個人本身就還沒設定角色（不是這顆按鈕的問題）——
+  // 直接列出名字，方便回去「編輯音樂劇」的候選名單檢查是不是那幾位漏了角色。
+  const blankList=[...stillBlankNames];
+  const blankNote=blankList.length?`\n\n這些人在候選名單裡也找不到角色，可能是候選名單本身還沒幫他們設定角色：${blankList.join('、')}`:'';
+
+  if(updatedCount===0){ alert('沒有找到可以補上角色的演員（可能都已經標好角色，或候選名單裡沒有對應的名字）'+blankNote); return; }
   save();
-  alert(`已幫 ${updatedCount} 個演員標籤補上角色`);
+  alert(`已幫 ${updatedCount} 個演員標籤補上角色`+blankNote);
   openDetail(dramaId);
 }
 
