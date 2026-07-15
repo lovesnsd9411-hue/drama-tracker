@@ -144,9 +144,7 @@ input,select,textarea,button{font-family:inherit}
 .dash-label{font-size:12px;color:#666;font-weight:600}
 
 /* ── 音樂劇總覽分頁：各角色觀看次數（依角色分組，兩欄網格） ── */
-.season-stat-block{margin-bottom:1rem}
-.season-stat-block:last-child{margin-bottom:0}
-.season-stat-name{font-size:12.5px;font-weight:700;color:#3C3489;margin-bottom:.5rem;display:flex;align-items:baseline;gap:6px}
+.season-stat-name{font-size:12.5px;font-weight:700;color:#3C3489;display:flex;align-items:baseline;gap:6px}
 .season-stat-name .season-total{font-size:11px;font-weight:600;color:#999}
 .role-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @media (max-width:480px){.role-stat-grid{grid-template-columns:1fr}}
@@ -157,6 +155,16 @@ input,select,textarea,button{font-family:inherit}
 .role-actor-chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border-radius:16px;padding:2px 5px 2px 9px;font-size:11.5px}
 .role-actor-chip .name{color:#1A1A2E;font-weight:600}
 .role-actor-chip .n{background:#F3F2FC;color:#3C3489;font-weight:700;font-size:10px;border-radius:12px;padding:1px 6px;font-variant-numeric:tabular-nums}
+
+/* 每一季各自摺疊（手風琴）：預設只展開最新一季，其他季度收起只留標題列 */
+.season-accordion{border:1px solid #EFEFF5;border-radius:12px;overflow:hidden;margin-bottom:8px}
+.season-accordion:last-child{margin-bottom:0}
+.season-acc-header{display:flex;align-items:center;justify-content:space-between;padding:.6rem .8rem;cursor:pointer;background:#F8F8FB;user-select:none}
+.season-acc-header .chev{transition:transform .18s;color:#9A9AA8;flex-shrink:0;font-size:14px}
+.season-acc-header.open .chev{transform:rotate(180deg)}
+.season-acc-body{overflow:hidden;max-height:0;transition:max-height .25s ease}
+.season-acc-body.open{max-height:2000px}
+.season-acc-body-inner{padding:.8rem}
 .filter-chip:hover{border-color:#8B86D4;color:#3C3489}
 .filter-chip.active{background:#3C3489;color:#fff;border-color:#3C3489}
 .show-status-badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;margin-top:4px}
@@ -2230,26 +2238,48 @@ function getSeasonRoleActorStats(season){
   });
 }
 
-// 「總覽」分頁的各角色觀看次數：每一季一個區塊（完全沒有觀看紀錄的季度不顯示），
-// 區塊裡用兩欄網格列出這一季每個角色，角色底下是實際演出且被記錄看過的演員晶片。
+// 「總覽」分頁的各角色觀看次數：每一季各自一個可摺疊區塊（完全沒有觀看紀錄的季度不顯示），
+// 預設只展開最新（陣列最後）一季，其他季度收起只留標題列，避免季數/角色一多整頁被拉得很長。
 function renderOverviewActorStats(d){
   const seasons=getMusicalSeasons(d);
-  const blocks=seasons.map(season=>{
+  const validSeasons=seasons.map(season=>{
     const roles=getSeasonRoleActorStats(season);
-    if(!roles.length) return '';
-    const seasonTotal=roles.reduce((s,r)=>s+r.total,0);
+    if(!roles.length) return null;
+    // 這一季「共 X 次」代表這一季實際被觀看的場次數，不是把每個角色的次數加總——
+    // 同一場記錄常常會同時記下好幾個角色的卡司，加總角色次數會把同一場重複算好幾遍。
+    const seasonTotal=season.records.filter(countsTowardWorks).length;
+    return {season,roles,seasonTotal};
+  }).filter(Boolean);
+  if(!validSeasons.length) return '<div style="font-size:12px;color:#aaa;padding:.5rem 0 0">尚無觀看紀錄</div>';
+  const lastIdx=validSeasons.length-1;
+  return validSeasons.map(({season,roles,seasonTotal},i)=>{
     const roleBlocksHtml=roles.map(r=>`
       <div class="role-stat-block">
         ${r.role?`<div class="role-stat-role">${esc(r.role)} <span class="role-total">共 ${r.total} 次</span></div>`:''}
         <div class="role-stat-actors">${r.actors.map(a=>`<span class="role-actor-chip" onclick="openActorPage('${jsStr(a.name)}')" style="cursor:pointer"><span class="name">${esc(a.name)}</span><span class="n">${a.count}</span></span>`).join('')}</div>
       </div>`).join('');
+    const isOpen=i===lastIdx;
     return `
-      <div class="season-stat-block">
-        <div class="season-stat-name">${esc(season.name)} <span class="season-total">共 ${seasonTotal} 次</span></div>
-        <div class="role-stat-grid">${roleBlocksHtml}</div>
+      <div class="season-accordion">
+        <div class="season-acc-header${isOpen?' open':''}" onclick="toggleSeasonAcc(this)">
+          <span class="season-stat-name">${esc(season.name)} <span class="season-total">共 ${seasonTotal} 次</span></span>
+          <i class="ti ti-chevron-down chev"></i>
+        </div>
+        <div class="season-acc-body${isOpen?' open':''}">
+          <div class="season-acc-body-inner">
+            <div class="role-stat-grid">${roleBlocksHtml}</div>
+          </div>
+        </div>
       </div>`;
-  }).filter(Boolean).join('');
-  return blocks || '<div style="font-size:12px;color:#aaa;padding:.5rem 0 0">尚無觀看紀錄</div>';
+  }).join('');
+}
+
+// 點季度標題列摺疊/展開該季的角色明細；純 DOM 操作，不用重新渲染整塊資料。
+function toggleSeasonAcc(headerEl){
+  const body=headerEl.nextElementSibling;
+  const willOpen=!headerEl.classList.contains('open');
+  headerEl.classList.toggle('open',willOpen);
+  if(body) body.classList.toggle('open',willOpen);
 }
 
 // 展開／收起完整場次紀錄（日期、票券狀態等逐筆資料）；預設收起，「各角色觀看次數」才是總覽分頁的主要內容。
