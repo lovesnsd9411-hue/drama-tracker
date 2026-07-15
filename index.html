@@ -1204,9 +1204,23 @@ function renderCastCheckboxList(items, checkedList){
   const boxes = norm.filter(c=>c.name).map(c=>{
     const checkedAttr = checkedKeys.has(c.role+'\u0001'+c.name) ? ' checked' : '';
     const roleHtml = c.role ? `<span class="cast-chip-role" title="${esc(c.role)}">${esc(c.role)}</span><span class="cast-chip-sep">｜</span>` : '';
-    return `<label class="actor-cb">${roleHtml}<input type="checkbox" value="${esc(c.name)}" data-role="${esc(c.role)}"${checkedAttr}>${esc(c.name)}</label>`;
+    return `<label class="actor-cb">${roleHtml}<input type="checkbox" value="${esc(c.name)}" data-role="${esc(c.role)}" onchange="enforceSingleCastPerRole(this)"${checkedAttr}>${esc(c.name)}</label>`;
   }).join('');
   return `<div class="cast-chip-row">${boxes}</div>`;
+}
+
+// 同一個角色（例如「洪蓮」）一場只會有一位演員演出，所以同角色底下勾了新的人，
+// 就要自動把同角色其他已勾選的人取消掉——不然「複製上一場」帶入舊卡司後，
+// 手動改勾別的演員時，兩個人會同時被勾選，變成一個角色有兩位演員的錯誤資料。
+// 沒有角色標籤的（純合唱/群演名單）維持可以多選，不受這條規則限制。
+function enforceSingleCastPerRole(checkboxEl){
+  const role=checkboxEl.dataset.role||'';
+  if(!role||!checkboxEl.checked) return;
+  const container=checkboxEl.closest('.cast-chip-row');
+  if(!container) return;
+  container.querySelectorAll('input[type=checkbox]').forEach(inp=>{
+    if(inp!==checkboxEl && inp.dataset.role===role) inp.checked=false;
+  });
 }
 
 // 讀取「新增多刷紀錄」勾選清單中，目前被勾選的候選演員，回傳 [{role,name}]
