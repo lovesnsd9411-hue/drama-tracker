@@ -2080,43 +2080,55 @@ function filterByStatus(val){
 // （d.viewing_history + 每筆記錄的 .season 標籤）現場組出等價的季度陣列。
 // 這個函式不會寫入任何資料，單純是「用新的方式去看舊的資料」。
 // ════════════════════════════════════════════════════════════════
+// 音樂劇公演次數的標準順序（初演／二演／三演…），韓文慣用寫法。分頁籤／總覽手風琴都照這個順序排，
+// 就算中間缺了哪一次（例如沒看過재연）也直接跳過，不會因此空一個位置；不屬於這個序列的季度名稱
+// （例如自訂季名、「未分類場次」）排在最後，彼此之間維持原本的相對順序。
+const SEASON_RUN_ORDER=['초연','재연','삼연','사연','오연','육연','칠연','팔연','구연','십연'];
+function seasonRunOrderIndex(name){
+  const idx=SEASON_RUN_ORDER.indexOf((name||'').trim());
+  return idx===-1 ? Infinity : idx;
+}
+
 function getMusicalSeasons(d){
   const history=d.viewing_history||[];
+  let seasons;
 
   if(d.seasons && d.seasons.length){
     // 新架構：卡司是「編輯音樂劇」表單裡明確定義好的（d.seasons[].actors），不是從紀錄反推。
     // 場次紀錄還是放在 d.viewing_history 那個扁平陣列裡，只是用季度名稱去比對歸屬到哪一季。
-    return d.seasons.map((s,i)=>({
+    seasons=d.seasons.map((s,i)=>({
       id:s.id||('season_'+i),
       name:s.name,
       period:s.period||'',
       cast:s.actors||[],
       records:history.filter(h=>h && ((h.season||'').trim())===(s.name||'').trim())
     }));
+  }else{
+    // 相容舊資料（這部劇目還沒用新的「編輯音樂劇」季度表單設定過任何季度）：
+    // 沒有明確定義的卡司可用，只能先從紀錄反推一個大概的候選名單頂著用，
+    // 建議使用者透過編輯音樂劇表單補上正式的季度卡司設定。
+    const order=[];
+    const bySeasonName=new Map();
+    history.forEach(h=>{
+      const seasonName=(h && h.season && h.season.trim()) || '未分類場次';
+      if(!bySeasonName.has(seasonName)){ bySeasonName.set(seasonName,[]); order.push(seasonName); }
+      bySeasonName.get(seasonName).push(h);
+    });
+
+    if(!order.length){
+      const fallbackCast=(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[]);
+      return [{id:'season_default',name:'第一季',period:'',cast:fallbackCast,records:[]}];
+    }
+
+    seasons=order.map((name,i)=>{
+      const records=bySeasonName.get(name);
+      const seasonCast=normalizeCastArray(records.flatMap(h=>(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:(h.cast||[])));
+      const fallbackCast=(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[]);
+      return {id:'season_legacy_'+i,name,period:'',cast:seasonCast.length?seasonCast:fallbackCast,records};
+    });
   }
 
-  // 相容舊資料（這部劇目還沒用新的「編輯音樂劇」季度表單設定過任何季度）：
-  // 沒有明確定義的卡司可用，只能先從紀錄反推一個大概的候選名單頂著用，
-  // 建議使用者透過編輯音樂劇表單補上正式的季度卡司設定。
-  const order=[];
-  const bySeasonName=new Map();
-  history.forEach(h=>{
-    const seasonName=(h && h.season && h.season.trim()) || '未分類場次';
-    if(!bySeasonName.has(seasonName)){ bySeasonName.set(seasonName,[]); order.push(seasonName); }
-    bySeasonName.get(seasonName).push(h);
-  });
-
-  if(!order.length){
-    const fallbackCast=(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[]);
-    return [{id:'season_default',name:'第一季',period:'',cast:fallbackCast,records:[]}];
-  }
-
-  return order.map((name,i)=>{
-    const records=bySeasonName.get(name);
-    const seasonCast=normalizeCastArray(records.flatMap(h=>(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:(h.cast||[])));
-    const fallbackCast=(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[]);
-    return {id:'season_legacy_'+i,name,period:'',cast:seasonCast.length?seasonCast:fallbackCast,records};
-  });
+  return seasons.sort((a,b)=>seasonRunOrderIndex(a.name)-seasonRunOrderIndex(b.name));
 }
 
 // 依照目前季度候選卡司的角色設定，回頭幫歷史場次裡「還沒標角色」的演員自動補上角色——
