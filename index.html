@@ -2102,6 +2102,53 @@ function getMusicalSeasons(d){
   });
 }
 
+// 依照目前季度候選卡司的角色設定，回頭幫歷史場次裡「還沒標角色」的演員自動補上角色——
+// 常見情境：從別的地方（如 Notion）匯入的舊資料沒有角色區分，後來才在編輯音樂劇裡把候選名單
+// 補上正式角色，這時舊場次記錄的卡司還是沒有角色標籤，會跟候選名單對不起來（勾選清單顯示成
+// 沒勾選、角色統計也分不到正確角色底下）。這個函式一次補齊，不用一筆一筆手動改。
+// 只會補「目前是空白」的角色，已經標好角色的（就算跟候選名單不一樣）不會被覆蓋。
+function reassignCastRoles(dramaId){
+  const d=db.find(x=>x.id===dramaId);
+  if(!d) return;
+  if(!confirm('要依照目前的季度候選卡司，幫所有還沒標角色的歷史場次自動補上角色嗎？只會補「目前是空白」的，已經標好角色的不會被改動。')) return;
+
+  const seasons=getMusicalSeasons(d);
+  // 找不到「同一季」的專屬對照時，退回全劇所有季度候選名單聯集當備援（同一位演員換季度演同角色的情況很常見）。
+  const globalLookup={};
+  seasons.forEach(s=>(s.cast||[]).forEach(c=>{
+    const name=typeof c==='string'?c:c.name;
+    const role=typeof c==='string'?'':(c.role||'');
+    if(name && role && !(name in globalLookup)) globalLookup[name]=role;
+  }));
+
+  let updatedCount=0;
+  (d.viewing_history||[]).forEach(h=>{
+    const season=seasons.find(s=>s.name===(h.season||'').trim());
+    const seasonLookup={};
+    if(season) (season.cast||[]).forEach(c=>{
+      const name=typeof c==='string'?c:c.name;
+      const role=typeof c==='string'?'':(c.role||'');
+      if(name && role) seasonLookup[name]=role;
+    });
+    const list=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
+    if(!list) return;
+    list.forEach((a,i)=>{
+      if(!a) return;
+      const isStr=typeof a==='string';
+      const name=isStr?a:a.name;
+      const curRole=isStr?'':(a.role||'');
+      if(curRole) return; // 已經有角色的不動
+      const role=seasonLookup[name]||globalLookup[name];
+      if(role){ list[i]={role,name}; updatedCount++; }
+    });
+  });
+
+  if(updatedCount===0){ alert('沒有找到可以補上角色的演員（可能都已經標好角色，或候選名單裡沒有對應的名字）'); return; }
+  save();
+  alert(`已幫 ${updatedCount} 個演員標籤補上角色`);
+  openDetail(dramaId);
+}
+
 // ════════════════════════════════════════════════════════════════
 // 「編輯音樂劇」表單裡的動態季度區塊：季度名稱／演出期間／專屬卡司都在這裡明確定義，
 // 是季度資料的唯一來源（不是從多刷紀錄反推）。formSeasonsState 是表單編輯中的暫存資料，
@@ -2345,9 +2392,12 @@ function renderMusicalTabContent(dramaId){
         <div class="dash-item"><div class="dash-num">${totalShows}</div><div class="dash-label">全季加總觀看次數</div></div>
         <div class="dash-item"><div class="dash-num">${moneyLabel(totalSpent)}</div><div class="dash-label">全季加總花費</div></div>
       </div>
-      <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;margin-top:1.2rem">
+      <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;margin-top:1.2rem;gap:6px;flex-wrap:wrap">
         <span>各角色觀看次數</span>
-        ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
+        <div style="display:flex;gap:6px">
+          ${isReadOnly?'':'<button class="icon-btn" onclick="reassignCastRoles(\''+d.id+'\')" style="font-size:12px" title="依照季度候選名單，幫還沒標角色的歷史場次補上角色"><i class="ti ti-refresh"></i> 補上角色</button>'}
+          ${isReadOnly?'':'<button class="icon-btn" onclick="openAddShowForm(\''+d.id+'\')" style="font-size:12px"><i class="ti ti-plus"></i> 新增此劇場次</button>'}
+        </div>
       </div>
       ${renderOverviewActorStats(d)}
       <button class="icon-btn" onclick="toggleFullRecordsView()" id="toggle-full-records-btn" style="margin-top:1rem;font-size:12px;width:100%;justify-content:center"><i class="ti ti-chevron-down"></i> 查看完整場次紀錄（共 ${history.length} 筆）</button>
