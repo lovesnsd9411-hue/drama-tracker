@@ -202,6 +202,15 @@ input,select,textarea,button{font-family:inherit}
 .show-method-badge{background:#EEEDFE;color:#3C3489}
 .ticket-badge{display:inline-flex;align-items:center;gap:4px;background:#EEEDFE;color:#3C3489;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px;margin-left:6px;vertical-align:middle}
 
+/* 「分割這筆」面板：票數不只 1 張的場次卡片，點分割按鈕展開 */
+.split-panel{background:#fff;border:1px solid #E5E5F0;border-radius:10px;padding:.75rem .85rem;margin-top:.6rem}
+.split-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:#666;font-weight:600}
+.split-row input{width:56px;text-align:center;background:#fff;border:.5px solid #E0E0EE;border-radius:8px;padding:6px 8px;font-size:13px;color:#1A1A2E}
+.split-row select{background:#fff;border:.5px solid #E0E0EE;border-radius:8px;padding:6px 10px;font-size:13px;color:#1A1A2E}
+.split-actions{display:flex;gap:8px;margin-top:.7rem}
+.btn-primary-sm{background:#1A1A2E;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
+.btn-cancel-sm{background:#fff;border:.5px solid #E0E0EE;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:700;cursor:pointer;color:#666;font-family:inherit}
+
 /* 「複製上一場」提示條：偵測到同一劇（同一季優先）最近一筆記錄時顯示，一鍵帶入觀看方式/卡司/幣別 */
 .copy-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#EEEDFE;border:1px dashed #AFA9EC;border-radius:10px;padding:.55rem .75rem;margin-bottom:1rem;font-size:12.5px}
 .copy-bar-text{display:flex;align-items:center;gap:7px;color:#3C3489;font-weight:700}
@@ -2429,14 +2438,85 @@ function renderMusicalTimeline(history,dramaId,hideCast){
           <div style="text-align:right;flex-shrink:0">
             ${h.amount?`<div style="font-weight:700;color:#D97706;white-space:nowrap">${formatShowAmount(h)}</div>`:''}
             ${isReadOnly?'':`<div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px">
+              ${h.ticketCount>1?`<button class="icon-btn" onclick="toggleSplitPanel('${h.id}')" title="分割這筆" style="padding:3px 5px;font-size:11px"><i class="ti ti-cut"></i></button>`:''}
               <button class="icon-btn" onclick="openAddShowForm('${dramaId}','${h.id}')" style="padding:3px 5px;font-size:11px"><i class="ti ti-pencil"></i></button>
               <button class="icon-btn" onclick="deleteShow('${dramaId}','${h.id}')" style="padding:3px 5px;font-size:11px"><i class="ti ti-trash"></i></button>
             </div>`}
           </div>
         </div>
+        ${h.ticketCount>1&&!isReadOnly?renderSplitPanel(dramaId,h):''}
       </div>`;
     }).join('')}
   </div>`;
+}
+
+// 「分割這筆」：一筆記錄裡總票數不只 1 張時（例如先買 3 張持有票券），
+// 可以把其中幾張分出去變成新的一筆、狀態自己選（通常是已觀看），
+// 原本這筆保留剩下的票數，不用刪掉重打整筆資料。
+function renderSplitPanel(dramaId,h){
+  const total=h.ticketCount||1;
+  return `
+  <div class="split-panel" id="split-panel-${h.id}" style="display:none">
+    <div class="split-row">
+      分出
+      <input type="number" id="split-count-${h.id}" value="1" min="1" max="${total-1}">
+      張，狀態改成
+      <select id="split-status-${h.id}">
+        ${SHOW_STATUSES.map(s=>`<option value="${esc(s)}"${s==='已觀看'?' selected':''}>${esc(s)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="font-size:11.5px;color:#9A9AA8;margin-top:6px">分出去的這筆會是新的一筆記錄，日期／卡司／季度都跟這筆一樣，可以之後再自己調整；金額不會自動拆分，兩筆都要自己確認金額對不對。</div>
+    <div class="split-actions">
+      <button class="btn-cancel-sm" onclick="toggleSplitPanel('${h.id}')">取消</button>
+      <button class="btn-primary-sm" onclick="confirmSplitShow('${jsStr(dramaId)}','${jsStr(h.id)}')">確認分割</button>
+    </div>
+  </div>`;
+}
+
+function toggleSplitPanel(showId){
+  const panel=document.getElementById('split-panel-'+showId);
+  if(!panel) return;
+  panel.style.display = panel.style.display==='none' ? 'block' : 'none';
+}
+
+function confirmSplitShow(dramaId,showId){
+  const d=db.find(x=>x.id===dramaId);
+  if(!d) return;
+  const rec=(d.viewing_history||[]).find(h=>h.id===showId);
+  if(!rec) return;
+  const total=rec.ticketCount||1;
+  if(total<=1) return; // 防呆：沒有分割按鈕的情況下理論上叫不到這裡，多一層保險
+
+  const countInput=document.getElementById('split-count-'+showId);
+  const statusSel=document.getElementById('split-status-'+showId);
+  if(!countInput||!statusSel) return;
+  const splitCount=Math.max(1,Math.min(parseInt(countInput.value,10)||1,total-1));
+
+  // 先用原本的資料組出新記錄，再去動原本那筆的票數，避免先改到原本那筆導致複製出錯的張數。
+  const newRec={
+    ...rec,
+    id: uid(),
+    ticketCount: splitCount>1 ? splitCount : null,
+    showStatus: statusSel.value,
+    amount: null
+  };
+  const remain=total-splitCount;
+  rec.ticketCount = remain>1 ? remain : null;
+
+  d.viewing_history.push(newRec);
+  save();
+  const stayOnTab=currentSeasonFilter;
+  openDetail(dramaId);
+  if(stayOnTab && stayOnTab!=='all') setTopTab(stayOnTab,dramaId);
+}
+
+// 新增/編輯場次時，一旦票數改成 1 張以上，通常代表這是先買起來、還沒全部看的一批票券，
+// 演出狀態預設值（已觀看）就不合理了，自動幫忙切成「持有票券」（已經手動選過其他狀態的話不覆蓋）。
+function onTicketCountChange(el){
+  const n=parseInt(el.value,10)||1;
+  const statusSel=document.getElementById('show-status');
+  if(!statusSel) return;
+  if(n>1 && statusSel.value==='已觀看') statusSel.value='持有票券';
 }
 
 // 觀看方式只有「現場」才有場次（午/晚場）、活動、演出狀態、金額這些概念——
@@ -2567,7 +2647,7 @@ async function openAddShowForm(dramaId, editShowId){
             <option value="KRW">KRW</option>
             <option value="TWD">TWD</option>
           </select>
-          <input type="number" id="show-ticket-count" min="1" placeholder="1" inputmode="numeric" style="width:64px;flex-shrink:0" title="本場總票數">
+          <input type="number" id="show-ticket-count" min="1" placeholder="1" inputmode="numeric" style="width:64px;flex-shrink:0" title="本場總票數" oninput="onTicketCountChange(this)">
         </div>
         <div style="font-size:11.5px;color:#9A9AA8;font-weight:500;margin-top:4px">最後一格是「本場總票數」——這場總共買了幾張票（例如集點/佔位置多買的也算進去），不填預設 1 張。不會被算進看過次數，只是備註跟金額有關的張數。</div>
       </div>
