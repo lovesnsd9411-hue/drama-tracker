@@ -201,6 +201,12 @@ input,select,textarea,button{font-family:inherit}
 .method-btn.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
 .show-method-badge{background:#EEEDFE;color:#3C3489}
 
+/* 「複製上一場」提示條：偵測到同一劇（同一季優先）最近一筆記錄時顯示，一鍵帶入觀看方式/卡司/幣別 */
+.copy-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#EEEDFE;border:1px dashed #AFA9EC;border-radius:10px;padding:.55rem .75rem;margin-bottom:1rem;font-size:12.5px}
+.copy-bar-text{display:flex;align-items:center;gap:7px;color:#3C3489;font-weight:700}
+.copy-bar-btn{background:#fff;border:1px solid #AFA9EC;color:#3C3489;border-radius:8px;padding:5px 11px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
+.copy-bar-btn:hover{background:#3C3489;color:#fff}
+
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:.75rem}
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 11px;border-radius:20px;font-weight:600}
 .chip-filter{background:#EEEDFE;color:#3C3489;border:.5px solid #AFA9EC}
@@ -2496,8 +2502,17 @@ async function openAddShowForm(dramaId, editShowId){
 
   const initialMethod = existingShow ? (existingShow.method||'現場') : '現場';
 
+  // 「複製上一場」：只在新增（不是編輯）時提供，優先抓目前季度情境下最近一筆記錄，
+  // 該季還沒有記錄的話就退回整部劇最近一筆；完全沒有歷史記錄就不顯示這條提示。
+  const lastShowForCopy = existingShow ? null : findLastShowForCopy(d, initialSeasonVal);
+
   wrap.innerHTML=`
     <div style="background:#fff;border:1px solid #E5E5F0;border-radius:12px;padding:1rem;margin-bottom:1rem">
+      ${lastShowForCopy?`
+      <div class="copy-bar">
+        <span class="copy-bar-text"><i class="ti ti-copy"></i> 偵測到上一場：${esc(lastShowForCopy.date||'')}${lastShowForCopy.season?' · '+esc(lastShowForCopy.season):''}</span>
+        <button type="button" class="copy-bar-btn" onclick="applyCopyLastShow('${jsStr(dramaId)}')">複製上一場</button>
+      </div>`:''}
       <div class="field">
         <label>觀看方式</label>
         <div class="method-toggle" id="show-method-toggle">
@@ -2534,8 +2549,8 @@ async function openAddShowForm(dramaId, editShowId){
         <div style="display:flex;gap:6px">
           <input type="text" id="show-amount" placeholder="例：1800" inputmode="numeric" style="flex:1;min-width:0">
           <select id="show-currency" style="width:88px;flex-shrink:0">
-            <option value="TWD">TWD</option>
             <option value="KRW">KRW</option>
+            <option value="TWD">TWD</option>
           </select>
         </div>
       </div>
@@ -2568,7 +2583,8 @@ async function openAddShowForm(dramaId, editShowId){
 // 把候選演員清單即時縮小到「目前輸入的這個季度」專屬的卡司，不會混入其他季度的人。
 // 如果輸入的是全新、還沒有任何紀錄用過的季度名稱，就先退回顯示全劇的候選名單，
 // 確保使用者一開始建立新季度時還是挑得到人（那一季當然還沒有「專屬」卡司可言）。
-function refreshShowCastForSeason(dramaId,editShowId){
+// overrideCast 給「複製上一場」用：直接指定要勾選的卡司，不用回頭查某一筆既有場次紀錄。
+function refreshShowCastForSeason(dramaId,editShowId,overrideCast){
   const d=db.find(x=>x.id===dramaId);
   if(!d) return;
   const wrapEl=document.getElementById('show-viewed-actors-wrap');
@@ -2579,10 +2595,52 @@ function refreshShowCastForSeason(dramaId,editShowId){
   const matchedSeason=seasonVal?seasons.find(s=>s.name===seasonVal):null;
   const roster=matchedSeason?matchedSeason.cast:aggregateActorsAll(d.actors,d);
 
-  const existingShow=editShowId?(d.viewing_history||[]).find(h=>h.id===editShowId):null;
-  const existingCast=existingShow?((existingShow.viewed_actors&&existingShow.viewed_actors.length)?existingShow.viewed_actors:existingShow.cast):[];
+  let existingCast=overrideCast;
+  if(!existingCast){
+    const existingShow=editShowId?(d.viewing_history||[]).find(h=>h.id===editShowId):null;
+    existingCast=existingShow?((existingShow.viewed_actors&&existingShow.viewed_actors.length)?existingShow.viewed_actors:existingShow.cast):[];
+  }
 
   wrapEl.innerHTML=renderCastCheckboxList(roster,existingCast);
+}
+
+// 「複製上一場」找上一場記錄：優先抓「目前季度」裡日期最新的一筆，
+// 該季還沒有任何記錄的話，就退回整部劇裡日期最新的一筆。
+function findLastShowForCopy(d,seasonHint){
+  const history=(d.viewing_history||[]).filter(h=>h&&h.date);
+  if(!history.length) return null;
+  const scoped=seasonHint?history.filter(h=>(h.season||'').trim()===seasonHint):[];
+  const pool=scoped.length?scoped:history;
+  return pool.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+}
+
+// 一鍵把「上一場」的觀看方式／季度／卡司／金額幣別都帶進目前這張新增場次表單，
+// 只留日期空著——日期本來就該是每一場都不一樣、不該被複製的欄位。
+function applyCopyLastShow(dramaId){
+  const d=db.find(x=>x.id===dramaId);
+  if(!d) return;
+  const seasonHint=fieldVal('show-season').trim();
+  const lastShow=findLastShowForCopy(d,seasonHint);
+  if(!lastShow) return;
+
+  const method=lastShow.method||'現場';
+  document.querySelectorAll('#show-method-toggle .method-btn').forEach(b=>b.classList.toggle('on',b.dataset.v===method));
+  applyShowMethodVisibility(method);
+
+  setFieldVal('show-time', lastShow.time||'');
+  setFieldVal('show-status', getShowStatus(lastShow));
+  setFieldVal('show-season', lastShow.season||'');
+  setFieldVal('show-amount', lastShow.amount!=null?String(lastShow.amount):'');
+  setFieldVal('show-currency', lastShow.currency||'KRW');
+  setFieldVal('show-note', lastShow.note||'');
+
+  const castToCopy=(lastShow.viewed_actors&&lastShow.viewed_actors.length)?lastShow.viewed_actors:(lastShow.cast||[]);
+  const checkboxWrap=document.getElementById('show-viewed-actors-wrap');
+  if(checkboxWrap){
+    refreshShowCastForSeason(dramaId,null,castToCopy);
+  }else{
+    initCastTagInput('show',castToCopy);
+  }
 }
 
 // 關閉「新增／編輯場次」表單（供取消按鈕與儲存完成後共用，容器不存在時安全跳過）
