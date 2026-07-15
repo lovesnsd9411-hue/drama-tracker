@@ -1776,6 +1776,10 @@ function getShowStatus(h){ return (h&&h.showStatus) || '已觀看'; }
 function countsTowardWorks(h){ return getShowStatus(h)==='已觀看'; }
 // 財務花費統計包含「已觀看」與「持有票券」（票已經買了就是花了錢），但不含已退票/轉讓
 function countsTowardSpend(h){ const s=getShowStatus(h); return s==='已觀看'||s==='持有票券'; }
+// 演員／角色的觀看次數只算「現場」看的——線上/錄播看到的不算是「見過這位演員」，
+// 跟「這部劇本身被看過幾次」（countsTowardWorks，不分現場/線上）是分開的兩件事。
+// 沒有 method 欄位的舊資料一律視為現場（這個欄位是後來才加的，舊紀錄本來就是現場觀劇時代的資料）。
+function countsTowardActorAppearance(h){ return countsTowardWorks(h) && (!h.method || h.method==='現場'); }
 
 function getFiltered(){
   const q=(document.getElementById('search').value||'').toLowerCase();
@@ -2313,12 +2317,18 @@ function setTopTab(tab,dramaId){
 // 角色的排列順序依照「編輯音樂劇」表單裡定義候選卡司時的順序；紀錄裡出現過、但候選名單沒有的角色排在最後。
 function getSeasonRoleActorStats(season){
   const roleOrder=[]; const seenRoles=new Set();
-  (season.cast||[]).forEach(c=>{
+  // 記住候選名單裡每位演員原本的輸入順序（依角色分開記），角色底下的演員要照這個順序顯示，
+  // 不要照觀看次數重新排——使用者輸入候選名單時的順序是刻意排的，不該被次數蓋過去。
+  const castOrderIndex=new Map();
+  (season.cast||[]).forEach((c,i)=>{
     const role=(typeof c==='string')?'':(c.role||'');
+    const name=(typeof c==='string')?c:(c.name||'');
     if(!seenRoles.has(role)){ seenRoles.add(role); roleOrder.push(role); }
+    if(name && !castOrderIndex.has(role+''+name)) castOrderIndex.set(role+''+name,i);
   });
   const roleMap=new Map(); // role -> Map(name -> count)
-  season.records.filter(countsTowardWorks).forEach(h=>{
+  // 只算現場看的——線上/錄播不算「見過這位演員演出」，跟劇目本身的觀看次數是分開算的。
+  season.records.filter(countsTowardActorAppearance).forEach(h=>{
     const raw=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
     (raw||[]).forEach(c=>{
       if(!c) return;
@@ -2335,7 +2345,11 @@ function getSeasonRoleActorStats(season){
     const actorMap=roleMap.get(role);
     const actors=[...actorMap.entries()]
       .map(([name,count])=>({name,count}))
-      .sort((a,b)=>b.count-a.count || a.name.localeCompare(b.name,'ko'));
+      .sort((a,b)=>{
+        const ia=castOrderIndex.has(role+''+a.name)?castOrderIndex.get(role+''+a.name):Infinity;
+        const ib=castOrderIndex.has(role+''+b.name)?castOrderIndex.get(role+''+b.name):Infinity;
+        return ia!==ib ? ia-ib : a.name.localeCompare(b.name,'ko');
+      });
     const total=actors.reduce((s,a)=>s+a.count,0);
     return {role,total,actors};
   });
@@ -3507,12 +3521,12 @@ function getActorWorks(name){
 }
 
 // 該演員在「單一這部作品」裡，被實際記錄觀看過的場次（用於重刷次數聚合顯示）
-// 只計入「已觀看」的場次；持有票券／已退票或轉讓都不算進作品統計。
+// 只計入「現場」看到的已觀看場次——線上/錄播不算「見過這位演員」，持有票券／已退票或轉讓也不算。
 function getActorViewCountInWork(d,name){
   if((d.category||'drama')!=='musical') return 0;
   let count=0;
   (d.viewing_history||[]).forEach(h=>{
-    if(!h || !countsTowardWorks(h)) return;
+    if(!h || !countsTowardActorAppearance(h)) return;
     const raw=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
     if(castNames(raw).includes(name)) count++;
   });
