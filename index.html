@@ -2472,10 +2472,36 @@ function showStatusClass(status){
   return 'show-status-watched';
 }
 
+// 依候選卡司裡的角色定義順序（例：윤에스더／이강／윤삼일…）排序，跟總覽卡片上看到的順序一致，
+// 不要照場次記錄裡卡司欄位原本亂七八糟的順序顯示（尤其是外部匯入的舊資料，順序完全沒有意義）。
+function getRoleOrderFromCast(cast){
+  const roleOrder=[]; const seen=new Set();
+  (cast||[]).forEach(c=>{
+    const role=(typeof c==='string')?'':(c.role||'');
+    if(!seen.has(role)){ seen.add(role); roleOrder.push(role); }
+  });
+  return roleOrder;
+}
+function sortCastByRoleOrder(castData,roleOrder){
+  const orderIndex=new Map(roleOrder.map((r,i)=>[r,i]));
+  return castData
+    .map((c,i)=>({c,i}))
+    .sort((a,b)=>{
+      const ra=(typeof a.c==='string')?'':(a.c.role||'');
+      const rb=(typeof b.c==='string')?'':(b.c.role||'');
+      const ia=orderIndex.has(ra)?orderIndex.get(ra):Infinity;
+      const ib=orderIndex.has(rb)?orderIndex.get(rb):Infinity;
+      return ia!==ib ? ia-ib : a.i-b.i; // 角色相同/都排不到就維持原本的相對順序
+    })
+    .map(x=>x.c);
+}
+
 function renderMusicalTimeline(history,dramaId,hideCast){
   if(!history.length){
     return `<div style="font-size:13px;color:#aaa;padding:1rem 0;text-align:center">還沒有場次紀錄</div>`;
   }
+  const d=db.find(x=>x.id===dramaId);
+  const seasons=d?getMusicalSeasons(d):[];
   return `<div style="display:flex;flex-direction:column;gap:8px">
     ${history.map(h=>{
       const status=getShowStatus(h);
@@ -2487,7 +2513,11 @@ function renderMusicalTimeline(history,dramaId,hideCast){
             <span class="show-status-badge ${showStatusClass(status)}">${esc(status)}</span>
             ${h.method&&h.method!=='現場'?`<span class="show-status-badge show-method-badge">${esc(h.method)}</span>`:''}
             ${(()=>{if(hideCast)return '';const castData=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
-              return castData&&castData.length?`<div style="margin-top:6px">${renderCastChipsInline(castData,false)}</div>`:'';})()}
+              if(!castData||!castData.length) return '';
+              const season=seasons.find(s=>s.name===(h.season||'').trim());
+              const roleOrder=season?getRoleOrderFromCast(season.cast):[];
+              const sorted=roleOrder.length?sortCastByRoleOrder(castData,roleOrder):castData;
+              return `<div style="margin-top:6px">${renderCastChipsInline(sorted,false)}</div>`;})()}
           </div>
           <div style="text-align:right;flex-shrink:0">
             ${h.amount?`<div style="font-weight:700;color:#D97706;white-space:nowrap">${formatShowAmount(h)}</div>`:''}
