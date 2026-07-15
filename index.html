@@ -1274,12 +1274,16 @@ function aggregateActorsAll(newCast, existingRecord){
   return merged;
 }
 
-// 解析「角色 | 演員A, 演員B」格式：回傳 {role, namesPart}
-// role 為空字串代表沒有使用角色分組（維持舊有純演員名 / 角色：演員 相容）
+// 角色與演員名之間的分隔符：直線｜/|、冒號：/:，以及나무위키常見的「角色 - 演員」連字號
+// （連字號前後要求至少各一個空白，避免誤吃到姓名本身就含連字號的情況，例如羅馬拼音名）。
+const CAST_ROLE_SEP_RE=/^(.+?)(?:[|｜：:]|\s+[-－]\s+)(.*)$/;
+
+// 解析「角色 | 演員A, 演員B」（或：/- 分隔）格式：回傳 {role, namesPart}
+// role 為空字串代表沒有使用角色分組（維持舊有純演員名相容）
 function parseCastRoleGroup(raw){
-  const pipeMatch=raw.match(/^(.+?)[|｜](.*)$/);
-  if(!pipeMatch) return {role:'',namesPart:raw};
-  return {role:pipeMatch[1].trim(),namesPart:pipeMatch[2]};
+  const m=raw.match(CAST_ROLE_SEP_RE);
+  if(!m) return {role:'',namesPart:raw};
+  return {role:m[1].trim(),namesPart:m[2]};
 }
 
 function onCastInputType(scope){
@@ -1303,12 +1307,12 @@ function onCastInputType(scope){
   const query=input.value.trim();
   if(!query){ suggestEl.style.display='none'; return; }
 
-  // 判斷目前正在輸入的角色（若有）與演員名（供自動完成使用），優先辨識「｜」分組格式，其次相容舊有「：」單一配對格式
+  // 判斷目前正在輸入的角色（若有）與演員名，供自動完成使用——
+  // parseCastRoleGroup 已經統一辨識｜/|、：/:、「角色 - 演員」這幾種分隔格式。
   const live=parseCastRoleGroup(query);
-  const colonMatch = !live.role ? query.match(/^(.+?)[：:](.*)$/) : null;
-  const curRole = live.role || (colonMatch?colonMatch[1].trim():'');
-  const divider = live.role ? ' ｜ ' : '：';
-  const searchTerm = live.role ? live.namesPart.trim() : (colonMatch?colonMatch[2].trim():query);
+  const curRole = live.role;
+  const divider = ' ｜ ';
+  const searchTerm = live.role ? live.namesPart.trim() : query;
 
   const matches = searchTerm
     ? musicalActors.filter(a=>a.name.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -1366,9 +1370,9 @@ async function selectCastSuggestion(scope,actorName,role,isNew){
   if(suggestEl) suggestEl.style.display='none';
 }
 
-// commit a raw typed token (possibly "角色：演員") into a chip,
+// commit a raw typed token (possibly "角色：演員" or "角色 - 演員") into a chip,
 // creating the actor in musical_actors if it doesn't exist yet.
-// forcedRole（若有值）代表這個 token 來自「角色 | 演員A, 演員B」分組輸入，直接套用該角色，不再解析冒號。
+// forcedRole（若有值）代表這個 token 來自「角色 | 演員A, 演員B」分組輸入，直接套用該角色，不再解析分隔符。
 async function commitCastToken(scope,token,forcedRole){
   token=token.trim();
   if(!token)return;
@@ -1377,9 +1381,9 @@ async function commitCastToken(scope,token,forcedRole){
     role=forcedRole;
     name=token;
   }else{
-    const colonMatch=token.match(/^(.+?)[：:](.*)$/);
-    role=colonMatch?colonMatch[1].trim():'';
-    name=(colonMatch?colonMatch[2]:token).trim();
+    const sepMatch=token.match(CAST_ROLE_SEP_RE);
+    role=sepMatch?sepMatch[1].trim():'';
+    name=(sepMatch?sepMatch[2]:token).trim();
   }
   if(!name)return;
   if(!musicalActors.some(a=>a.name===name)){
@@ -3990,16 +3994,10 @@ function normalizeCastValue(raw){
   }else{
     text=String(raw);
   }
-  const pipeMatch=text.match(/^(.+?)[|｜](.*)$/);
-  if(pipeMatch){
-    role = role || pipeMatch[1].trim();
-    text = pipeMatch[2];
-  }else{
-    const colonMatch=text.match(/^(.+?)[：:](.*)$/);
-    if(colonMatch){
-      role = role || colonMatch[1].trim();
-      text = colonMatch[2];
-    }
+  const sepMatch=text.match(CAST_ROLE_SEP_RE);
+  if(sepMatch){
+    role = role || sepMatch[1].trim();
+    text = sepMatch[2];
   }
   return text.split(/[,，、]/).map(s=>cleanActorName(s)).filter(Boolean).map(name=>({role,name}));
 }
