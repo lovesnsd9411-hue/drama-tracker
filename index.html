@@ -2420,7 +2420,7 @@ function renderMusicalTimeline(history,dramaId,hideCast){
       <div style="background:#F8F8FB;border-radius:12px;padding:.75rem .9rem;font-size:13px;position:relative">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div>
-            <div style="font-weight:700;color:#1A1A2E">${esc(h.date||'')}${h.time?' '+esc(h.time):''}${h.note?` <span style="font-weight:500;color:#888;font-size:12px">${esc(h.note)}</span>`:''}${h.extraTickets>0?`<span class="ticket-badge"><i class="ti ti-ticket"></i> 共 ${h.extraTickets+1} 張</span>`:''}</div>
+            <div style="font-weight:700;color:#1A1A2E">${esc(h.date||'')}${h.time?' '+esc(h.time):''}${h.note?` <span style="font-weight:500;color:#888;font-size:12px">${esc(h.note)}</span>`:''}${h.ticketCount>1?`<span class="ticket-badge"><i class="ti ti-ticket"></i> 共 ${h.ticketCount} 張</span>`:''}</div>
             <span class="show-status-badge ${showStatusClass(status)}">${esc(status)}</span>
             ${h.method&&h.method!=='現場'?`<span class="show-status-badge show-method-badge">${esc(h.method)}</span>`:''}
             ${(()=>{if(hideCast)return '';const castData=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
@@ -2562,14 +2562,14 @@ async function openAddShowForm(dramaId, editShowId){
       ${castFieldHtml}
       <div class="field" id="show-amount-field"><label>金額（可選）</label>
         <div style="display:flex;gap:6px">
-          <input type="text" id="show-amount" placeholder="例：1800（含加購的總金額）" inputmode="numeric" style="flex:2;min-width:0">
+          <input type="text" id="show-amount" placeholder="例：5400（這場總花費）" inputmode="numeric" style="flex:2;min-width:0">
           <select id="show-currency" style="width:80px;flex-shrink:0">
             <option value="KRW">KRW</option>
             <option value="TWD">TWD</option>
           </select>
-          <input type="number" id="show-extra-tickets" min="0" placeholder="0" inputmode="numeric" style="width:64px;flex-shrink:0" title="本場加購票數">
+          <input type="number" id="show-ticket-count" min="1" placeholder="1" inputmode="numeric" style="width:64px;flex-shrink:0" title="本場總票數">
         </div>
-        <div style="font-size:11.5px;color:#9A9AA8;font-weight:500;margin-top:4px">最後一格是「本場加購票數」——這場除了自己看的那張以外，另外多買了幾張（集點/佔位置用）。不會被算進看過次數，只是備註跟金額有關的張數。</div>
+        <div style="font-size:11.5px;color:#9A9AA8;font-weight:500;margin-top:4px">最後一格是「本場總票數」——這場總共買了幾張票（例如集點/佔位置多買的也算進去），不填預設 1 張。不會被算進看過次數，只是備註跟金額有關的張數。</div>
       </div>
       <div class="mfooter" style="margin-top:.5rem">
         <button class="icon-btn" onclick="closeAddShowForm()">取消</button>
@@ -2588,7 +2588,7 @@ async function openAddShowForm(dramaId, editShowId){
     setFieldVal('show-season', existingShow.season||'');
     setFieldVal('show-amount', existingShow.amount!=null?String(existingShow.amount):'');
     setFieldVal('show-currency', existingShow.currency||'TWD');
-    setFieldVal('show-extra-tickets', existingShow.extraTickets!=null?String(existingShow.extraTickets):'');
+    setFieldVal('show-ticket-count', existingShow.ticketCount!=null?String(existingShow.ticketCount):'');
     setFieldVal('show-note', existingShow.note||'');
   }else if(currentSeasonFilter && currentSeasonFilter!=='all'){
     // 新增模式：如果目前正停留在某個季度分頁，新場次的「季度」直接預設成這一季，
@@ -2650,7 +2650,7 @@ function applyCopyLastShow(dramaId){
   setFieldVal('show-season', lastShow.season||'');
   setFieldVal('show-amount', lastShow.amount!=null?String(lastShow.amount):'');
   setFieldVal('show-currency', lastShow.currency||'KRW');
-  setFieldVal('show-extra-tickets', lastShow.extraTickets!=null?String(lastShow.extraTickets):'');
+  setFieldVal('show-ticket-count', lastShow.ticketCount!=null?String(lastShow.ticketCount):'');
   setFieldVal('show-note', lastShow.note||'');
 
   const castToCopy=(lastShow.viewed_actors&&lastShow.viewed_actors.length)?lastShow.viewed_actors:(lastShow.cast||[]);
@@ -2693,8 +2693,8 @@ async function saveShow(dramaId, editShowId) {
   const currency = fieldVal('show-currency','TWD')||'TWD';
   // 加購票數：這場除了自己看的那張以外，另外多買了幾張（集點/佔位置用）。
   // 純粹是跟金額有關的備註，不影響「看過次數」——那個統計只看 showStatus 是不是已觀看。
-  const extraTicketsRaw = isLive ? parseInt(fieldVal('show-extra-tickets'),10) : NaN;
-  const extraTickets = (!isNaN(extraTicketsRaw) && extraTicketsRaw>0) ? extraTicketsRaw : null;
+  const ticketCountRaw = isLive ? parseInt(fieldVal('show-ticket-count'),10) : NaN;
+  const ticketCount = (!isNaN(ticketCountRaw) && ticketCountRaw>1) ? ticketCountRaw : null;
   const note = isLive ? fieldVal('show-note').trim() : '';
 
   // 卡司：此劇目若已有候選名單，會顯示勾選清單，讀取被勾選的演員；
@@ -2713,7 +2713,7 @@ async function saveShow(dramaId, editShowId) {
         date, time, showStatus, season, viewed_actors, method,
         amount: amount ? parseFloat(amount) : null,
         currency,
-        extraTickets,
+        ticketCount,
         note
       };
     }
@@ -2728,7 +2728,7 @@ async function saveShow(dramaId, editShowId) {
       viewed_actors,
       amount: amount ? parseFloat(amount) : null,
       currency,
-      extraTickets,
+      ticketCount,
       note
     });
   }
