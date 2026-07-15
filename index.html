@@ -95,10 +95,23 @@ input,select,textarea,button{font-family:inherit}
 .actor-page-body{padding:1rem;max-width:760px;margin:0 auto}
 .actor-page-name{font-size:22px;font-weight:700;color:#1A1A2E;margin-top:.9rem;text-align:center}
 .actor-page-tags{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:.7rem}
-.actor-page-summary{display:flex;gap:1.5rem;margin:1.3rem 0;padding:1rem 1.2rem;background:#F8F8FB;border-radius:12px;flex-wrap:wrap;justify-content:center}
-.actor-summary-stat{display:flex;flex-direction:column;gap:2px}
-.actor-summary-num{font-size:20px;font-weight:700;color:#3C3489}
-.actor-summary-label{font-size:12px;color:#888}
+.actor-page-summary{margin:1.1rem 0}
+/* 音樂劇／電視劇各自一張顏色卡片（顏色跟上面的分類徽章對應），一眼分清楚兩邊各看幾次；
+   只有一個分類時那張卡片會自動撐滿整行，不會留一半空白。 */
+.actor-cat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.actor-cat-card{border-radius:12px;padding:.7rem .8rem}
+.actor-cat-card.musical{background:#EEEDFE}
+.actor-cat-card.drama{background:#F5F5FA}
+.actor-cat-card .ac-top{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;margin-bottom:4px}
+.actor-cat-card.musical .ac-top{color:#3C3489}
+.actor-cat-card.drama .ac-top{color:#666}
+.actor-cat-card .ac-num{font-size:19px;font-weight:800;color:#1A1A2E}
+.actor-cat-card .ac-num span{font-size:11px;font-weight:600;color:#9A9AA8;margin-left:2px}
+/* 作品總數／花費／評分收成底下一排小格，不跟音樂劇/電視劇的次數搶視覺 */
+.actor-mini-row{display:flex;gap:8px;margin-top:8px}
+.actor-mini-stat{flex:1;background:#F8F8FB;border-radius:10px;padding:.55rem .7rem;text-align:center}
+.actor-mini-stat .n{font-size:15px;font-weight:800;color:#1A1A2E}
+.actor-mini-stat .l{font-size:10.5px;color:#9A9AA8;font-weight:600}
 
 /* 人物總表頁面：搜尋列、篩選器、大面積網格 */
 .actors-search-bar{display:flex;gap:8px;margin-top:.6rem}
@@ -3639,16 +3652,22 @@ function renderActorPage(name){
 
   const summaryEl=document.getElementById('actor-page-summary');
   if(summaryEl){
-    const stat=(num,label)=>`<div class="actor-summary-stat"><span class="actor-summary-num">${num}</span><span class="actor-summary-label">${label}</span></div>`;
-    let html = stat(works.length,'作品總數');
-    if(musicalWorks.length) html += stat(musicalCount,'音樂劇累計次數');
-    if(dramaWorks.length) html += stat(dramaCount,'電視劇累計次數');
+    // 音樂劇／電視劇各自一張顏色卡片，只有一邊有紀錄就那張卡片自動撐滿整行。
+    const catCards=[];
+    if(musicalWorks.length) catCards.push(`<div class="actor-cat-card musical"><div class="ac-top"><i class="ti ti-music"></i> 音樂劇</div><div class="ac-num">${musicalCount}<span>次</span></div></div>`);
+    if(dramaWorks.length) catCards.push(`<div class="actor-cat-card drama"><div class="ac-top"><i class="ti ti-device-tv"></i> 電視劇</div><div class="ac-num">${dramaCount}<span>次</span></div></div>`);
+
+    const miniStats=[`<div class="actor-mini-stat"><div class="n">${works.length}</div><div class="l">作品總數</div></div>`];
     const spendTWD=getActorSpendTWD(name);
-    if(spendTWD>0) html += stat(moneyLabel(spendTWD),'累計花費（台幣）');
+    if(spendTWD>0) miniStats.push(`<div class="actor-mini-stat"><div class="n">${moneyLabel(spendTWD)}</div><div class="l">累計花費（台幣）</div></div>`);
     // 用「有沒有算進平均的作品」來判斷要不要顯示，而不是看平均數字是否大於 0——
     // 不然平均剛好是 0.0（例如只棄劇過）會被誤判成「沒有評分」，整個統計格反而不見。
-    if(ratedWorks.length) html += stat('⭐ '+avgRating.toFixed(1),'平均評分');
-    summaryEl.innerHTML = html;
+    if(ratedWorks.length) miniStats.push(`<div class="actor-mini-stat"><div class="n">⭐ ${avgRating.toFixed(1)}</div><div class="l">平均評分</div></div>`);
+
+    summaryEl.innerHTML = `
+      ${catCards.length?`<div class="actor-cat-row">${catCards.join('')}</div>`:''}
+      <div class="actor-mini-row">${miniStats.join('')}</div>
+    `;
   }
 
   refreshActorCardTabsAndWorks(name);
