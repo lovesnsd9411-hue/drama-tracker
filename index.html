@@ -101,9 +101,11 @@ input,select,textarea,button{font-family:inherit}
 .actor-cat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
 .actor-cat-card{border-radius:12px;padding:.7rem .8rem}
 .actor-cat-card.musical{background:#EEEDFE}
+.actor-cat-card.play{background:#FEF3C7}
 .actor-cat-card.drama{background:#F5F5FA}
 .actor-cat-card .ac-top{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;margin-bottom:4px}
 .actor-cat-card.musical .ac-top{color:#3C3489}
+.actor-cat-card.play .ac-top{color:#B45309}
 .actor-cat-card.drama .ac-top{color:#666}
 .actor-cat-card .ac-num{font-size:19px;font-weight:800;color:#1A1A2E}
 .actor-cat-card .ac-num span{font-size:11px;font-weight:600;color:#9A9AA8;margin-left:2px}
@@ -4091,11 +4093,12 @@ function renderActorPage(name){
   }
 
   const works=getActorWorks(name);
-  const categories=[...new Set(works.map(w=>w.category||'drama'))];
-  const musicalWorks=works.filter(w=>(w.category||'drama')==='musical');
+  const musicalWorks=works.filter(w=>(w.category||'drama')==='musical' && !isPlay(w));
+  const playWorks=works.filter(w=>(w.category||'drama')==='musical' && isPlay(w));
   const dramaWorks=works.filter(w=>(w.category||'drama')!=='musical');
-  // 音樂劇累計次數：加總這位演員在每一部音樂劇裡被記錄觀看的場次（含重刷）
-  const musicalCount=getActorShowCount(name);
+  // 音樂劇／話劇累計次數：加總這位演員在每一部裡被記錄觀看的場次（含重刷），兩者分開算。
+  const musicalCount=musicalWorks.reduce((s,w)=>s+getActorViewCountInWork(w,name),0);
+  const playCount=playWorks.reduce((s,w)=>s+getActorViewCountInWork(w,name),0);
   // 電視劇累計次數：電視劇沒有「多刷場次」的概念，累計次數＝符合條件（此演員參演）的劇集數
   const dramaCount=dramaWorks.length;
   // 平均評分只計電視劇：「看完」一定有評分、「棄劇」評分固定是 0.0（也是一個真實的評分，要算進去拉低平均），
@@ -4131,11 +4134,11 @@ function renderActorPage(name){
 
   const tagsEl=document.getElementById('actor-page-tags');
   if(tagsEl){
-    tagsEl.innerHTML = categories.map(c=>
-      c==='musical'
-        ? `<span class="badge" style="background:#EEEDFE;color:#3C3489"><i class="ti ti-music" style="font-size:11px;margin-right:3px"></i>音樂劇</span>`
-        : `<span class="badge" style="background:#F5F5FA;color:#666"><i class="ti ti-device-tv" style="font-size:11px;margin-right:3px"></i>影劇</span>`
-    ).join('');
+    let tagsHtml='';
+    if(musicalWorks.length) tagsHtml+=`<span class="badge" style="background:#EEEDFE;color:#3C3489"><i class="ti ti-music" style="font-size:11px;margin-right:3px"></i>音樂劇</span>`;
+    if(playWorks.length) tagsHtml+=`<span class="badge" style="background:#FEF3C7;color:#B45309"><i class="ti ti-book-2" style="font-size:11px;margin-right:3px"></i>話劇</span>`;
+    if(dramaWorks.length) tagsHtml+=`<span class="badge" style="background:#F5F5FA;color:#666"><i class="ti ti-device-tv" style="font-size:11px;margin-right:3px"></i>影劇</span>`;
+    tagsEl.innerHTML = tagsHtml;
   }
 
   const summaryEl=document.getElementById('actor-page-summary');
@@ -4143,6 +4146,7 @@ function renderActorPage(name){
     // 音樂劇／電視劇各自一張顏色卡片，只有一邊有紀錄就那張卡片自動撐滿整行。
     const catCards=[];
     if(musicalWorks.length) catCards.push(`<div class="actor-cat-card musical"><div class="ac-top"><i class="ti ti-music"></i> 音樂劇</div><div class="ac-num">${musicalCount}<span>次</span></div></div>`);
+    if(playWorks.length) catCards.push(`<div class="actor-cat-card play"><div class="ac-top"><i class="ti ti-book-2"></i> 話劇</div><div class="ac-num">${playCount}<span>次</span></div></div>`);
     if(dramaWorks.length) catCards.push(`<div class="actor-cat-card drama"><div class="ac-top"><i class="ti ti-device-tv"></i> 電視劇</div><div class="ac-num">${dramaCount}<span>次</span></div></div>`);
 
     const miniStats=[`<div class="actor-mini-stat"><div class="n">${works.length}</div><div class="l">作品總數</div></div>`];
@@ -4164,15 +4168,29 @@ function renderActorPage(name){
 
 // 演員跨足音樂劇＋影視時，用分頁（全部／音樂劇／影視）分開列出，避免兩種完全不同性質的紀錄混在一起；
 // 只有單一領域的演員就不需要分頁，直接顯示全部作品。切換分頁只重繪這一小塊，不用整張卡片重新渲染。
+// 分頁值用 'musical'／'play' 區分音樂劇跟話劇時，不能只看 w.category（兩者的 category 都是 'musical'），
+// 要另外檢查 isPlay(w) 才能正確篩到對的作品。
+function matchesActorTab(w,tab){
+  if(tab==='all') return true;
+  if(tab==='musical') return (w.category||'drama')==='musical' && !isPlay(w);
+  if(tab==='play') return (w.category||'drama')==='musical' && isPlay(w);
+  return (w.category||'drama')===tab;
+}
+
 function refreshActorCardTabsAndWorks(name){
   const works=getActorWorks(name);
-  const musicalWorks=works.filter(w=>(w.category||'drama')==='musical');
+  const musicalWorks=works.filter(w=>(w.category||'drama')==='musical' && !isPlay(w));
+  const playWorks=works.filter(w=>(w.category||'drama')==='musical' && isPlay(w));
   const dramaWorks=works.filter(w=>(w.category||'drama')!=='musical');
 
   const tabsEl=document.getElementById('actor-card-tabs');
   if(tabsEl){
-    if(musicalWorks.length && dramaWorks.length){
-      const tabs=[['all','全部',works.length],['musical','音樂劇',musicalWorks.length],['drama','影視',dramaWorks.length]];
+    const kinds=[musicalWorks.length,playWorks.length,dramaWorks.length].filter(n=>n>0).length;
+    if(kinds>1){
+      const tabs=[['all','全部',works.length]];
+      if(musicalWorks.length) tabs.push(['musical','音樂劇',musicalWorks.length]);
+      if(playWorks.length) tabs.push(['play','話劇',playWorks.length]);
+      if(dramaWorks.length) tabs.push(['drama','影視',dramaWorks.length]);
       tabsEl.innerHTML=tabs.map(([val,label,count])=>
         `<button class="filter-chip${actorCardTab===val?' active':''}" onclick="setActorCardTab('${val}','${jsStr(name)}')">${esc(label)} (${count})</button>`
       ).join('');
@@ -4182,7 +4200,7 @@ function refreshActorCardTabsAndWorks(name){
     }
   }
 
-  const filtered = actorCardTab==='all' ? works : works.filter(w=>(w.category||'drama')===actorCardTab);
+  const filtered = works.filter(w=>matchesActorTab(w,actorCardTab));
   const worksEl=document.getElementById('actor-page-works');
   if(worksEl){
     if(filtered.length){
