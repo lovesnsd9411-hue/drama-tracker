@@ -396,6 +396,11 @@ textarea{height:80px;resize:vertical}
 .tag-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:5px 10px;border-radius:20px;background:#EEEDFE;color:#3C3489;border:1px solid #AFA9EC;font-weight:600}
 .tag-chip button{background:none;border:none;cursor:pointer;color:#3C3489;opacity:.6;padding:0;display:flex;align-items:center;font-size:13px}
 .tag-chip button:hover{opacity:1}
+.tag-chip-text{cursor:pointer}
+.tag-chip-text:hover{text-decoration:underline}
+.tag-chip-move{cursor:pointer;opacity:.45;font-size:9px;line-height:1;user-select:none}
+.tag-chip-move:hover{opacity:.9}
+.tag-chip-edit-input{width:120px;font-size:12px;padding:5px 10px;border-radius:20px;border:1px solid #AFA9EC;outline:none;color:#1A1A2E}
 .tag-suggest-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #E5E5F0;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:20;max-height:220px;overflow-y:auto;margin-top:4px}
 .tag-suggest-item{padding:8px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .tag-suggest-item:hover,.tag-suggest-item.active{background:#F5F5FA}
@@ -1179,18 +1184,76 @@ function initCastTagInput(scope, selected){
   if(suggestEl){ suggestEl.style.display='none'; }
 }
 
+// 每個晶片除了原本的移除按鈕，還多了：▲▼ 調整順序（不用刪掉重新輸入就能把順序排好），
+// 以及點文字本身可以直接修改內容（打錯一個字不用整個刪掉重打，順序也不會被打亂）。
 function renderCastChips(scope){
   const ids=castScopeIds(scope);
   const el=document.getElementById(ids.chips);
   if(!el)return;
-  el.innerHTML = castChipsStore[scope].map((c,i)=>`
-    <span class="tag-chip">${c.role?esc(c.role)+'：':''}${esc(c.name)}<button type="button" onclick="removeCastChip('${scope}',${i})" aria-label="移除"><i class="ti ti-x"></i></button></span>
+  const items=castChipsStore[scope];
+  el.innerHTML = items.map((c,i)=>`
+    <span class="tag-chip">
+      <span class="tag-chip-move" onclick="moveCastChip('${scope}',${i},-1)" style="${i===0?'visibility:hidden':''}" aria-label="往前移">▲</span>
+      <span class="tag-chip-move" onclick="moveCastChip('${scope}',${i},1)" style="${i===items.length-1?'visibility:hidden':''}" aria-label="往後移">▼</span>
+      <span class="tag-chip-text" onclick="startEditCastChip('${scope}',${i})" title="點擊修改">${c.role?esc(c.role)+'：':''}${esc(c.name)}</span>
+      <button type="button" onclick="removeCastChip('${scope}',${i})" aria-label="移除"><i class="ti ti-x"></i></button>
+    </span>
   `).join('');
 }
 
 function removeCastChip(scope,index){
   castChipsStore[scope].splice(index,1);
   renderCastChips(scope);
+}
+
+// 跟相鄰的晶片交換位置，dir 是 -1（往前）或 1（往後）。
+function moveCastChip(scope,index,dir){
+  const items=castChipsStore[scope];
+  const newIndex=index+dir;
+  if(!items || newIndex<0 || newIndex>=items.length) return;
+  [items[index],items[newIndex]]=[items[newIndex],items[index]];
+  renderCastChips(scope);
+}
+
+// 點晶片文字：原地變成一個小輸入框，讓使用者修正內容（支援「角色｜演員」格式），
+// 送出後直接替換掉原本那一格，不影響其他晶片的順序。
+function startEditCastChip(scope,index){
+  const ids=castScopeIds(scope);
+  const el=document.getElementById(ids.chips);
+  const item=castChipsStore[scope] && castChipsStore[scope][index];
+  if(!el || !item) return;
+  const chipEls=el.querySelectorAll('.tag-chip');
+  const chipEl=chipEls[index];
+  if(!chipEl) return;
+
+  const current = item.role ? `${item.role}｜${item.name}` : item.name;
+  const input=document.createElement('input');
+  input.type='text';
+  input.value=current;
+  input.className='tag-chip-edit-input';
+
+  let committed=false;
+  const commit=async()=>{
+    if(committed) return;
+    committed=true;
+    const raw=input.value.trim();
+    if(!raw){ castChipsStore[scope].splice(index,1); renderCastChips(scope); return; }
+    const {role,namesPart}=parseCastRoleGroup(raw);
+    const name=(role?namesPart:raw).trim();
+    if(!name){ renderCastChips(scope); return; }
+    if(!musicalActors.some(a=>a.name===name)) await addMusicalActor(name);
+    castChipsStore[scope][index]={role:role.trim(),name};
+    renderCastChips(scope);
+  };
+  input.addEventListener('keydown',e=>{
+    if(e.key==='Enter'){ e.preventDefault(); commit(); }
+    else if(e.key==='Escape'){ e.preventDefault(); committed=true; renderCastChips(scope); }
+  });
+  input.addEventListener('blur',commit);
+
+  chipEl.replaceWith(input);
+  input.focus();
+  input.select();
 }
 
 // 回傳目前 scope 的卡司資料：
