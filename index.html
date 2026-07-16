@@ -351,6 +351,9 @@ textarea{height:80px;resize:vertical}
 
 /* Modal */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:1200;align-items:center;justify-content:center}
+/* 編輯演員表單可能是從已經開著的演員卡片（z-index 1300）上點「編輯」跳出來的，
+   要蓋在演員卡片上面，不然表單會被卡片擋住、看起來像沒反應 */
+#actor-edit-modal-bg{z-index:1400}
 .modal-bg.open{display:flex}
 .modal{background:#fff;border-radius:18px;border:.5px solid #E5E5F0;padding:1.75rem;width:min(560px,95vw);max-height:92vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.12)}
 .modal-title{font-size:18px;font-weight:700;margin-bottom:1.25rem;color:#1A1A2E}
@@ -4310,7 +4313,21 @@ function toggleActorFavorite(name,event){
   if(favoriteActorNames.has(name)) favoriteActorNames.delete(name);
   else favoriteActorNames.add(name);
   localStorage.setItem(FAVORITE_ACTORS_KEY, JSON.stringify([...favoriteActorNames]));
-  renderActorsGrid();
+
+  // 從人物總表網格點星星的話，不要整個網格重新排序——最愛會被排到最前面，
+  // 如果馬上重排，剛標記的那個人會瞬間跳到最前面、原本盯著的位置換成別人，
+  // 感覺就像「人不見了」。所以這裡只更新這顆按鈕本身的星星圖示，
+  // 排序留到下次真的重新整理列表（搜尋/篩選/排序切換、離開再進來）時才套用。
+  const gridBtn=event && event.currentTarget && event.currentTarget.classList.contains('agc-fav-btn') ? event.currentTarget : null;
+  if(gridBtn){
+    const isFav=isActorFavorite(name);
+    gridBtn.classList.toggle('on',isFav);
+    gridBtn.title = isFav?'取消最愛':'設為最愛';
+    const icon=gridBtn.querySelector('i');
+    if(icon) icon.className = `ti ti-star${isFav?'-filled':''}`;
+  }else{
+    renderActorsGrid();
+  }
   if(location.hash.startsWith('#actor/')) renderActorPage(name);
 }
 
