@@ -401,6 +401,13 @@ textarea{height:80px;resize:vertical}
 .tag-chip-move{cursor:pointer;opacity:.45;font-size:9px;line-height:1;user-select:none}
 .tag-chip-move:hover{opacity:.9}
 .tag-chip-edit-input{width:120px;font-size:12px;padding:5px 10px;border-radius:20px;border:1px solid #AFA9EC;outline:none;color:#1A1A2E}
+.cast-role-group{margin-bottom:8px}
+.cast-role-group:last-child{margin-bottom:0}
+.cast-role-group-plain{display:flex;flex-wrap:wrap;gap:6px}
+.cast-role-group-header{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:#3C3489;margin-bottom:5px}
+.cast-role-group-move{cursor:pointer;opacity:.5;font-size:10px;user-select:none}
+.cast-role-group-move:hover{opacity:1}
+.cast-role-group-chips{display:flex;flex-wrap:wrap;gap:6px}
 .tag-suggest-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #E5E5F0;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:20;max-height:220px;overflow-y:auto;margin-top:4px}
 .tag-suggest-item{padding:8px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .tag-suggest-item:hover,.tag-suggest-item.active{background:#F5F5FA}
@@ -1184,21 +1191,57 @@ function initCastTagInput(scope, selected){
   if(suggestEl){ suggestEl.style.display='none'; }
 }
 
+// 把卡司陣列切成「連續同角色」的區塊——同一個角色的人通常是一起輸入的，本來就會排在一起；
+// 這個分組只是拿來畫角色標題列跟決定「整組角色」的搬移範圍，不會改動實際儲存的陣列結構。
+function computeCastGroups(items){
+  const groups=[];
+  items.forEach((item,i)=>{
+    const last=groups[groups.length-1];
+    if(last && last.role===(item.role||'')){
+      last.indices.push(i);
+    }else{
+      groups.push({role:item.role||'',indices:[i]});
+    }
+  });
+  return groups;
+}
+
 // 每個晶片除了原本的移除按鈕，還多了：▲▼ 調整順序（不用刪掉重新輸入就能把順序排好），
-// 以及點文字本身可以直接修改內容（打錯一個字不用整個刪掉重打，順序也不會被打亂）。
+// 點文字本身可以直接修改內容（打錯一個字不用整個刪掉重打，順序也不會被打亂），
+// 有角色名稱的還會分組顯示，角色標題列上的 ▲▼ 可以把「整個角色底下的所有演員」一次搬到
+// 前一個／後一個角色區塊之前，不用一個一個人搬。
 function renderCastChips(scope){
   const ids=castScopeIds(scope);
   const el=document.getElementById(ids.chips);
   if(!el)return;
   const items=castChipsStore[scope];
-  el.innerHTML = items.map((c,i)=>`
-    <span class="tag-chip">
-      <span class="tag-chip-move" onclick="moveCastChip('${scope}',${i},-1)" style="${i===0?'visibility:hidden':''}" aria-label="往前移">▲</span>
-      <span class="tag-chip-move" onclick="moveCastChip('${scope}',${i},1)" style="${i===items.length-1?'visibility:hidden':''}" aria-label="往後移">▼</span>
-      <span class="tag-chip-text" onclick="startEditCastChip('${scope}',${i})" title="點擊修改">${c.role?esc(c.role)+'：':''}${esc(c.name)}</span>
-      <button type="button" onclick="removeCastChip('${scope}',${i})" aria-label="移除"><i class="ti ti-x"></i></button>
-    </span>
-  `).join('');
+  const groups=computeCastGroups(items);
+  el.innerHTML = groups.map((g,gi)=>{
+    const chipsHtml=g.indices.map((idx,posInGroup)=>{
+      const c=items[idx];
+      const isFirstInGroup=posInGroup===0;
+      const isLastInGroup=posInGroup===g.indices.length-1;
+      return `
+      <span class="tag-chip">
+        <span class="tag-chip-move" onclick="moveCastChip('${scope}',${idx},-1)" style="${isFirstInGroup?'visibility:hidden':''}" aria-label="往前移">▲</span>
+        <span class="tag-chip-move" onclick="moveCastChip('${scope}',${idx},1)" style="${isLastInGroup?'visibility:hidden':''}" aria-label="往後移">▼</span>
+        <span class="tag-chip-text" onclick="startEditCastChip('${scope}',${idx})" title="點擊修改">${c.role?esc(c.role)+'：':''}${esc(c.name)}</span>
+        <button type="button" onclick="removeCastChip('${scope}',${idx})" aria-label="移除"><i class="ti ti-x"></i></button>
+      </span>`;
+    }).join('');
+
+    if(!g.role) return `<div class="cast-role-group cast-role-group-plain">${chipsHtml}</div>`;
+
+    return `
+      <div class="cast-role-group">
+        <div class="cast-role-group-header">
+          <span class="cast-role-group-move" onclick="moveRoleGroup('${scope}',${g.indices[0]},-1)" style="${gi===0?'visibility:hidden':''}" title="這個角色整組往前移">▲</span>
+          <span class="cast-role-group-move" onclick="moveRoleGroup('${scope}',${g.indices[0]},1)" style="${gi===groups.length-1?'visibility:hidden':''}" title="這個角色整組往後移">▼</span>
+          <span class="cast-role-group-name">${esc(g.role)}</span>
+        </div>
+        <div class="cast-role-group-chips">${chipsHtml}</div>
+      </div>`;
+  }).join('');
 }
 
 function removeCastChip(scope,index){
@@ -1206,12 +1249,33 @@ function removeCastChip(scope,index){
   renderCastChips(scope);
 }
 
-// 跟相鄰的晶片交換位置，dir 是 -1（往前）或 1（往後）。
+// 跟相鄰的晶片交換位置，dir 是 -1（往前）或 1（往後）。只能在「同一個角色」底下移動，
+// 不能跨到別的角色區塊去，不然會把角色分組弄亂——跨角色的搬移請用角色標題列上的整組移動。
 function moveCastChip(scope,index,dir){
   const items=castChipsStore[scope];
   const newIndex=index+dir;
   if(!items || newIndex<0 || newIndex>=items.length) return;
+  if((items[index].role||'')!==(items[newIndex].role||'')) return;
   [items[index],items[newIndex]]=[items[newIndex],items[index]];
+  renderCastChips(scope);
+}
+
+// 把「一整個角色底下的所有演員」搬到前一個／後一個角色區塊之前——兩個相鄰角色區塊直接互換位置，
+// 不用把裡面每個人都搬一次。groupStartIndex 是這個角色區塊第一位演員在陣列裡的絕對位置。
+function moveRoleGroup(scope,groupStartIndex,dir){
+  const items=castChipsStore[scope];
+  if(!items) return;
+  const groups=computeCastGroups(items);
+  const gi=groups.findIndex(g=>g.indices[0]===groupStartIndex);
+  if(gi===-1) return;
+  const targetGi=gi+dir;
+  if(targetGi<0||targetGi>=groups.length) return;
+  const [earlierGi,laterGi]=gi<targetGi?[gi,targetGi]:[targetGi,gi];
+  const earlier=groups[earlierGi], later=groups[laterGi];
+  const earlierItems=earlier.indices.map(i=>items[i]);
+  const laterItems=later.indices.map(i=>items[i]);
+  const startPos=earlier.indices[0];
+  items.splice(startPos, earlierItems.length+laterItems.length, ...laterItems, ...earlierItems);
   renderCastChips(scope);
 }
 
