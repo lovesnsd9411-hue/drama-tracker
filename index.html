@@ -216,6 +216,24 @@ input,select,textarea,button{font-family:inherit}
 .show-method-badge{background:#EEEDFE;color:#3C3489}
 .ticket-badge{display:inline-flex;align-items:center;gap:4px;background:#EEEDFE;color:#3C3489;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px;margin-left:6px;vertical-align:middle}
 
+/* 持有票券過期提醒：總覽分頁的提示條，以及該筆場次卡片本身的標示＋快速動作 */
+.overdue-banner{display:flex;align-items:flex-start;gap:10px;background:#FFF7ED;border:1px solid #FBD9A5;border-radius:12px;padding:.75rem .9rem;margin-bottom:1rem;font-size:13px}
+.overdue-banner i{color:#D97706;flex-shrink:0;margin-top:1px;font-size:17px}
+.overdue-banner-text{flex:1;color:#92400E;font-weight:600}
+.overdue-banner-text .sub{display:block;font-weight:500;color:#B45309;font-size:12px;margin-top:2px;opacity:.85}
+.overdue-banner-btn{background:#D97706;color:#fff;border:none;border-radius:8px;padding:6px 12px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
+.overdue-banner-btn:hover{opacity:.88}
+.show-card-overdue{background:#FFFBF5!important;border:1px solid #FBD9A5}
+.overdue-flag{display:inline-flex;align-items:center;gap:3px;background:#FEF3C7;color:#B45309;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:20px;margin-left:6px;vertical-align:middle}
+.overdue-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.overdue-actions button{font-size:11.5px;padding:4px 9px;border-radius:20px;border:1px solid #E0E0EE;background:#fff;cursor:pointer;font-weight:700;font-family:inherit}
+.oa-watched{color:#0F6E56;border-color:#BFE6D5}
+.oa-watched:hover{background:#E7F6F0}
+.oa-refund{color:#999;border-color:#E0E0E0}
+.oa-refund:hover{background:#F2F2F5}
+.oa-ignore{color:#9A9AA8}
+.oa-ignore:hover{background:#F0F0F5}
+
 /* 「分割這筆」面板：票數不只 1 張的場次卡片，點分割按鈕展開 */
 .split-panel{background:#fff;border:1px solid #E5E5F0;border-radius:10px;padding:.75rem .85rem;margin-top:.6rem}
 .split-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;color:#666;font-weight:600}
@@ -1860,6 +1878,18 @@ function countsTowardSpend(h){ const s=getShowStatus(h); return s==='已觀看'|
 // 沒有 method 欄位的舊資料一律視為現場（這個欄位是後來才加的，舊紀錄本來就是現場觀劇時代的資料）。
 function countsTowardActorAppearance(h){ return countsTowardWorks(h) && (!h.method || h.method==='現場'); }
 
+// 「持有票券」代表票已經買了、還沒去看；但日期一旦過了今天，代表那場應該已經發生了卻忘記回來更新狀態。
+// 花費有算進統計，但「看過次數」沒算到，數字會悄悄兜不起來——用這個抓出來提醒使用者確認一下。
+// h.overdueDismissed 是使用者手動按過「不用管這筆」留下的記號，之後就不會再被這裡抓到。
+function isOverdueTicket(h){
+  if(!h || h.overdueDismissed) return false;
+  if(getShowStatus(h)!=='持有票券') return false;
+  const dateStr=(h.date||'').trim();
+  if(!dateStr) return false;
+  const today=new Date().toISOString().slice(0,10);
+  return dateStr<today;
+}
+
 function getFiltered(){
   const q=(document.getElementById('search').value||'').toLowerCase();
   let list=[...db];
@@ -2503,6 +2533,13 @@ function toggleFullRecordsView(){
     :'<i class="ti ti-chevron-up"></i> 收起完整場次紀錄';
 }
 
+// 過期票券提醒條的「去看看」：確保完整場次紀錄是展開的（不是盲目切換，避免點下去反而收起來），再捲過去。
+function jumpToOverdueRecords(){
+  const el=document.getElementById('musical-full-records');
+  if(el && el.style.display==='none') toggleFullRecordsView();
+  if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
 // 依目前選定的頂層分頁，渲染下半部內容：
 // 「總覽」＝全季加總儀表板＋各角色觀看次數（依角色分組，可展開查看完整逐筆紀錄）；
 // 特定季度＝該季專屬卡司＋只過濾出該季的多刷紀錄。
@@ -2515,7 +2552,18 @@ function renderMusicalTabContent(dramaId){
     const history=(d.viewing_history||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
     const totalShows=history.filter(countsTowardWorks).length;
     const totalSpent=history.filter(countsTowardSpend).reduce((s,h)=>s+convertToTWD(h.amount,h.currency||'TWD'),0);
+    // 「持有票券」但日期已經過了，代表那場應該已經發生卻忘記回來更新狀態——順手提醒一下。
+    const overdueList=history.filter(isOverdueTicket);
+    const overdueBannerHtml=overdueList.length?`
+      <div class="overdue-banner">
+        <i class="ti ti-alert-triangle"></i>
+        <span class="overdue-banner-text">有 ${overdueList.length} 場「持有票券」的日期已經過了
+          <span class="sub">${overdueList.slice(0,3).map(h=>esc(h.date||'')+(h.season?' '+esc(h.season)+'場':'')).join('、')}${overdueList.length>3?' 等':''}——是不是忘記回來更新狀態了？</span>
+        </span>
+        <button class="overdue-banner-btn" onclick="jumpToOverdueRecords()">去看看</button>
+      </div>`:'';
     contentEl.innerHTML=`
+      ${overdueBannerHtml}
       <div class="musical-dashboard">
         <div class="dash-item"><div class="dash-num">${totalShows}</div><div class="dash-label">全季加總觀看次數</div></div>
         <div class="dash-item"><div class="dash-num">${moneyLabel(totalSpent)}</div><div class="dash-label">全季加總花費</div></div>
@@ -2633,13 +2681,15 @@ function renderMusicalTimeline(history,dramaId,hideCast){
   return `<div style="display:flex;flex-direction:column;gap:8px">
     ${history.map(h=>{
       const status=getShowStatus(h);
+      const overdue=isOverdueTicket(h);
       return `
-      <div style="background:#F8F8FB;border-radius:12px;padding:.75rem .9rem;font-size:13px;position:relative">
+      <div style="background:#F8F8FB;border-radius:12px;padding:.75rem .9rem;font-size:13px;position:relative"${overdue?' class="show-card-overdue"':''}>
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div>
             <div style="font-weight:700;color:#1A1A2E">${esc(h.date||'')}${h.time?' '+esc(h.time):''}${h.note?` <span style="font-weight:500;color:#888;font-size:12px">${esc(h.note)}</span>`:''}${h.ticketCount>1?`<span class="ticket-badge"><i class="ti ti-ticket"></i> 共 ${h.ticketCount} 張</span>`:''}</div>
             <span class="show-status-badge ${showStatusClass(status)}">${esc(status)}</span>
             ${h.method&&h.method!=='現場'?`<span class="show-status-badge show-method-badge">${esc(h.method)}</span>`:''}
+            ${overdue?'<span class="overdue-flag"><i class="ti ti-alert-triangle"></i> 已過期</span>':''}
             ${(()=>{if(hideCast)return '';const castData=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
               if(!castData||!castData.length) return '';
               const season=seasons.find(s=>s.name===(h.season||'').trim());
@@ -2657,6 +2707,12 @@ function renderMusicalTimeline(history,dramaId,hideCast){
           </div>
         </div>
         ${h.ticketCount>1&&!isReadOnly?renderSplitPanel(dramaId,h):''}
+        ${overdue&&!isReadOnly?`
+        <div class="overdue-actions">
+          <button class="oa-watched" onclick="markShowWatchedQuick('${jsStr(dramaId)}','${jsStr(h.id)}')">✓ 標記已觀看</button>
+          <button class="oa-refund" onclick="markShowRefundedQuick('${jsStr(dramaId)}','${jsStr(h.id)}')">已退票/轉讓</button>
+          <button class="oa-ignore" onclick="dismissOverdueTicket('${jsStr(dramaId)}','${jsStr(h.id)}')">不用管這筆</button>
+        </div>`:''}
       </div>`;
     }).join('')}
   </div>`;
@@ -3047,6 +3103,50 @@ function deleteShow(dramaId,showId){
   const stayOnTab=currentSeasonFilter;
   openDetail(dramaId);
   if(stayOnTab && stayOnTab!=='all') setTopTab(stayOnTab,dramaId);
+}
+
+// 持有票券過期提醒的三個快速動作：標記已觀看／已退票或轉讓／不用管這筆（永久忽略）。
+function refreshAfterOverdueAction(dramaId){
+  const stayOnTab=currentSeasonFilter;
+  // renderMusicalTabContent 每次都會把「查看完整場次紀錄」重建成預設收起的樣子——
+  // 如果使用者是先點「去看看」展開才按下這些快速動作，動作完不記得展開狀態的話，
+  // 面板會突然收合、下一筆過期票券也跟著看不到，等於每處理一筆就要重新展開一次。
+  const recordsEl=document.getElementById('musical-full-records');
+  const wasExpanded=!!(recordsEl && recordsEl.style.display!=='none');
+  renderMusicalTabContent(dramaId);
+  if(stayOnTab && stayOnTab!=='all') setTopTab(stayOnTab,dramaId);
+  if(wasExpanded){
+    const el=document.getElementById('musical-full-records');
+    const btn=document.getElementById('toggle-full-records-btn');
+    if(el && btn && el.style.display==='none'){
+      el.style.display='block';
+      btn.innerHTML='<i class="ti ti-chevron-up"></i> 收起完整場次紀錄';
+    }
+  }
+}
+function markShowWatchedQuick(dramaId,showId){
+  if(isReadOnly)return;
+  const d=db.find(x=>x.id===dramaId);if(!d)return;
+  const h=(d.viewing_history||[]).find(x=>x.id===showId);if(!h)return;
+  h.showStatus='已觀看';
+  save();
+  refreshAfterOverdueAction(dramaId);
+}
+function markShowRefundedQuick(dramaId,showId){
+  if(isReadOnly)return;
+  const d=db.find(x=>x.id===dramaId);if(!d)return;
+  const h=(d.viewing_history||[]).find(x=>x.id===showId);if(!h)return;
+  h.showStatus='已退票/轉讓';
+  save();
+  refreshAfterOverdueAction(dramaId);
+}
+function dismissOverdueTicket(dramaId,showId){
+  if(isReadOnly)return;
+  const d=db.find(x=>x.id===dramaId);if(!d)return;
+  const h=(d.viewing_history||[]).find(x=>x.id===showId);if(!h)return;
+  h.overdueDismissed=true;
+  save();
+  refreshAfterOverdueAction(dramaId);
 }
 
 function openDetail(id){
@@ -3888,22 +3988,18 @@ window.addEventListener('hashchange', handleRoute);
 // 改成只在 document 上綁「一次」監聽器，用 class／id 找目標——不管按鈕是什麼時候被塞進 DOM 的都抓得到，
 // 也不用再把 id／姓名這些值手動拼進 onclick 字串裡（順便避開了字串轉義出錯的整類問題）。
 //
-// 這裡也順便處理「點卡片背景關閉」：這行原本用 document.getElementById('actor-card-bg')
-// 直接綁監聽器，但這段 script 在檔案裡的位置比 #actor-card-bg 這個 HTML 元素本身還早執行，
-// 那時候 getElementById 根本找不到元素、回傳 null，這個監聽器其實從來沒有真的綁上去過。
-// 改用 document 層級的事件委派就不會有「元素還沒出生」的問題。
+// 「點卡片背景關閉」統一交給 bindOverlayClose()（DOMContentLoaded 時綁在 #actor-card-bg 上，
+// 有正確處理反白選字拖出背景的防呆）。這裡以前還另外用 e.target.id==='actor-card-bg' 重複判斷了
+// 一次，兩邊會同時觸發，導致同一次點擊呼叫兩次 closeActorPage()——第一次正確地只關卡片、
+// 第二次呼叫時 actorCardOpenedFromWork 旗標已經被第一次重置成 false，就誤判成要導去人物總表，
+// 這正是「點空白處關閉還是會跳轉到演員資料庫」那個 bug 的成因。拿掉重複判斷就不會再誤觸發。
 //
 // 防呆：用 window.__actorClickDelegationBound 當作旗標，確保這個監聽器只會被綁定「一次」。
 // 如果目前的預覽/測試環境會在同一個頁面內重複執行這段 <script>（沒有整頁重新整理），
-// 沒有這個防呆的話，同一個監聽器就會被疊加綁上去好幾次，同一次點擊就會觸發好幾次
-// （這正是主控台裡同一個 data-id 連續印出好幾次「🔥」的原因）。
+// 沒有這個防呆的話，同一個監聽器就會被疊加綁上去好幾次，同一次點擊就會觸發好幾次。
 if(!window.__actorClickDelegationBound){
   window.__actorClickDelegationBound = true;
   document.addEventListener('click', function(e){
-    console.log('🔥 document click listener 有在執行，target 是：', e.target);
-
-    if(e.target.id==='actor-card-bg'){ closeActorPage(); return; }
-
     // 用 .closest() 而不是 .matches()：如果點到按鈕裡面的圖示 <i> 而不是按鈕本身，
     // e.target 會是那個 <i>，.matches('.edit-btn') 會抓不到，但 .closest() 會往上找到按鈕本身。
     // data-action 是備援選取器，就算 class 名稱以後又改了，這裡也還抓得到。
