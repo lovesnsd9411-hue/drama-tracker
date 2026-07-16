@@ -4372,7 +4372,8 @@ function isCameoOnlyAppearance(d,name){
 // 整合總表清單：以 musical_actors 表為主，額外把「只出現在電視劇資料、但還沒被登記成正式節點」的
 // 演員也一起撈出來、暫時合併進清單（沒有真正的 Supabase id，所以不能編輯/刪除，只能瀏覽跟篩選；
 // 一旦透過編輯功能替他建檔，就會自動變成正式節點）。每個演員身上記錄「_sources」：
-// 這個人有沒有音樂劇演出紀錄、有沒有電視劇演出紀錄，用來判斷該顯示哪個分類標籤。
+// 這個人有沒有音樂劇／話劇／電視劇演出紀錄，用來判斷該顯示哪個分類標籤——
+// 標籤完全依實際紀錄判斷，不是靠姓名去區分。
 function getUnifiedActorRoster(){
   const roster=musicalActors.map(a=>({...a,_sources:new Set()}));
   const byName={};
@@ -4383,6 +4384,7 @@ function getUnifiedActorRoster(){
     const names=isMusical
       ? castNames((d.actors_all&&d.actors_all.length)?d.actors_all:d.actors)
       : [...castNames(d.actors),...castNames(d.cameoActors)];
+    const sourceTag = isMusical ? (isPlay(d)?'play':'musical') : 'drama';
     names.forEach(name=>{
       if(!name) return;
       if(!byName[name]){
@@ -4392,31 +4394,42 @@ function getUnifiedActorRoster(){
         byName[name]=virtual;
         roster.push(virtual);
       }
-      byName[name]._sources.add(isMusical?'musical':'drama');
+      byName[name]._sources.add(sourceTag);
     });
   });
-  // 也把音樂劇的每場觀看紀錄掃過一次，確保「只在某一場被記錄過、但沒被列進主要演員」的人也算數
+  // 也把音樂劇／話劇的每場觀看紀錄掃過一次，確保「只在某一場被記錄過、但沒被列進主要演員」的人也算數
   db.forEach(d=>{
     if((d.category||'drama')!=='musical') return;
+    const sourceTag = isPlay(d)?'play':'musical';
     (d.viewing_history||[]).forEach(h=>{
       if(!h) return;
       const raw=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
-      castNames(raw).forEach(name=>{ if(byName[name]) byName[name]._sources.add('musical'); });
+      castNames(raw).forEach(name=>{ if(byName[name]) byName[name]._sources.add(sourceTag); });
     });
   });
 
   return roster;
 }
 
-// 依實際演出紀錄自動判斷這位演員的分類標籤與所屬分類（可能同時屬於兩個分類）。
-// 兩邊都有紀錄 → 雙棲演員；只有一邊 → 對應分類；兩邊都沒有（純候選、還沒被記錄任何演出）
-// → 退回手動設定的 actor_type，沒設定就預設音樂劇演員。
+// 依實際演出紀錄自動判斷這位演員的分類標籤與所屬分類（可能同時橫跨好幾個分類）。
+// 標籤把這個人「實際有紀錄」的類型全部列出來（例如同時有音樂劇跟話劇紀錄就顯示「音樂劇／話劇演員」），
+// 完全沒有任何演出紀錄的候選演員，才退回手動設定的 actor_type，沒設定就預設音樂劇演員。
 function computeActorCategoryTags(actor){
   const hasMusical=actor._sources && actor._sources.has('musical');
+  const hasPlay=actor._sources && actor._sources.has('play');
   const hasDrama=actor._sources && actor._sources.has('drama');
-  if(hasMusical && hasDrama) return {label:'雙棲演員',categories:['musical','drama']};
-  if(hasDrama) return {label:'影劇演員',categories:['drama']};
-  if(hasMusical) return {label:'音樂劇演員',categories:['musical']};
+  const parts=[];
+  if(hasMusical) parts.push('音樂劇');
+  if(hasPlay) parts.push('話劇');
+  if(hasDrama) parts.push('影劇');
+  if(parts.length){
+    // 篩選用的分類還是只分「音樂劇分頁／影劇分頁」兩種——話劇跟音樂劇一樣算進「音樂劇」分頁篩選，
+    // 才不會讓只演過話劇的演員從「音樂劇」篩選條件底下消失。
+    const categories=[];
+    if(hasMusical||hasPlay) categories.push('musical');
+    if(hasDrama) categories.push('drama');
+    return {label:parts.join('／')+'演員',categories};
+  }
   return {label:actor.actor_type||'音樂劇演員',categories:[actorTypeCategory(actor.actor_type)]};
 }
 
