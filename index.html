@@ -604,6 +604,15 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <input type="text" id="f-musical-season" placeholder="例：2026.03 ~ 2026.05　或　2026 三演">
     </div>
 
+    <div class="field" id="musical-only-settlement" style="display:none">
+      <label>정산판（結算圖，顯示在總覽分頁，可留空）</label>
+      <div id="settlement-preview" style="margin-bottom:8px"></div>
+      <input type="text" id="f-settlement-url" placeholder="https://...（貼圖片網址）" oninput="onSettlementUrlInput()">
+      <label style="font-size:12px;color:#aaa;font-weight:600;display:block;margin-top:8px">或直接上傳圖片檔（存到 Supabase Storage，不怕原網站的圖片失效）</label>
+      <input type="file" id="f-settlement-file" accept="image/*" onchange="handleSettlementFileUpload(event)" style="margin-top:4px">
+      <div id="f-settlement-upload-status" style="font-size:11px;color:#aaa;margin-top:4px"></div>
+    </div>
+
     <div class="field" id="namu-field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋"></div>
 
     <!-- ── 音樂劇專用：季度區塊（取代舊版單一共用的「主要演員」欄位）──
@@ -1615,7 +1624,7 @@ async function setFormCategory(cat){
     if(el) el.style.display=isMusical?'none':'';
   });
   // musical-only field groups
-  ['musical-only-name','musical-only-season','musical-only-cast'].forEach(id=>{
+  ['musical-only-name','musical-only-season','musical-only-settlement','musical-only-cast'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display=isMusical?'':'none';
   });
@@ -1785,6 +1794,46 @@ async function handlePosterFileUpload(event){
     statusEl.textContent='';
   }
   event.target.value='';
+}
+
+// 정산판（結算圖）：跟海報一樣可以貼網址或直接上傳檔案，但只有一張、沒有搜尋功能，
+// 单純顯示在音樂劇總覽分頁，點下去可以放大看（openImageLightbox）。
+function renderSettlementPreview(url){
+  const el=document.getElementById('settlement-preview');
+  if(!el) return;
+  el.innerHTML = url
+    ? `<div style="position:relative;display:inline-block"><img src="${esc(url)}" style="max-width:160px;max-height:160px;border-radius:10px;display:block;object-fit:cover;border:1px solid #E5E5F0" onerror="this.style.opacity=0.3"><button type="button" onclick="clearSettlementImage()" title="移除圖片" style="position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:50%;background:#fff;border:1px solid #E0E0EE;cursor:pointer;color:#999;font-size:14px;line-height:1">×</button></div>`
+    : '';
+}
+function onSettlementUrlInput(){
+  renderSettlementPreview(fieldVal('f-settlement-url').trim());
+}
+function clearSettlementImage(){
+  setFieldVal('f-settlement-url','');
+  renderSettlementPreview('');
+}
+async function handleSettlementFileUpload(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  const statusEl=document.getElementById('f-settlement-upload-status');
+  if(statusEl) statusEl.textContent='上傳中…';
+  const url=await uploadImageFile(file);
+  if(url){
+    setFieldVal('f-settlement-url',url);
+    onSettlementUrlInput();
+    if(statusEl) statusEl.textContent='✓ 上傳完成';
+  }else if(statusEl){
+    statusEl.textContent='';
+  }
+  event.target.value='';
+}
+
+// 點圖放大看：全螢幕 lightbox，跟其他 .modal-bg 共用同一套「點背景關閉」防呆機制。
+function openImageLightbox(url){
+  if(!url) return;
+  const img=document.getElementById('image-lightbox-img');
+  if(img) img.src=url;
+  openModal('image-lightbox-bg');
 }
 
 // ── Filter ──
@@ -2562,12 +2611,18 @@ function renderMusicalTabContent(dramaId){
         </span>
         <button class="overdue-banner-btn" onclick="jumpToOverdueRecords()">去看看</button>
       </div>`:'';
+    // 정산판（結算圖）：點下去用 openImageLightbox 放大看，不用另外做圖片檢視器。
+    const settlementHtml=d.settlementImage?`
+      <div style="margin-top:1rem;text-align:center">
+        <img src="${esc(d.settlementImage)}" onclick="openImageLightbox('${jsStr(d.settlementImage)}')" title="點擊放大看" style="max-width:100%;max-height:320px;border-radius:12px;cursor:zoom-in;border:1px solid #E5E5F0;object-fit:contain" onerror="this.style.display='none'">
+      </div>`:'';
     contentEl.innerHTML=`
       ${overdueBannerHtml}
       <div class="musical-dashboard">
         <div class="dash-item"><div class="dash-num">${totalShows}</div><div class="dash-label">全季加總觀看次數</div></div>
         <div class="dash-item"><div class="dash-num">${moneyLabel(totalSpent)}</div><div class="dash-label">全季加總花費</div></div>
       </div>
+      ${settlementHtml}
       <div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;margin-top:1.2rem;gap:6px;flex-wrap:wrap">
         <span>各角色觀看次數</span>
         <div style="display:flex;gap:6px">
@@ -3257,12 +3312,15 @@ function openAdd(){
     editId=null;
     const titleEl=document.getElementById('form-title');
     if(titleEl) titleEl.textContent='新增劇目';
-    ['f-name','f-orig','f-platform','f-actors','f-director','f-writer','f-note','f-poster','f-poster-url','f-musical-name','f-poster-q','f-musical-season','f-episode'].forEach(id=>setFieldVal(id,''));
+    ['f-name','f-orig','f-platform','f-actors','f-director','f-writer','f-note','f-poster','f-poster-url','f-musical-name','f-poster-q','f-musical-season','f-episode','f-settlement-url'].forEach(id=>setFieldVal(id,''));
 
     const posterPrev=document.getElementById('poster-preview');
     if(posterPrev) posterPrev.innerHTML='';
     const posterUploadStatus=document.getElementById('f-poster-upload-status');
     if(posterUploadStatus) posterUploadStatus.textContent='';
+    renderSettlementPreview('');
+    const settlementUploadStatus=document.getElementById('f-settlement-upload-status');
+    if(settlementUploadStatus) settlementUploadStatus.textContent='';
     const dupW=document.getElementById('dup-warning');
     if(dupW) dupW.style.display='none';
     const dupWM=document.getElementById('dup-warning-musical');
@@ -3311,6 +3369,8 @@ function openEdit(id){
 
   setFieldVal('f-platform',d.platform||'');
   setFieldVal('f-musical-season',d.season||'');
+  setFieldVal('f-settlement-url',d.settlementImage||'');
+  renderSettlementPreview(d.settlementImage||'');
   setFieldVal('f-namu',d.namu||'');
   setFieldVal('f-actors',(d.actors||[]).join(', '));
   initCastTagInput('cameo', d.cameoActors||[]);
@@ -3405,7 +3465,8 @@ function saveForm(){
       actors_all:aggregateActorsAll(unionCast,existing), // 匯總目前填寫的卡司＋歷史所有場次記錄過的卡司
       directors:[],director:'',writers:[],writer:'',
       note:fieldVal('f-note').trim(),
-      poster,namu:fieldVal('f-namu').trim()
+      poster,namu:fieldVal('f-namu').trim(),
+      settlementImage:fieldVal('f-settlement-url').trim()
     };
     data.viewing_history = (existing && existing.viewing_history) ? existing.viewing_history : [];
   }else{
@@ -4563,6 +4624,14 @@ async function deleteMusicalActorRow(id){
       <button class="icon-btn" onclick="closeActorEditModal()">取消</button>
       <button class="btn-primary" onclick="submitActorEdit()">儲存</button>
     </div>
+  </div>
+</div>
+
+<!-- 圖片放大 lightbox：目前給정산판用，共用 .modal-bg 的「點背景關閉」機制 -->
+<div class="modal-bg" id="image-lightbox-bg" style="background:rgba(0,0,0,.75)">
+  <div style="position:relative;max-width:95vw;max-height:90vh">
+    <button onclick="closeModal('image-lightbox-bg')" style="position:absolute;top:-40px;right:0;background:none;border:none;cursor:pointer;font-size:28px;color:#fff;line-height:1">×</button>
+    <img id="image-lightbox-img" src="" style="max-width:95vw;max-height:90vh;border-radius:8px;display:block;object-fit:contain">
   </div>
 </div>
 
