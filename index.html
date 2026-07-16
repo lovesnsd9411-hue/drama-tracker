@@ -2969,14 +2969,19 @@ function onTicketCountChange(el){
   if(n>1 && statusSel.value==='已觀看') statusSel.value='持有票券';
 }
 
-// 觀看方式只有「現場」才有場次（午/晚場）、活動、演出狀態、金額這些概念——
+// 觀看方式只有「現場」才有場次（午/晚場）、活動、演出狀態這些概念——
 // 線上/錄播一定是已經完整看完才會補記錄，也沒有午晚場跟謝幕活動可言，所以切換時直接收起來，不用填。
+// 金額例外：線上也可能是付費看的（例如付費線上轉播），所以現場／線上都留著金額欄位，
+// 只有錄播（通常是免費重播/資料庫典藏）才收起來。
 function applyShowMethodVisibility(method){
   const isLive = method==='現場';
-  ['show-time-field','show-note-field','show-status-field','show-amount-field'].forEach(id=>{
+  const canHaveAmount = method==='現場' || method==='線上';
+  ['show-time-field','show-note-field','show-status-field'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display = isLive?'':'none';
   });
+  const amountEl=document.getElementById('show-amount-field');
+  if(amountEl) amountEl.style.display = canHaveAmount?'':'none';
 }
 function pickShowMethod(btn){
   document.querySelectorAll('#show-method-toggle .method-btn').forEach(b=>b.classList.remove('on'));
@@ -3213,17 +3218,20 @@ async function saveShow(dramaId, editShowId) {
   const methodBtn = document.querySelector('#show-method-toggle .method-btn.on');
   const method = methodBtn ? methodBtn.dataset.v : '現場';
   const isLive = method==='現場';
+  // 金額例外：線上也可能是付費看的（例如付費線上轉播），現場／線上都要能存金額，
+  // 只有錄播才不存——邏輯要跟 applyShowMethodVisibility() 的欄位顯示規則一致。
+  const canHaveAmount = method==='現場' || method==='線上';
 
-  // 線上／錄播一定是已經完整看完才會補記錄，場次(午晚場)、活動、金額都沒有意義，
+  // 線上／錄播一定是已經完整看完才會補記錄，場次(午晚場)、活動都沒有意義，
   // 演出狀態也直接視為「已觀看」，不受表單上（已收起、可能還殘留舊值的）欄位影響。
   const time = isLive ? fieldVal('show-time') : '';
   const showStatus = isLive ? (fieldVal('show-status','已觀看')||'已觀看') : '已觀看';
   const season = fieldVal('show-season').trim();
-  const amount = isLive ? fieldVal('show-amount').trim() : '';
+  const amount = canHaveAmount ? fieldVal('show-amount').trim() : '';
   const currency = fieldVal('show-currency','TWD')||'TWD';
   // 加購票數：這場除了自己看的那張以外，另外多買了幾張（集點/佔位置用）。
   // 純粹是跟金額有關的備註，不影響「看過次數」——那個統計只看 showStatus 是不是已觀看。
-  const ticketCountRaw = isLive ? parseInt(fieldVal('show-ticket-count'),10) : NaN;
+  const ticketCountRaw = canHaveAmount ? parseInt(fieldVal('show-ticket-count'),10) : NaN;
   const ticketCount = (!isNaN(ticketCountRaw) && ticketCountRaw>1) ? ticketCountRaw : null;
   const note = isLive ? fieldVal('show-note').trim() : '';
 
