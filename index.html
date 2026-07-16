@@ -138,7 +138,8 @@ input,select,textarea,button{font-family:inherit}
 .actor-grid-card .agc-count{font-size:12px;color:#8B86D4;font-weight:600;margin-top:4px}
 
 /* 演員懸浮卡片：半透明遮罩背景 + 置中卡片，點擊遮罩或關閉鈕可關閉，回到總表頁面 */
-.actor-card-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1100;align-items:center;justify-content:center;padding:1rem}
+/* z-index 要比 .modal-bg（1200）高，因為現在演員卡片可能疊在還開著的作品詳細 modal 上面 */
+.actor-card-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1300;align-items:center;justify-content:center;padding:1rem}
 .actor-card-bg.open{display:flex}
 .actor-card{background:#fff;border-radius:20px;width:100%;max-width:640px;max-height:85vh;overflow-y:auto;padding:1.3rem;position:relative}
 .actor-cb{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:5px 10px;border-radius:20px;border:1px solid #E0E0EE;background:#fff;cursor:pointer;transition:all .15s;user-select:none}
@@ -565,8 +566,18 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       </div>
     </div>
     <div class="row2" id="drama-only-crew">
-      <div class="field"><label>導演（逗號分隔）</label><input type="text" id="f-director" placeholder="安吉鎬, 朴勳政"></div>
-      <div class="field"><label>編劇（逗號分隔）</label><input type="text" id="f-writer" placeholder="金恩淑, 朴海英"></div>
+      <div class="field" style="position:relative">
+        <label>導演（逗號分隔）</label>
+        <input type="text" id="f-director" placeholder="安吉鎬, 朴勳政" autocomplete="off"
+          oninput="onCrewInputType('director')" onkeydown="onCrewInputKeydown(event,'director')">
+        <div class="tag-suggest-dropdown" id="f-director-suggest" style="display:none"></div>
+      </div>
+      <div class="field" style="position:relative">
+        <label>編劇（逗號分隔）</label>
+        <input type="text" id="f-writer" placeholder="金恩淑, 朴海英" autocomplete="off"
+          oninput="onCrewInputType('writer')" onkeydown="onCrewInputKeydown(event,'writer')">
+        <div class="tag-suggest-dropdown" id="f-writer-suggest" style="display:none"></div>
+      </div>
     </div>
 
     <!-- ── 音樂劇專用欄位 ── -->
@@ -1186,7 +1197,7 @@ function renderCastGrouped(items, filterable){
   });
   return groups.map(g=>{
     const pills=g.names.map(n=>{
-      const click = filterable ? ` onclick="openActorPage('${jsStr(n)}')" style="cursor:pointer"` : '';
+      const click = filterable ? ` onclick="openActorPageFromWork('${jsStr(n)}')" style="cursor:pointer"` : '';
       return `<span class="actor-pill"${click}>${esc(n)}</span>`;
     }).join('');
     const header = g.role ? `<div class="cast-role-name">${esc(g.role)}<span class="cast-divider">｜</span></div>` : '';
@@ -1201,7 +1212,7 @@ function renderCastChipsInline(items, filterable){
   if(!items || !items.length) return '';
   const norm = items.map(c => (typeof c==='string') ? {role:'',name:c} : {role:c.role||'',name:c.name||c});
   const chips = norm.filter(c=>c.name).map(c=>{
-    const click = filterable ? ` onclick="openActorPage('${jsStr(c.name)}')" style="cursor:pointer"` : '';
+    const click = filterable ? ` onclick="openActorPageFromWork('${jsStr(c.name)}')" style="cursor:pointer"` : '';
     const roleHtml = c.role ? `<span class="cast-chip-role" title="${esc(c.role)}">${esc(c.role)}</span><span class="cast-chip-sep">｜</span>` : '';
     return `<span class="cast-chip"${click}>${roleHtml}<span class="cast-chip-actor">${esc(c.name)}</span></span>`;
   }).join('');
@@ -1413,6 +1424,74 @@ document.addEventListener('click', function(e){
     const wrap=document.getElementById(ids.wrap);
     const suggestEl=document.getElementById(ids.suggest);
     if(wrap && suggestEl && !wrap.contains(e.target)){
+      suggestEl.style.display='none';
+    }
+  });
+});
+
+// 導演／編劇的自動建議：純文字建議清單，不是像演員資料庫那種有身份的資料庫——
+// 只是把資料庫裡「已經打過的名字」抓出來當輸入建議，選了就是把文字貼進欄位，沒有任何身份綁定；
+// 就算兩個不同的人剛好同名，也只是「文字重複」被抓成一筆建議，不會被合併、不會互相影響
+// （這兩個欄位本來就沒有依名字分組的統計功能）。
+function getCrewNamePool(field){
+  const counts=new Map();
+  db.forEach(d=>{
+    const list = field==='director'
+      ? (d.directors&&d.directors.length?d.directors:(d.director?[d.director]:[]))
+      : (d.writers&&d.writers.length?d.writers:(d.writer?[d.writer]:[]));
+    (list||[]).forEach(name=>{
+      name=(name||'').trim();
+      if(!name) return;
+      counts.set(name,(counts.get(name)||0)+1);
+    });
+  });
+  return [...counts.entries()]
+    .map(([name,count])=>({name,count}))
+    .sort((a,b)=>b.count-a.count || a.name.localeCompare(b.name,'ko'));
+}
+
+// 只比對「目前正在打的這一段」（逗號分隔，跟卡司輸入同一套邏輯），不是比對整個欄位的文字。
+function onCrewInputType(field){
+  const input=document.getElementById('f-'+field);
+  const suggestEl=document.getElementById('f-'+field+'-suggest');
+  if(!input||!suggestEl) return;
+  const parts=input.value.split(/[,，]/);
+  const current=parts[parts.length-1].trim();
+  if(!current){ suggestEl.style.display='none'; return; }
+
+  const matches=getCrewNamePool(field).filter(p=>p.name.toLowerCase().includes(current.toLowerCase()) && p.name!==current);
+  if(!matches.length){ suggestEl.style.display='none'; return; }
+
+  suggestEl.innerHTML=matches.slice(0,8).map(p=>
+    `<div class="tag-suggest-item" onmousedown="event.preventDefault();selectCrewSuggestion('${field}','${jsStr(p.name)}')">${esc(p.name)}<span style="font-size:11px;color:#999">用過 ${p.count} 次</span></div>`
+  ).join('');
+  suggestEl.style.display='block';
+}
+
+function onCrewInputKeydown(event,field){
+  if(event.key==='Enter'){
+    const suggestEl=document.getElementById('f-'+field+'-suggest');
+    if(suggestEl) suggestEl.style.display='none';
+  }
+}
+
+// 選了建議之後，只替換「目前正在打的這一段」，前面已經確定的名字不動，並補上「, 」方便繼續打下一位。
+function selectCrewSuggestion(field,name){
+  const input=document.getElementById('f-'+field);
+  if(!input) return;
+  const parts=input.value.split(/[,，]/);
+  parts[parts.length-1]=name;
+  input.value=parts.map(p=>p.trim()).filter(Boolean).join(', ')+', ';
+  const suggestEl=document.getElementById('f-'+field+'-suggest');
+  if(suggestEl) suggestEl.style.display='none';
+  input.focus();
+}
+
+document.addEventListener('click', function(e){
+  ['director','writer'].forEach(field=>{
+    const input=document.getElementById('f-'+field);
+    const suggestEl=document.getElementById('f-'+field+'-suggest');
+    if(input && suggestEl && e.target!==input && !suggestEl.contains(e.target)){
       suggestEl.style.display='none';
     }
   });
@@ -1848,10 +1927,11 @@ function phHTML(name,orig){
   return `<div class="poster-placeholder"><div class="ph-icon"><i class="ti ti-device-tv"></i></div><div class="ph-name">${esc(name)}</div>${orig?`<div class="ph-orig">${esc(orig)}</div>`:''}</div>`;
 }
 
-// 集數顯示標準化：有輸入就顯示「第 X 集」，沒有就回傳空字串（呼叫端據此隱藏該欄位，不留空白）
+// 集數顯示標準化：有輸入就顯示「共 X 集」（這個欄位存的是全劇總集數，不是目前看到第幾集），
+// 沒有就回傳空字串（呼叫端據此隱藏該欄位，不留空白）
 function episodeLabel(d){
   const n=parseInt(d.episode,10);
-  return (n>0) ? `第 ${n} 集` : '';
+  return (n>0) ? `共 ${n} 集` : '';
 }
 
 // 大劇目卡片統計：加總這部音樂劇所有季度、所有場次的總觀看場次與總花費（統一換算成台幣）。
@@ -2385,7 +2465,7 @@ function renderOverviewActorStats(d){
     const roleBlocksHtml=roles.map(r=>`
       <div class="role-stat-block">
         ${r.role?`<div class="role-stat-role">${esc(r.role)} <span class="role-total">共 ${r.total} 次</span></div>`:''}
-        <div class="role-stat-actors">${r.actors.map(a=>`<span class="role-actor-chip" onclick="openActorPage('${jsStr(a.name)}')" style="cursor:pointer"><span class="name">${esc(a.name)}</span><span class="n">${a.count}</span></span>`).join('')}</div>
+        <div class="role-stat-actors">${r.actors.map(a=>`<span class="role-actor-chip" onclick="openActorPageFromWork('${jsStr(a.name)}')" style="cursor:pointer"><span class="name">${esc(a.name)}</span><span class="n">${a.count}</span></span>`).join('')}</div>
       </div>`).join('');
     const isOpen=i===lastIdx;
     return `
@@ -2994,7 +3074,7 @@ function openDetail(id){
     d.actors.forEach(actor=>{
       const others=db.filter(x=>x.id!==id&&x.actors&&x.actors.includes(actor));
       if(others.length){
-        blocks.push(`<div style="margin-bottom:.4rem"><span class="ppill" onclick="openActorPage('${esc(actor)}')" style="margin:0 4px 0 0">${esc(actor)}</span><span style="font-size:12px;color:#999">其他作品：</span>${others.map(x=>`<span class="cpill" onclick="closeModal('detail-modal');openDetail('${x.id}')">${esc(x.name)}</span>`).join('')}</div>`);
+        blocks.push(`<div style="margin-bottom:.4rem"><span class="ppill" onclick="openActorPageFromWork('${esc(actor)}')" style="margin:0 4px 0 0">${esc(actor)}</span><span style="font-size:12px;color:#999">其他作品：</span>${others.map(x=>`<span class="cpill" onclick="closeModal('detail-modal');openDetail('${x.id}')">${esc(x.name)}</span>`).join('')}</div>`);
       }
     });
     if(blocks.length) relActors=`<div class="sec-title">演員的其他作品</div>${blocks.join('')}`;
@@ -3049,7 +3129,7 @@ function openDetail(id){
       ${dDirectors.length?`<div class="meta-row"><span class="meta-label">導演</span>${dDirectors.map(p=>`<span class="ppill" onclick="setPerson('${esc(p)}','director')">${esc(p)} 🔍</span>`).join('')}</div>`:''}
       ${dWriters.length?`<div class="meta-row"><span class="meta-label">編劇</span>${dWriters.map(p=>`<span class="ppill" onclick="setPerson('${esc(p)}','writer')">${esc(p)} 🔍</span>`).join('')}</div>`:''}
     </div>
-    ${d.actors&&d.actors.length?`<div class="meta-row" style="margin-bottom:1rem"><span class="meta-label" style="font-size:12px">主角</span>${d.actors.map(a=>`<span class="ppill" onclick="openActorPage('${esc(a)}')">${esc(a)} 🔍</span>`).join('')}</div>`:''}
+    ${d.actors&&d.actors.length?`<div class="meta-row" style="margin-bottom:1rem"><span class="meta-label" style="font-size:12px">主角</span>${d.actors.map(a=>`<span class="ppill" onclick="openActorPageFromWork('${esc(a)}')">${esc(a)} 🔍</span>`).join('')}</div>`:''}
     ${d.cameoActors&&d.cameoActors.length?`<div class="sec-title" style="margin-top:0">客串／特別演出</div><div style="margin-bottom:1rem">${renderCastChipsInline(d.cameoActors,true)}</div>`:''}
     ${d.note?`<div style="background:#F8F8FB;border-radius:12px;padding:.85rem;font-size:13px;line-height:1.7;margin-bottom:1rem;font-weight:500;color:#444">${esc(d.note)}</div>`:''}
     ${rel}`;
@@ -3555,14 +3635,34 @@ function getActorShowCount(name){
 // 導向演員詳細頁：改變 hash，實際渲染交給 hashchange 監聽統一處理
 // 開啟演員懸浮卡片：關掉可能開著的作品詳細 modal，導向 #actor/<姓名>。
 // 不再需要「先關閉人物總表」——總表現在是頁面而不是 modal，卡片會疊在它上面。
+// 用於「演員資料庫」列表本身點卡片的情況：關閉時應該回到人物總表，所以走 hash 路由。
 function openActorPage(name){
   if(!name) return;
   closeModal('detail-modal');
   location.hash = 'actor/' + encodeURIComponent(name);
 }
 
-// 關閉懸浮卡片，回到人物總表頁面（不是離開整個 app）
+// 從電視劇／音樂劇詳細頁點演員名字時改用這個——不透過 hash 路由，
+// 不會把使用者導去演員資料庫列表頁，只在目前畫面最上層疊一張演員卡片；
+// 關閉卡片時會直接回到原本正在看的那個作品詳細頁，不是演員資料庫列表。
+let actorCardOpenedFromWork=false;
+function openActorPageFromWork(name){
+  if(!name) return;
+  actorCardOpenedFromWork=true;
+  renderActorPage(name);
+  const cardBg=document.getElementById('actor-card-bg');
+  if(cardBg) cardBg.classList.add('open');
+}
+
+// 關閉懸浮卡片：如果是從作品詳細頁疊上來的，只關掉卡片本身，底下的作品詳細頁維持原樣；
+// 否則（從人物總表列表頁打開的）照原本邏輯改 hash 回到人物總表。
 function closeActorPage(){
+  if(actorCardOpenedFromWork){
+    actorCardOpenedFromWork=false;
+    const cardBg=document.getElementById('actor-card-bg');
+    if(cardBg) cardBg.classList.remove('open');
+    return;
+  }
   location.hash = 'actors';
 }
 
