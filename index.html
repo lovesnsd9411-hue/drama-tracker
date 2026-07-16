@@ -209,6 +209,10 @@ input,select,textarea,button{font-family:inherit}
 .cat-toggle{display:flex;gap:4px;background:#E8E8F0;border-radius:10px;padding:3px;width:fit-content}
 .cat-btn{background:none;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;color:#888;font-size:13px;font-weight:600;transition:all .15s;display:flex;align-items:center;gap:5px}
 .cat-btn.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+/* 音樂劇底下的「類型」篩選（全部／音樂劇／話劇），跟 cat-toggle 同一套視覺但小一號，區分是次要篩選 */
+.type-filter{display:flex;gap:4px;background:#F0F0F6;border-radius:10px;padding:3px;width:fit-content}
+.type-filter button{background:none;border:none;border-radius:8px;padding:5px 12px;cursor:pointer;color:#888;font-size:12.5px;font-weight:700;transition:all .15s;display:flex;align-items:center;gap:5px;font-family:inherit}
+.type-filter button.on{background:#fff;color:#3C3489;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 
 .method-toggle{display:flex;gap:4px;background:#E8E8F0;border-radius:10px;padding:3px}
 .method-btn{flex:1;background:none;border:none;border-radius:8px;padding:7px 10px;cursor:pointer;color:#888;font-size:13px;font-weight:700;transition:all .15s;font-family:inherit}
@@ -464,6 +468,12 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
     <button type="button" class="cat-btn" id="main-cat-musical-btn" onclick="setMainCategory('musical')"><i class="ti ti-music"></i> 音樂劇</button>
   </div>
 
+  <div class="type-filter" id="stage-type-filter" style="display:none;margin-bottom:.75rem">
+    <button type="button" class="on" onclick="setStageTypeFilter('')">全部</button>
+    <button type="button" onclick="setStageTypeFilter('musical')"><i class="ti ti-music"></i> 音樂劇</button>
+    <button type="button" onclick="setStageTypeFilter('play')"><i class="ti ti-book-2"></i> 話劇</button>
+  </div>
+
   <div class="toolbar">
     <div class="search-wrap">
       <input type="text" id="search" placeholder="搜尋劇名、原文名、演員…" oninput="onSearchInput()">
@@ -513,6 +523,15 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <label>劇名（原文）＊</label>
       <input type="text" id="f-musical-name" placeholder="請輸入原文劇名（如：어쩌면 해피엔딩）" oninput="onMusicalNameInput()">
       <div id="dup-warning-musical" style="display:none;font-size:12px;color:#D97706;margin-top:4px;font-weight:600"></div>
+    </div>
+
+    <!-- ── 音樂劇專用：類型（音樂劇／話劇），兩者資料結構完全共用，只差圖示/顏色跟篩選用 ── -->
+    <div class="field" id="musical-only-type" style="display:none">
+      <label>類型</label>
+      <div class="type-filter" id="f-stage-type-toggle">
+        <button type="button" class="on" data-v="musical" onclick="pickStageType(this)"><i class="ti ti-music"></i> 音樂劇</button>
+        <button type="button" data-v="play" onclick="pickStageType(this)"><i class="ti ti-book-2"></i> 話劇</button>
+      </div>
     </div>
 
     <!-- Poster picker -->
@@ -787,6 +806,7 @@ let isGuestMode=false;
 // 'all'：音樂劇正常顯示（頁籤、清單、詳情都看得到），但所有金額（總金額／單場金額）一律遮蔽成 $ *****。
 let guestShareScope='drama';
 let mainCategory=''; // '' = all, 'drama', 'musical'
+let stageTypeFilter=''; // 音樂劇分頁專用的次分類篩選：'' = 全部, 'musical', 'play'（話劇）
 // hashchange 是非同步事件；如果從演員卡片點作品後才把 detail-modal 打開，
 // 稍後才觸發的 handleRoute() 還是會把它立刻關掉（因為裡面有「路由改變就關掉 detail-modal」的清理邏輯），
 // 造成畫面閃一下又消失、像完全沒反應一樣。用這個旗標讓 handleRoute() 跳過那一次自動關閉。
@@ -1735,8 +1755,21 @@ function setMainCategory(cat,skipRender){
     const cats=['','drama','musical'];
     btn.classList.toggle('on',cats[i]===cat);
   });
+  // 話劇/音樂劇類型篩選只在音樂劇分頁才有意義，切到別的分頁就收起來、重置回全部。
+  const typeFilterEl=document.getElementById('stage-type-filter');
+  if(typeFilterEl) typeFilterEl.style.display = cat==='musical' ? '' : 'none';
+  if(cat!=='musical') stageTypeFilter='';
   // clear genre/platform filters since they may not apply across categories
   if(!skipRender) render();
+}
+
+function setStageTypeFilter(type){
+  stageTypeFilter=type;
+  document.querySelectorAll('#stage-type-filter button').forEach((btn,i)=>{
+    const types=['','musical','play'];
+    btn.classList.toggle('on',types[i]===type);
+  });
+  render();
 }
 
 async function setFormCategory(cat){
@@ -1751,7 +1784,7 @@ async function setFormCategory(cat){
     if(el) el.style.display=isMusical?'none':'';
   });
   // musical-only field groups
-  ['musical-only-name','musical-only-season','musical-only-settlement','musical-only-cast'].forEach(id=>{
+  ['musical-only-name','musical-only-type','musical-only-season','musical-only-settlement','musical-only-cast'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display=isMusical?'':'none';
   });
@@ -2070,6 +2103,7 @@ function getFiltered(){
   const q=(document.getElementById('search').value||'').toLowerCase();
   let list=[...db];
   if(mainCategory) list=list.filter(d=>(d.category||'drama')===mainCategory);
+  if(mainCategory==='musical' && stageTypeFilter) list=list.filter(d=>(d.stageType||'musical')===stageTypeFilter);
   if(q) list=list.filter(d=>[d.name,d.orig||'',...castNames(d.actors),...(d.directors||(d.director?[d.director]:[])),...(d.writers||(d.writer?[d.writer]:[]))].join(' ').toLowerCase().includes(q));
   if(aFilter.type==='status') list=list.filter(d=>d.status===aFilter.val);
   else if(aFilter.type==='year') list=list.filter(d=>d.yearDone===aFilter.val);
@@ -2149,6 +2183,11 @@ function musicalCardStats(d){
   return {count,spent};
 }
 
+// 話劇跟音樂劇共用同一套資料結構（現場觀看、卡司、季度、金額…），差別只在圖示/顏色：
+// 話劇用劇本圖示＋橘色系，音樂劇維持原本音符圖示＋紫色系。
+function isPlay(d){ return d.category==='musical' && d.stageType==='play'; }
+function stageTypeIcon(d){ return isPlay(d)?'ti-book-2':'ti-music'; }
+
 // 統一的金額顯示：訪客模式下一律遮蔽成 $ *****（不管幣別、不管是單場還是加總金額）
 function moneyLabel(amountTWD){
   return isGuestMode ? '$ *****' : '$'+Math.round(amountTWD).toLocaleString();
@@ -2170,7 +2209,7 @@ function renderGallery(list,el){
         <div class="po-name">${esc(d.name)}</div>
         <div class="po-score">${[hasRating(d)?'⭐ '+parseFloat(d.rating).toFixed(1):'',episodeLabel(d)].filter(Boolean).join(' · ')}</div>
         ${d.category==='musical'
-          ?(()=>{const s=musicalCardStats(d);return `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> ${s.count}場${s.spent>0?' · '+moneyLabel(s.spent):''}</span>`;})()
+          ?(()=>{const s=musicalCardStats(d);return `<span class="po-badge" style="background:${isPlay(d)?'#D97706':'#7C6FE0'};color:#fff"><i class="ti ${stageTypeIcon(d)}" style="font-size:10px"></i> ${s.count}場${s.spent>0?' · '+moneyLabel(s.spent):''}</span>`;})()
           :`<span class="po-badge ${d.status==='done'?'po-done':d.status==='dropped'?'po-dropped':'po-ongoing'}">${d.status==='done'?'看完':d.status==='dropped'?'棄劇':'觀看中'}</span>`}
       </div>
     </div>`).join('');
@@ -2198,7 +2237,7 @@ function renderTable(list,el){
           <div class="rt-orig">${d.orig?esc(d.orig):''}${episodeLabel(d)?' · '+episodeLabel(d):''}</div>
         </div>
         <div class="rt-cell rt-c-rating rt-score">${hasRating(d)?'⭐ '+parseFloat(d.rating).toFixed(1):'—'}</div>
-        <div class="rt-cell rt-c-status">${d.category==='musical'?(()=>{const s=musicalCardStats(d);return `<span class="badge" style="background:#EEEDFE;color:#3C3489">${s.count}場${s.spent>0?' · '+moneyLabel(s.spent):''}</span>`;})():statusBadge(d.status)}</div>
+        <div class="rt-cell rt-c-status">${d.category==='musical'?(()=>{const s=musicalCardStats(d);return `<span class="badge" style="background:${isPlay(d)?'#FEF3C7':'#EEEDFE'};color:${isPlay(d)?'#B45309':'#3C3489'}">${s.count}場${s.spent>0?' · '+moneyLabel(s.spent):''}</span>`;})():statusBadge(d.status)}</div>
         <div class="rt-cell rt-c-year rt-muted">${d.category==='musical'?'—':(d.yearDone?d.yearDone+'年':'—')}</div>
         <div class="rt-cell rt-c-platform rt-muted">${d.platform?esc(d.platform):'—'}</div>
         <div class="rt-cell rt-c-acts">
@@ -2573,7 +2612,7 @@ function renderMusicalDetail(d){
       <div style="flex:1;min-width:0">
         <div style="font-size:20px;font-weight:700;color:#1A1A2E;line-height:1.3">${esc(d.name)}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center">
-          <span class="badge" style="background:#EEEDFE;color:#3C3489"><i class="ti ti-music" style="font-size:11px;margin-right:3px"></i>音樂劇</span>
+          <span class="badge" style="background:${isPlay(d)?'#FEF3C7':'#EEEDFE'};color:${isPlay(d)?'#B45309':'#3C3489'}"><i class="ti ${stageTypeIcon(d)}" style="font-size:11px;margin-right:3px"></i>${isPlay(d)?'話劇':'音樂劇'}</span>
           ${namuUrl?`<a href="${esc(namuUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#3C3489;font-weight:600;text-decoration:none;background:#EEEDFE;padding:4px 10px;border-radius:20px"><i class="ti ti-external-link"></i> 나무위키${d.namu?'':' (搜尋)'}</a>`:''}
         </div>
       </div>
@@ -2987,6 +3026,21 @@ function pickShowMethod(btn){
   document.querySelectorAll('#show-method-toggle .method-btn').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
   applyShowMethodVisibility(btn.dataset.v);
+}
+
+// 新增/編輯音樂劇表單裡的「類型」（音樂劇／話劇）切換，純粹是顯示用的分類，不影響其他欄位。
+function pickStageType(btn){
+  document.querySelectorAll('#f-stage-type-toggle button').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+function getSelectedStageType(){
+  const btn=document.querySelector('#f-stage-type-toggle button.on');
+  return btn ? btn.dataset.v : 'musical';
+}
+function setSelectedStageType(type){
+  document.querySelectorAll('#f-stage-type-toggle button').forEach(b=>{
+    b.classList.toggle('on', b.dataset.v===(type||'musical'));
+  });
 }
 
 async function openAddShowForm(dramaId, editShowId){
@@ -3456,6 +3510,7 @@ function openAdd(){
     renderSettlementPreview('');
     const settlementUploadStatus=document.getElementById('f-settlement-upload-status');
     if(settlementUploadStatus) settlementUploadStatus.textContent='';
+    setSelectedStageType('musical');
     const dupW=document.getElementById('dup-warning');
     if(dupW) dupW.style.display='none';
     const dupWM=document.getElementById('dup-warning-musical');
@@ -3506,6 +3561,7 @@ function openEdit(id){
   setFieldVal('f-musical-season',d.season||'');
   setFieldVal('f-settlement-url',d.settlementImage||'');
   renderSettlementPreview(d.settlementImage||'');
+  setSelectedStageType(d.stageType||'musical');
   setFieldVal('f-namu',d.namu||'');
   setFieldVal('f-actors',(d.actors||[]).join(', '));
   initCastTagInput('cameo', d.cameoActors||[]);
@@ -3601,7 +3657,8 @@ function saveForm(){
       directors:[],director:'',writers:[],writer:'',
       note:fieldVal('f-note').trim(),
       poster,namu:fieldVal('f-namu').trim(),
-      settlementImage:fieldVal('f-settlement-url').trim()
+      settlementImage:fieldVal('f-settlement-url').trim(),
+      stageType:getSelectedStageType()
     };
     data.viewing_history = (existing && existing.viewing_history) ? existing.viewing_history : [];
   }else{
@@ -3972,8 +4029,8 @@ function renderActorWorksList(list, el, name){
     const nameLabel = personalCount>1 ? `${esc(d.name)}（${personalCount}次）` : esc(d.name);
     const badge = d.category==='musical'
       ? (personalCount>0
-          ? `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> ${personalCount}次</span>`
-          : `<span class="po-badge" style="background:#7C6FE0;color:#fff"><i class="ti ti-music" style="font-size:10px"></i> 候選卡司</span>`)
+          ? `<span class="po-badge" style="background:${isPlay(d)?'#D97706':'#7C6FE0'};color:#fff"><i class="ti ${stageTypeIcon(d)}" style="font-size:10px"></i> ${personalCount}次</span>`
+          : `<span class="po-badge" style="background:${isPlay(d)?'#D97706':'#7C6FE0'};color:#fff"><i class="ti ${stageTypeIcon(d)}" style="font-size:10px"></i> 候選卡司</span>`)
       : isCameoOnlyAppearance(d,name)
         ? `<span class="po-badge" style="background:#fff;color:#3C3489;border:1px solid #AFA9EC">客串</span>`
         : `<span class="po-badge ${d.status==='done'?'po-done':d.status==='dropped'?'po-dropped':'po-ongoing'}">${d.status==='done'?'看完':d.status==='dropped'?'棄劇':'觀看中'}</span>`;
