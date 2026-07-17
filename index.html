@@ -511,7 +511,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
 
   <div class="toolbar">
     <div class="search-wrap">
-      <input type="text" id="search" placeholder="搜尋劇名、原文名、演員…" oninput="onSearchInput()">
+      <input type="text" id="search" placeholder="搜尋劇名、原文名、演員…" oninput="onSearchInput()" autocomplete="off">
       <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none" title="清除搜尋"><i class="ti ti-x"></i></button>
     </div>
     <select id="ftype" onchange="onTypeChange()">
@@ -573,7 +573,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
     <div class="field">
       <label>海報</label>
       <div class="poster-search-row">
-        <div class="field"><input type="text" id="f-poster-q" placeholder="搜尋海報（自動填入劇名）"></div>
+        <div class="field"><input type="text" id="f-poster-q" placeholder="搜尋海報（自動填入劇名）" autocomplete="off"></div>
         <button class="icon-btn" onclick="searchPosters()" style="white-space:nowrap;flex-shrink:0"><i class="ti ti-search"></i> 搜尋</button>
         <button class="icon-btn" onclick="clearPoster()" title="清除海報" style="flex-shrink:0"><i class="ti ti-x"></i></button>
       </div>
@@ -670,7 +670,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <input type="text" id="f-musical-season" placeholder="例：2026.03 ~ 2026.05　或　2026 三演">
     </div>
 
-    <div class="field" id="namu-field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋"></div>
+    <div class="field" id="namu-field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋" autocomplete="off"></div>
 
     <!-- ── 音樂劇專用：季度區塊（取代舊版單一共用的「主要演員」欄位）──
          每一季各自獨立：季名、演出期間、專屬卡司。卡司在這裡明確定義，
@@ -5290,7 +5290,7 @@ async function deleteMusicalActorRow(id){
       <button class="icon-btn" onclick="openActorsCleanupPreview()" title="演員資料清理" style="color:#B45309;border-color:#F5D9A8"><i class="ti ti-wand"></i></button>
     </div>
     <div class="actors-search-bar">
-      <input type="text" id="actors-search-input" placeholder="搜尋演員姓名…" oninput="setActorsSearch(this.value)">
+      <input type="text" id="actors-search-input" placeholder="搜尋演員姓名…" oninput="setActorsSearch(this.value)" autocomplete="off">
       <select class="actors-sort-select" id="actors-sort-select" onchange="setActorsSortMode(this.value)">
         <option value="count">依總觀看次數</option>
         <option value="name">依姓名 A→Z</option>
