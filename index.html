@@ -640,24 +640,27 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <input type="text" id="f-musical-season" placeholder="例：2026.03 ~ 2026.05　或　2026 三演">
     </div>
 
+    <div class="field" id="namu-field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋"></div>
+
+    <!-- ── 音樂劇專用：季度區塊（取代舊版單一共用的「主要演員」欄位）──
+         每一季各自獨立：季名、演出期間、專屬卡司。卡司在這裡明確定義，
+         不會從多刷紀錄反推——這是季度→專屬卡司架構的資料來源本體。
+         放在정산판前面，這樣季度名稱先設定好，정산판才能選季度。 -->
+    <div class="field" id="musical-only-cast" style="display:none">
+      <label>季度設定（每一季各自的專屬卡司）</label>
+      <div id="season-blocks-container"></div>
+      <button type="button" class="icon-btn" onclick="addSeasonBlock()" style="margin-top:.4rem"><i class="ti ti-plus"></i> 新增季度</button>
+    </div>
+
     <div class="field" id="musical-only-settlement" style="display:none">
       <label>정산판（結算圖，顯示在總覽分頁，可留空）</label>
+      <!-- 只有設定了兩季以上才會顯示，選項直接讀上面「季度設定」填的季名，不用另外輸入 -->
+      <div class="type-filter" id="settlement-season-tabs" style="display:none;margin-bottom:.6rem"></div>
       <div id="settlement-preview" style="margin-bottom:8px"></div>
       <input type="text" id="f-settlement-url" placeholder="https://...（貼圖片網址）" oninput="onSettlementUrlInput()">
       <label style="font-size:12px;color:#aaa;font-weight:600;display:block;margin-top:8px">或直接上傳圖片檔（存到 Supabase Storage，不怕原網站的圖片失效）</label>
       <input type="file" id="f-settlement-file" accept="image/*" onchange="handleSettlementFileUpload(event)" style="margin-top:4px">
       <div id="f-settlement-upload-status" style="font-size:11px;color:#aaa;margin-top:4px"></div>
-    </div>
-
-    <div class="field" id="namu-field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋"></div>
-
-    <!-- ── 音樂劇專用：季度區塊（取代舊版單一共用的「主要演員」欄位）──
-         每一季各自獨立：季名、演出期間、專屬卡司。卡司在這裡明確定義，
-         不會從多刷紀錄反推——這是季度→專屬卡司架構的資料來源本體。 -->
-    <div class="field" id="musical-only-cast" style="display:none">
-      <label>季度設定（每一季各自的專屬卡司）</label>
-      <div id="season-blocks-container"></div>
-      <button type="button" class="icon-btn" onclick="addSeasonBlock()" style="margin-top:.4rem"><i class="ti ti-plus"></i> 新增季度</button>
     </div>
 
     <div class="field"><label>筆記 / 心得</label><textarea id="f-note" placeholder="想記錄什麼都可以…"></textarea></div>
@@ -1961,8 +1964,47 @@ async function handlePosterFileUpload(event){
   event.target.value='';
 }
 
-// 정산판（結算圖）：跟海報一樣可以貼網址或直接上傳檔案，但只有一張、沒有搜尋功能，
-// 单純顯示在音樂劇總覽分頁，點下去可以放大看（openImageLightbox）。
+// 정산판（結算圖）：跟海報一樣可以貼網址或直接上傳檔案，单純顯示在音樂劇總覽分頁，
+// 點下去可以放大看（openImageLightbox）。長演的劇每一季可能各自做一張，所以底層存的是
+// 一個陣列（每季一張），只有設定了兩季以上才會出現季度分頁選擇；只有一季就跟以前一樣單純。
+// formSettlementState 是編輯表單暫存用的 {季度陣列索引: 圖片網址}，切換分頁時互相不會覆蓋掉彼此。
+let formSettlementState={};
+let activeSettlementSeasonIndex=0;
+
+// 讀取顯示用：把舊資料的單一 d.settlementImage 也當作一筆（季度留空字串），
+// 這樣還沒被重新存過的舊資料一樣看得到圖，不用特地跑資料轉換。
+function getSettlementImages(d){
+  if(d.settlementImages && d.settlementImages.length) return d.settlementImages;
+  if(d.settlementImage) return [{season:'',url:d.settlementImage}];
+  return [];
+}
+
+function renderSettlementSeasonTabs(){
+  const el=document.getElementById('settlement-season-tabs');
+  if(!el) return;
+  if(formSeasonsState.length<=1){
+    el.style.display='none';
+    el.innerHTML='';
+    activeSettlementSeasonIndex=0;
+    return;
+  }
+  el.style.display='';
+  el.innerHTML=formSeasonsState.map((s,i)=>
+    `<button type="button" class="${i===activeSettlementSeasonIndex?'on':''}" onclick="pickSettlementSeasonTab(${i})">${esc(s.name||('第'+(i+1)+'季'))}</button>`
+  ).join('');
+}
+
+function pickSettlementSeasonTab(index){
+  formSettlementState[activeSettlementSeasonIndex]=fieldVal('f-settlement-url').trim();
+  activeSettlementSeasonIndex=index;
+  renderSettlementSeasonTabs();
+  const url=formSettlementState[index]||'';
+  setFieldVal('f-settlement-url',url);
+  renderSettlementPreview(url);
+  const statusEl=document.getElementById('f-settlement-upload-status');
+  if(statusEl) statusEl.textContent='';
+}
+
 function renderSettlementPreview(url){
   const el=document.getElementById('settlement-preview');
   if(!el) return;
@@ -1971,10 +2013,13 @@ function renderSettlementPreview(url){
     : '';
 }
 function onSettlementUrlInput(){
-  renderSettlementPreview(fieldVal('f-settlement-url').trim());
+  const url=fieldVal('f-settlement-url').trim();
+  formSettlementState[activeSettlementSeasonIndex]=url;
+  renderSettlementPreview(url);
 }
 function clearSettlementImage(){
   setFieldVal('f-settlement-url','');
+  formSettlementState[activeSettlementSeasonIndex]='';
   renderSettlementPreview('');
 }
 async function handleSettlementFileUpload(event){
@@ -2568,12 +2613,27 @@ function addSeasonBlock(){
   syncSeasonBlocksFromDOM();
   formSeasonsState.push({name:'',period:'',actors:[]});
   renderSeasonBlocksContainer();
+  renderSettlementSeasonTabs();
 }
 
 function removeSeasonBlock(index){
   syncSeasonBlocksFromDOM();
   formSeasonsState.splice(index,1);
+  // 정산판暫存資料要跟著位移，不然刪掉中間某一季之後，後面季度的정산판會對到錯誤的季度
+  const shiftedSettlementState={};
+  Object.keys(formSettlementState).forEach(key=>{
+    const i=parseInt(key,10);
+    if(i<index) shiftedSettlementState[i]=formSettlementState[i];
+    else if(i>index) shiftedSettlementState[i-1]=formSettlementState[i];
+    // i===index 的那份直接捨棄，因為那一季本身被刪掉了
+  });
+  formSettlementState=shiftedSettlementState;
+  if(activeSettlementSeasonIndex>=formSeasonsState.length) activeSettlementSeasonIndex=Math.max(0,formSeasonsState.length-1);
   renderSeasonBlocksContainer();
+  renderSettlementSeasonTabs();
+  const url=formSettlementState[activeSettlementSeasonIndex]||'';
+  setFieldVal('f-settlement-url',url);
+  renderSettlementPreview(url);
 }
 
 // 依目前選擇的季度分頁籤，渲染「主要演員」區塊：
@@ -2783,10 +2843,21 @@ function renderMusicalTabContent(dramaId){
         <button class="overdue-banner-btn" onclick="jumpToOverdueRecords()">去看看</button>
       </div>`:'';
     // 정산판（結算圖）：點下去用 openImageLightbox 放大看，不用另外做圖片檢視器。
-    const settlementHtml=d.settlementImage?`
-      <div style="margin-top:1rem;text-align:center">
-        <img src="${esc(d.settlementImage)}" onclick="openImageLightbox('${jsStr(d.settlementImage)}')" title="點擊放大看" style="max-width:100%;max-height:320px;border-radius:12px;cursor:zoom-in;border:1px solid #E5E5F0;object-fit:contain" onerror="this.style.display='none'">
-      </div>`:'';
+    // 長演的劇可能每一季各自一張，只有兩張以上才會顯示季度標籤；只有一張的話跟以前一樣單純顯示。
+    const settlementImages=getSettlementImages(d);
+    const settlementHtml=settlementImages.length?(
+      settlementImages.length===1
+        ? `<div style="margin-top:1rem;text-align:center">
+        <img src="${esc(settlementImages[0].url)}" onclick="openImageLightbox('${jsStr(settlementImages[0].url)}')" title="點擊放大看" style="max-width:100%;max-height:320px;border-radius:12px;cursor:zoom-in;border:1px solid #E5E5F0;object-fit:contain" onerror="this.style.display='none'">
+      </div>`
+        : `<div style="margin-top:1rem;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+        ${settlementImages.map(si=>`
+          <div style="width:140px;text-align:center">
+            <img src="${esc(si.url)}" onclick="openImageLightbox('${jsStr(si.url)}')" title="點擊放大看" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:11px;cursor:zoom-in;border:1px solid #E5E5F0" onerror="this.style.display='none'">
+            <div style="margin-top:5px;font-size:12px;font-weight:700;color:#666">${esc(si.season||'未分類')}</div>
+          </div>`).join('')}
+      </div>`
+    ):'';
     contentEl.innerHTML=`
       ${overdueBannerHtml}
       <div class="musical-dashboard">
@@ -3512,6 +3583,8 @@ function openAdd(){
     if(posterPrev) posterPrev.innerHTML='';
     const posterUploadStatus=document.getElementById('f-poster-upload-status');
     if(posterUploadStatus) posterUploadStatus.textContent='';
+    formSettlementState={};
+    activeSettlementSeasonIndex=0;
     renderSettlementPreview('');
     const settlementUploadStatus=document.getElementById('f-settlement-upload-status');
     if(settlementUploadStatus) settlementUploadStatus.textContent='';
@@ -3529,6 +3602,7 @@ function openAdd(){
     initCastTagInput('cameo', []);
     formSeasonsState=[{name:'',period:'',actors:[]}];
     renderSeasonBlocksContainer();
+    renderSettlementSeasonTabs();
     setFormCategory('drama');
 
     // 選單重置
@@ -3564,8 +3638,6 @@ function openEdit(id){
 
   setFieldVal('f-platform',d.platform||'');
   setFieldVal('f-musical-season',d.season||'');
-  setFieldVal('f-settlement-url',d.settlementImage||'');
-  renderSettlementPreview(d.settlementImage||'');
   setSelectedStageType(d.stageType||'musical');
   setFieldVal('f-namu',d.namu||'');
   setFieldVal('f-actors',(d.actors||[]).join(', '));
@@ -3602,6 +3674,19 @@ function openEdit(id){
         // 舊資料還沒用季度表單設定過：先用既有的候選名單墊成一個季度，方便使用者接手拆分成正式的多季結構
         : [{name:'',period:'',actors:(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[])}];
       renderSeasonBlocksContainer();
+
+      // 정산판暫存資料：依季度名稱把已存的圖片對應回現在的季度位置（改名之後就對不上了，
+      // 這種情況下那張圖只是暫時挑不出來，不會被刪除——重新選一次季度存檔就會補回關聯）。
+      formSettlementState={};
+      getSettlementImages(d).forEach(si=>{
+        const idx=formSeasonsState.findIndex(s=>(s.name||'').trim()===(si.season||'').trim());
+        if(idx>=0) formSettlementState[idx]=si.url;
+      });
+      activeSettlementSeasonIndex=0;
+      renderSettlementSeasonTabs();
+      const settlementUrl=formSettlementState[0]||'';
+      setFieldVal('f-settlement-url',settlementUrl);
+      renderSettlementPreview(settlementUrl);
     }, 350);
   }
   openModal('form-modal');
@@ -3651,6 +3736,12 @@ function saveForm(){
     // 向下相容：d.actors／d.actors_all 保留給還沒改用 seasons 結構的功能讀取
     // （人物總表、演員詳細頁、搜尋…），內容是所有季度卡司的聯集，依「角色＋姓名」去重。
     const unionCast=normalizeCastArray(seasons.flatMap(s=>s.actors));
+    // 정산판：先把目前畫面上這個分頁還沒同步的輸入存回暫存資料，再依季度組成最終陣列，
+    // 沒圖的季度就不會存進去（不會存出一堆空字串佔位）。
+    formSettlementState[activeSettlementSeasonIndex]=fieldVal('f-settlement-url').trim();
+    const settlementImages=seasons
+      .map((s,i)=>({season:s.name,url:(formSettlementState[i]||'').trim()}))
+      .filter(x=>x.url);
     data={
       name,orig,category,
       status:'',rating:0,genre:'',genres:[],
@@ -3662,7 +3753,7 @@ function saveForm(){
       directors:[],director:'',writers:[],writer:'',
       note:fieldVal('f-note').trim(),
       poster,namu:fieldVal('f-namu').trim(),
-      settlementImage:fieldVal('f-settlement-url').trim(),
+      settlementImages,
       stageType:getSelectedStageType()
     };
     data.viewing_history = (existing && existing.viewing_history) ? existing.viewing_history : [];
