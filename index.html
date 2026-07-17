@@ -30,6 +30,12 @@ input,select,textarea,button{font-family:inherit}
 .more-menu-item{display:flex;align-items:center;gap:8px;background:none;border:none;text-align:left;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:#444;font-weight:600;white-space:nowrap;width:100%}
 .more-menu-item:hover{background:#F3F3F8}
 
+.backup-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 4px;border-bottom:.5px solid #F0F0F5}
+.backup-row:last-child{border-bottom:none}
+.backup-row-name{font-size:12.5px;font-weight:600;color:#444;font-variant-numeric:tabular-nums}
+.backup-row-actions{display:flex;gap:4px;flex-shrink:0}
+.backup-row-actions .icon-btn{padding:5px 8px;font-size:12px}
+
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:1.25rem}
 .stat{background:#fff;border-radius:14px;border:.5px solid #E5E5F0;padding:.9rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.04);transition:all .15s}
 .stat:hover{border-color:#B8B5E8;box-shadow:0 3px 10px rgba(0,0,0,.08)}
@@ -452,6 +458,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <div class="more-menu-wrap" id="more-menu-wrap">
         <button class="icon-btn" onclick="toggleMoreMenu(event)" title="更多功能"><i class="ti ti-dots-vertical"></i></button>
         <div class="more-menu" id="more-menu">
+          <button class="more-menu-item" onclick="openBackupModal();closeMoreMenu()"><i class="ti ti-cloud-upload"></i> 備份與還原</button>
           <button class="more-menu-item" onclick="exportData();closeMoreMenu()"><i class="ti ti-download"></i> 匯出</button>
           <button class="more-menu-item" onclick="document.getElementById('imp').click();closeMoreMenu()"><i class="ti ti-upload"></i> 匯入</button>
           <button class="more-menu-item" onclick="fixRatedStatus();closeMoreMenu()"><i class="ti ti-wand"></i> 修正狀態</button>
@@ -734,6 +741,20 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
   </div>
 </div>
 
+<!-- 備份與還原 modal：資料會自動備份到 Supabase Storage（見 backups bucket），
+     不用自己下載檔案保管，這裡列出最近幾次備份，可以下載留一份，或還原回某一次的狀態。 -->
+<div class="modal-bg" id="backup-modal">
+  <div class="modal" style="width:min(440px,95vw)">
+    <div class="modal-title">備份與還原</div>
+    <p style="font-size:13px;color:#888;margin-bottom:1rem;line-height:1.6">每次打開 App 都會自動存一份備份（一天最多一次），不用自己記得存檔案在哪裡。下面是最近幾次的備份紀錄，可以下載留一份到自己的裝置，或還原回某一次的狀態。</p>
+    <button class="icon-btn" onclick="backupNow(event)" style="width:100%;justify-content:center;margin-bottom:1rem"><i class="ti ti-cloud-upload"></i> 立即備份目前的資料</button>
+    <div id="backup-list"></div>
+    <div class="mfooter">
+      <button class="icon-btn" onclick="closeModal('backup-modal')">關閉</button>
+    </div>
+  </div>
+</div>
+
 <script>
  // 你可以在這裡隨意新增或刪除，不用管 HTML
  // 類型已改為 checkbox 多選（見 HTML 中的 f-genre-wrap），如需增減類型請直接編輯該區塊的 <label class="genre-cb"> 項目
@@ -918,6 +939,7 @@ async function loadFromCloud(){
   if(!isGuestMode) await loadMusicalActors();
   render();
   handleRoute();
+  maybeAutoBackup(); // 不用 await：備份是背景動作，不該拖慢畫面第一次渲染的速度
 }
 
 async function loadMusicalActors(){
@@ -3785,6 +3807,136 @@ function toggleFavorite(id,event){
 }
 function exportData(){const b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`追劇清單_${new Date().toISOString().slice(0,10)}.json`;a.click()}
 function importData(e){if(isReadOnly)return;const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;if(confirm(`匯入 ${d.length} 筆資料？（會覆蓋現有資料）`)){db=d;save();render()}}catch{alert('格式不正確，請匯入之前匯出的 JSON 檔')}};r.readAsText(f);e.target.value=''}
+
+// ══════════════════════════════════════════════════════════════
+// 自動備份：跟「匯出」不一樣，不用自己下載檔案保管——資料直接存進
+// Supabase Storage 的 backups bucket（需要先在 Supabase 後台手動建立好，
+// 見設定說明），開著 App 就會自動存一份（一天最多一次，避免洗版），
+// 也可以隨時手動「立即備份」。只保留最近 30 份，舊的會自動清掉。
+// ══════════════════════════════════════════════════════════════
+const BACKUP_BUCKET='backups';
+const BACKUP_AUTO_THROTTLE_KEY='last-auto-backup-at';
+const BACKUP_AUTO_INTERVAL_MS=20*60*60*1000; // 20 小時內不重複自動備份
+const BACKUP_KEEP_COUNT=30;
+
+async function performBackup(){
+  if(!sb) return false;
+  try{
+    const json=JSON.stringify(db);
+    const blob=new Blob([json],{type:'application/json'});
+    const path=`${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+    const {error}=await sb.storage.from(BACKUP_BUCKET).upload(path,blob,{contentType:'application/json'});
+    if(error) throw error;
+    await pruneOldBackups();
+    return true;
+  }catch(e){
+    console.error('Backup failed',e);
+    return false;
+  }
+}
+
+async function pruneOldBackups(){
+  try{
+    const {data,error}=await sb.storage.from(BACKUP_BUCKET).list('',{limit:1000,sortBy:{column:'name',order:'desc'}});
+    if(error||!data) return;
+    const toDelete=data.slice(BACKUP_KEEP_COUNT).map(f=>f.name);
+    if(toDelete.length) await sb.storage.from(BACKUP_BUCKET).remove(toDelete);
+  }catch(e){ console.error('Prune backups failed',e); }
+}
+
+// 開著 App 就自動備份一次，但一天最多一次（用 localStorage 記上次自動備份的時間，避免每次重新整理都洗一份）。
+// 訪客模式／唯讀模式／還沒登入都不會觸發，不然分享連結被別人打開也會偷偷幫你備份、甚至可能把備份塞爆。
+async function maybeAutoBackup(){
+  if(!sb || isGuestMode || isReadOnly || !isAuthenticated) return;
+  const last=parseInt(localStorage.getItem(BACKUP_AUTO_THROTTLE_KEY)||'0',10);
+  if(Date.now()-last < BACKUP_AUTO_INTERVAL_MS) return;
+  const ok=await performBackup();
+  if(ok) localStorage.setItem(BACKUP_AUTO_THROTTLE_KEY,String(Date.now()));
+}
+
+async function backupNow(event){
+  if(isGuestMode||isReadOnly){alert('訪客／唯讀模式無法備份');return;}
+  if(!sb){alert('目前是離線模式，無法備份');return;}
+  const btn=event&&event.target?event.target.closest('button'):null;
+  if(btn){btn.disabled=true;btn.textContent='備份中…';}
+  const ok=await performBackup();
+  if(btn){btn.disabled=false;btn.innerHTML='<i class="ti ti-cloud-upload"></i> 立即備份目前的資料';}
+  if(ok){
+    localStorage.setItem(BACKUP_AUTO_THROTTLE_KEY,String(Date.now()));
+    renderBackupList();
+  }else{
+    alert('備份失敗，請確認網路連線，或確認 Supabase 後台已經照說明建立好「'+BACKUP_BUCKET+'」這個 bucket。');
+  }
+}
+
+function openBackupModal(){
+  if(isGuestMode){alert('訪客模式無法使用備份功能');return;}
+  openModal('backup-modal');
+  renderBackupList();
+}
+
+// 把檔名（ISO 時間戳記）轉成好讀的日期時間顯示，例如 2026-07-17T12-34-56-789Z.json → 2026-07-17 12:34
+function formatBackupName(filename){
+  const m=filename.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})/);
+  return m ? `${m[1]} ${m[2]}:${m[3]}` : filename;
+}
+
+async function renderBackupList(){
+  const el=document.getElementById('backup-list');
+  if(!el) return;
+  if(!sb){ el.innerHTML='<p style="font-size:12px;color:#999">目前是離線模式，無法讀取備份紀錄</p>'; return; }
+  el.innerHTML='<p style="font-size:12px;color:#999">載入中…</p>';
+  try{
+    const {data,error}=await sb.storage.from(BACKUP_BUCKET).list('',{limit:100,sortBy:{column:'name',order:'desc'}});
+    if(error) throw error;
+    if(!data||!data.length){ el.innerHTML='<p style="font-size:12px;color:#999">還沒有任何備份，按上面「立即備份」開始第一份</p>'; return; }
+    el.innerHTML=data.map(f=>`
+      <div class="backup-row">
+        <span class="backup-row-name">${esc(formatBackupName(f.name))}</span>
+        <div class="backup-row-actions">
+          <button class="icon-btn" onclick="downloadBackup('${jsStr(f.name)}')" title="下載到裝置"><i class="ti ti-download"></i></button>
+          ${isReadOnly?'':`<button class="icon-btn" onclick="restoreBackup('${jsStr(f.name)}')" title="還原到這個版本" style="color:#B45309"><i class="ti ti-history"></i></button>`}
+        </div>
+      </div>
+    `).join('');
+  }catch(e){
+    console.error('List backups failed',e);
+    el.innerHTML='<p style="font-size:12px;color:#B91C1C">讀取備份紀錄失敗，請確認 Supabase 後台已經照說明建立好「'+BACKUP_BUCKET+'」這個 bucket 和存取權限。</p>';
+  }
+}
+
+async function downloadBackup(name){
+  try{
+    const {data,error}=await sb.storage.from(BACKUP_BUCKET).download(name);
+    if(error) throw error;
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(data);
+    a.download=`追劇清單備份_${name}`;
+    a.click();
+  }catch(e){
+    console.error('Download backup failed',e);
+    alert('下載失敗');
+  }
+}
+
+async function restoreBackup(name){
+  if(isReadOnly){alert('目前是唯讀模式，無法還原');return;}
+  if(!confirm(`確定要用「${formatBackupName(name)}」這份備份取代目前所有資料嗎？\n這個動作無法復原，現在畫面上的資料會被蓋掉。`)) return;
+  try{
+    const {data,error}=await sb.storage.from(BACKUP_BUCKET).download(name);
+    if(error) throw error;
+    const text=await data.text();
+    const parsed=JSON.parse(text);
+    if(!Array.isArray(parsed)) throw new Error('bad format');
+    db=parsed;
+    save();render();
+    closeModal('backup-modal');
+    alert('還原完成！');
+  }catch(e){
+    console.error('Restore backup failed',e);
+    alert('還原失敗，備份檔案可能損毀或格式不正確');
+  }
+}
 function fixRatedStatus(){
   if(isReadOnly)return;
   let count=0;
