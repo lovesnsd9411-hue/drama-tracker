@@ -43,27 +43,34 @@ input,select,textarea,button{font-family:inherit}
 .stat-n{font-size:24px;font-weight:700}
 .stat-l{font-size:12px;color:#888;margin-top:2px;font-weight:500}
 
-/* ── 年度儀表板：可切換年度，電視劇／音樂劇／本年度花費三欄，歷史累計固定顯示在右上角 ── */
-.annual-dashboard{padding:1rem 1.1rem 1.1rem;background:linear-gradient(135deg,#2D2B55,#4A4580);border-radius:16px;margin-bottom:1.25rem;color:#fff}
+/* ── 年度儀表板：可切換年度，電視劇／音樂劇／話劇／本年度花費最多四欄（沒有話劇紀錄的年度自動變回三欄），
+      歷史累計固定顯示在右上角。淺紫底跟音樂劇本來的紫色系一致，圖示直接用飽和分類色，不加圓圈襯底。 ── */
+.annual-dashboard{padding:1.1rem 1rem;background:linear-gradient(135deg,#F8F6FE,#F1EDFC);border:1px solid #E5DCF8;border-radius:16px;margin-bottom:1.4rem;box-shadow:0 3px 14px rgba(124,111,224,.1)}
 .ad-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px}
 .ad-yr-select-wrap{position:relative}
-.ad-yr-select{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:800;color:#fff;background:rgba(255,255,255,.14);border:none;border-radius:20px;padding:6px 14px;cursor:pointer;font-family:inherit}
+.ad-yr-select{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:#7C6FE0;background:#fff;border:1px solid #E5DCF8;border-radius:20px;padding:6px 14px;cursor:pointer;font-family:inherit}
 .ad-yr-menu{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:.5px solid #E5E5F0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;min-width:100px;z-index:20}
 .ad-yr-menu.open{display:flex;flex-direction:column;gap:2px}
 .ad-yr-menu button{display:block;width:100%;background:none;border:none;text-align:left;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;color:#666;font-family:inherit}
 .ad-yr-menu button:hover{background:#F3F3F8}
 .ad-yr-menu button.on{color:#3C3489;background:#EEEDFE}
-.ad-alltime{display:flex;align-items:center;gap:6px;font-size:11.5px;color:rgba(255,255,255,.75);font-weight:600}
-.ad-alltime i{font-size:13px;opacity:.8}
-.ad-alltime b{color:#fff;font-variant-numeric:tabular-nums;font-weight:800}
-.ad-alltime b.ad-masked{letter-spacing:1px;color:#FCD34D}
-.ad-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
-.ad-item{display:flex;align-items:center;justify-content:center;gap:9px;padding:10px 6px;position:relative}
-.ad-item:not(:first-child)::before{content:'';position:absolute;left:0;top:15%;bottom:15%;width:1px;background:rgba(255,255,255,.18)}
-.ad-icon{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.ad-icon i{font-size:15px}
-.ad-num{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
-.ad-num.ad-masked{letter-spacing:2px;color:#FCD34D}
+.ad-alltime{display:flex;align-items:center;gap:6px;font-size:11px;color:#AEA4E0;font-weight:600}
+.ad-alltime i{font-size:12px;opacity:.85}
+.ad-alltime b{color:#7C6FE0;font-variant-numeric:tabular-nums;font-weight:800}
+.ad-alltime b.ad-masked{letter-spacing:1px;color:#C4972E}
+.ad-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
+.ad-stats.ad-cols-4{grid-template-columns:repeat(4,1fr)}
+.ad-item{display:flex;align-items:center;gap:8px;padding:5px 3px}
+.ad-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ad-icon i{font-size:19px}
+.ad-item.ad-drama .ad-icon i{color:#7A7A90}
+.ad-item.ad-musical .ad-icon i{color:#7C6FE0}
+.ad-item.ad-play .ad-icon i{color:#4E8FD1}
+.ad-item.ad-money .ad-icon i{color:#3FA65F}
+.ad-txt{display:flex;flex-direction:column;gap:0;min-width:0}
+.ad-num{font-size:15.5px;font-weight:800;color:#1A1A2E;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ad-num.ad-masked{letter-spacing:1px;color:#C4972E}
+.ad-label{font-size:9.5px;color:#AEA4E0;font-weight:600;white-space:nowrap}
 
 .toolbar{display:flex;gap:8px;margin-bottom:.75rem;align-items:center;flex-wrap:wrap}
 .toolbar input{flex:1;min-width:160px}
@@ -2368,17 +2375,18 @@ function getAvailableDashboardYears(){
 // 電視劇算「該年度看完」的部數；音樂劇算「該年度已觀看」的場次數與花費，兩者分開回傳，不再合併成單一數字。
 function computeAnnualStats(year){
   const yearStr=String(year);
-  let dramaCount=0,musicalCount=0,yearSpent=0;
+  let dramaCount=0,musicalCount=0,playCount=0,yearSpent=0;
   db.forEach(d=>{
     if((d.category||'drama')==='musical'){
       const history=d.viewing_history||[];
-      musicalCount+=history.filter(h=>countsTowardWorks(h)&&(h.date||'').startsWith(yearStr)).length;
+      const yearCount=history.filter(h=>countsTowardWorks(h)&&(h.date||'').startsWith(yearStr)).length;
+      if(isPlay(d)) playCount+=yearCount; else musicalCount+=yearCount;
       yearSpent+=history.filter(h=>countsTowardSpend(h)&&(h.date||'').startsWith(yearStr)).reduce((s,h)=>s+convertToTWD(h.amount,h.currency||'TWD'),0);
     }else if(d.yearDone===yearStr){
       dramaCount++;
     }
   });
-  return {year,dramaCount,musicalCount,yearSpent};
+  return {year,dramaCount,musicalCount,playCount,yearSpent};
 }
 
 // 歷史累計花費：不限年度，加總所有音樂劇場次（已觀看＋持有票券）換算成台幣後的總金額。
@@ -2401,7 +2409,17 @@ function renderAnnualDashboard(){
   const s=computeAnnualStats(dashboardYear);
   const allTimeSpent=computeAllTimeSpent();
   const allTimeHtml=isGuestMode?'<b class="ad-masked">$ *****</b>':`<b>NT$${Math.round(allTimeSpent).toLocaleString()}</b>`;
-  const yearSpentHtml=isGuestMode?'<span class="ad-num ad-masked">$ *****</span>':`<span class="ad-num">NT$${Math.round(s.yearSpent).toLocaleString()}</span>`;
+  const yearSpentNum=isGuestMode?'<span class="ad-num ad-masked">$ *****</span>':`<span class="ad-num">NT$${Math.round(s.yearSpent).toLocaleString()}</span>`;
+
+  // 話劇那格只有在這個年度真的有話劇紀錄時才顯示，沒有的話自動退回三格，不留空格子。
+  const hasPlay=s.playCount>0;
+  const items=[
+    `<div class="ad-item ad-drama" title="電視劇看完部數"><span class="ad-icon"><i class="ti ti-device-tv"></i></span><span class="ad-txt"><span class="ad-num">${s.dramaCount}</span><span class="ad-label">電視劇</span></span></div>`,
+    `<div class="ad-item ad-musical" title="音樂劇觀看場次"><span class="ad-icon"><i class="ti ti-music"></i></span><span class="ad-txt"><span class="ad-num">${s.musicalCount}</span><span class="ad-label">音樂劇</span></span></div>`,
+  ];
+  if(hasPlay) items.push(`<div class="ad-item ad-play" title="話劇觀看場次"><span class="ad-icon"><i class="ti ti-book-2"></i></span><span class="ad-txt"><span class="ad-num">${s.playCount}</span><span class="ad-label">話劇</span></span></div>`);
+  items.push(`<div class="ad-item ad-money" title="本年度花費"><span class="ad-icon"><i class="ti ti-wallet"></i></span><span class="ad-txt">${yearSpentNum}<span class="ad-label">本年度花費</span></span></div>`);
+
   el.innerHTML=`
     <div class="ad-top">
       <div class="ad-yr-select-wrap" id="ad-yr-wrap">
@@ -2412,10 +2430,8 @@ function renderAnnualDashboard(){
       </div>
       <div class="ad-alltime"><i class="ti ti-history"></i> 歷史累計 ${allTimeHtml}</div>
     </div>
-    <div class="ad-stats">
-      <div class="ad-item" title="電視劇看完部數"><span class="ad-icon"><i class="ti ti-device-tv"></i></span><span class="ad-num">${s.dramaCount}</span></div>
-      <div class="ad-item" title="音樂劇觀看場次"><span class="ad-icon"><i class="ti ti-music"></i></span><span class="ad-num">${s.musicalCount}</span></div>
-      <div class="ad-item" title="本年度花費"><span class="ad-icon"><i class="ti ti-wallet"></i></span>${yearSpentHtml}</div>
+    <div class="ad-stats${hasPlay?' ad-cols-4':''}">
+      ${items.join('')}
     </div>`;
 }
 
