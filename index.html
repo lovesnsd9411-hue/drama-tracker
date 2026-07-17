@@ -54,23 +54,25 @@ input,select,textarea,button{font-family:inherit}
 .ad-yr-menu button{display:block;width:100%;background:none;border:none;text-align:left;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;color:#666;font-family:inherit}
 .ad-yr-menu button:hover{background:#F3F3F8}
 .ad-yr-menu button.on{color:#3C3489;background:#EEEDFE}
-.ad-alltime{display:flex;align-items:center;gap:6px;font-size:11px;color:#AEA4E0;font-weight:600}
-.ad-alltime i{font-size:12px;opacity:.85}
+.ad-alltime{display:flex;align-items:center;gap:6px;font-size:12.5px;color:#AEA4E0;font-weight:600}
+.ad-alltime i{font-size:14px;opacity:.85}
 .ad-alltime b{color:#7C6FE0;font-variant-numeric:tabular-nums;font-weight:800}
 .ad-alltime b.ad-masked{letter-spacing:1px;color:#C4972E}
 .ad-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:4px}
 .ad-stats.ad-cols-4{grid-template-columns:repeat(4,1fr)}
-.ad-item{display:flex;align-items:center;gap:8px;padding:5px 3px}
+.ad-item{display:flex;align-items:center;gap:9px;padding:7px 4px;border-radius:10px;transition:background .15s}
+.ad-item[onclick]{cursor:pointer}
+.ad-item[onclick]:hover{background:rgba(124,111,224,.08)}
 .ad-icon{display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.ad-icon i{font-size:19px}
+.ad-icon i{font-size:23px}
 .ad-item.ad-drama .ad-icon i{color:#7A7A90}
 .ad-item.ad-musical .ad-icon i{color:#7C6FE0}
 .ad-item.ad-play .ad-icon i{color:#4E8FD1}
 .ad-item.ad-money .ad-icon i{color:#3FA65F}
-.ad-txt{display:flex;flex-direction:column;gap:0;min-width:0}
-.ad-num{font-size:15.5px;font-weight:800;color:#1A1A2E;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ad-txt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ad-num{font-size:18px;font-weight:800;color:#1A1A2E;font-variant-numeric:tabular-nums;white-space:nowrap}
 .ad-num.ad-masked{letter-spacing:1px;color:#C4972E}
-.ad-label{font-size:9.5px;color:#AEA4E0;font-weight:600;white-space:nowrap}
+.ad-label{font-size:11.5px;color:#8F84C0;font-weight:600;white-space:nowrap}
 
 .toolbar{display:flex;gap:8px;margin-bottom:.75rem;align-items:center;flex-wrap:wrap}
 .toolbar input{flex:1;min-width:160px}
@@ -2135,8 +2137,8 @@ function setPerson(name,role){pFilter={name,role};closeModal('detail-modal');ren
 function renderChips(){
   let h='';
   if(aFilter.type){
-    const tl={status:'狀態',year:'年度',genre:'類型',platform:'平台',rating:'評分'}[aFilter.type]||'';
-    const vl=aFilter.type==='status'?(aFilter.val==='done'?'看完':aFilter.val==='dropped'?'棄劇':'觀看中'):aFilter.type==='year'?aFilter.val+'年看完':aFilter.type==='rating'?rLabel(parseFloat(aFilter.val)):aFilter.val;
+    const tl={status:'狀態',year:'年度',genre:'類型',platform:'平台',rating:'評分',viewYear:'年度'}[aFilter.type]||'';
+    const vl=aFilter.type==='status'?(aFilter.val==='done'?'看完':aFilter.val==='dropped'?'棄劇':'觀看中'):aFilter.type==='year'?aFilter.val+'年看完':aFilter.type==='viewYear'?aFilter.val+'年觀看':aFilter.type==='rating'?rLabel(parseFloat(aFilter.val)):aFilter.val;
     h+=`<span class="chip chip-filter">${tl}：${vl}<button onclick="clearFilter()"><i class="ti ti-x"></i></button></span>`;
   }
   if(pFilter){
@@ -2192,6 +2194,9 @@ function getFiltered(){
   });
   else if(aFilter.type==='platform') list=list.filter(d=>d.platform===aFilter.val);
   else if(aFilter.type==='rating') list=list.filter(d=>parseFloat(d.rating||0)===parseFloat(aFilter.val));
+  // 音樂劇／話劇沒有像電視劇一樣的「看完年度」欄位，是不是屬於某一年要看那年有沒有實際觀看場次紀錄，
+  // 跟年度儀表板的次數統計（countsTowardWorks）算法保持一致，不然點進來的作品清單會跟儀表板數字對不起來。
+  else if(aFilter.type==='viewYear') list=list.filter(d=>(d.viewing_history||[]).some(h=>countsTowardWorks(h)&&(h.date||'').startsWith(aFilter.val)));
   if(pFilter){
     if(pFilter.role==='actor') list=list.filter(d=>castNames(d.actors).includes(pFilter.name));
     else if(pFilter.role==='director') list=list.filter(d=>(d.directors&&d.directors.length?d.directors:(d.director?[d.director]:[])).includes(pFilter.name));
@@ -2414,10 +2419,10 @@ function renderAnnualDashboard(){
   // 話劇那格只有在這個年度真的有話劇紀錄時才顯示，沒有的話自動退回三格，不留空格子。
   const hasPlay=s.playCount>0;
   const items=[
-    `<div class="ad-item ad-drama" title="電視劇看完部數"><span class="ad-icon"><i class="ti ti-device-tv"></i></span><span class="ad-txt"><span class="ad-num">${s.dramaCount}</span><span class="ad-label">電視劇</span></span></div>`,
-    `<div class="ad-item ad-musical" title="音樂劇觀看場次"><span class="ad-icon"><i class="ti ti-music"></i></span><span class="ad-txt"><span class="ad-num">${s.musicalCount}</span><span class="ad-label">音樂劇</span></span></div>`,
+    `<div class="ad-item ad-drama" title="點看這年看完的電視劇" onclick="jumpToDashboardCategory('drama',${s.year})"><span class="ad-icon"><i class="ti ti-device-tv"></i></span><span class="ad-txt"><span class="ad-num">${s.dramaCount}</span><span class="ad-label">電視劇</span></span></div>`,
+    `<div class="ad-item ad-musical" title="點看這年觀看的音樂劇" onclick="jumpToDashboardCategory('musical',${s.year})"><span class="ad-icon"><i class="ti ti-music"></i></span><span class="ad-txt"><span class="ad-num">${s.musicalCount}</span><span class="ad-label">音樂劇</span></span></div>`,
   ];
-  if(hasPlay) items.push(`<div class="ad-item ad-play" title="話劇觀看場次"><span class="ad-icon"><i class="ti ti-book-2"></i></span><span class="ad-txt"><span class="ad-num">${s.playCount}</span><span class="ad-label">話劇</span></span></div>`);
+  if(hasPlay) items.push(`<div class="ad-item ad-play" title="點看這年觀看的話劇" onclick="jumpToDashboardCategory('play',${s.year})"><span class="ad-icon"><i class="ti ti-book-2"></i></span><span class="ad-txt"><span class="ad-num">${s.playCount}</span><span class="ad-label">話劇</span></span></div>`);
   items.push(`<div class="ad-item ad-money" title="本年度花費"><span class="ad-icon"><i class="ti ti-wallet"></i></span><span class="ad-txt">${yearSpentNum}<span class="ad-label">本年度花費</span></span></div>`);
 
   el.innerHTML=`
@@ -2433,6 +2438,24 @@ function renderAnnualDashboard(){
     <div class="ad-stats${hasPlay?' ad-cols-4':''}">
       ${items.join('')}
     </div>`;
+}
+
+// 點年度儀表板的電視劇／音樂劇／話劇那格，直接跳到主列表看那個分類＋那一年的作品，
+// 不用自己再手動切分類、開篩選。金額那格不對應任何分類，沒有跳轉行為。
+function jumpToDashboardCategory(category,year){
+  const yearStr=String(year);
+  document.getElementById('search').value='';
+  pFilter=null;
+  if(category==='drama'){
+    aFilter={type:'year',val:yearStr};
+    setMainCategory('drama',true);
+    render();
+  }else{
+    aFilter={type:'viewYear',val:yearStr};
+    setMainCategory('musical',true);
+    setStageTypeFilter(category); // 'musical' 或 'play'，setStageTypeFilter 自己會處理按鈕樣式跟 render()
+  }
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function toggleDashboardYearMenu(e){
