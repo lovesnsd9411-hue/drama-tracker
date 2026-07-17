@@ -5156,21 +5156,19 @@ function openActorsCleanupPreview(){
     const confirmBtn=document.getElementById('actors-cleanup-confirm-btn');
     if(confirmBtn) confirmBtn.style.display='none';
   }else{
-    const rows = plan.messyEntries.map(m=>{
-      const newNamesHtml = m.splitInto.length
-        ? m.splitInto.map(n=>{
-            const c = plan.cleanNameCounts[n]||0;
-            return `<span class="actor-pill">${esc(n)}<span style="color:#8B86D4;font-weight:700">（${c}場）</span></span>`;
-          }).join(' ')
-        : `<span style="color:#999;font-size:12px">（無法辨識為有效姓名，將直接刪除）</span>`;
-      return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F0F0F5;flex-wrap:wrap">
+    // 每一筆都可以勾選要不要套用、也可以直接編輯建議的乾淨姓名（逗號分隔多個人）——
+    // 不是每個自動判斷的拆解建議都一定對，讓使用者可以取消勾選（跳過不處理）或修正內容再套用。
+    const rows = plan.messyEntries.map((m,i)=>{
+      const suggested = m.splitInto.join(', ');
+      return `<div class="cleanup-row" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F0F0F5;flex-wrap:wrap">
+        <input type="checkbox" class="cleanup-row-check" id="cleanup-check-${i}" checked style="flex-shrink:0;width:16px;height:16px">
         <span style="color:#B91C1C;text-decoration:line-through;font-size:13px;flex-shrink:0">${esc(m.oldLabel)}</span>
         <span style="color:#ccc">→</span>
-        <div style="display:flex;flex-wrap:wrap;gap:5px">${newNamesHtml}</div>
+        <input type="text" class="cleanup-row-input" id="cleanup-input-${i}" value="${esc(suggested)}" placeholder="留空＝直接刪除，不保留任何姓名" style="flex:1;min-width:160px;font-size:13px;padding:5px 9px;border:1px solid #E0E0EE;border-radius:8px">
       </div>`;
     }).join('');
     body.innerHTML = `
-      <p style="font-size:13px;color:#3C3489;font-weight:700;margin-bottom:6px">將拆解 / 修正 ${plan.messyEntries.length} 筆格式錯誤的節點：</p>
+      <p style="font-size:13px;color:#3C3489;font-weight:700;margin-bottom:6px">將拆解 / 修正 ${plan.messyEntries.length} 筆格式錯誤的節點（取消勾選可以跳過某一筆，或直接改輸入框裡的建議姓名）：</p>
       ${rows}
       <p style="color:#888;font-size:12px;margin-top:12px">另有 ${plan.unchangedCount} 位演員格式正確，不會被更動。</p>
     `;
@@ -5195,7 +5193,19 @@ async function confirmActorsCleanup(){
   const btn=document.getElementById('actors-cleanup-confirm-btn');
   if(btn){ btn.disabled=true; btn.textContent='套用中…'; }
 
-  // 1) 正規化整個 db 的卡司欄位
+  // 只處理使用者在預覽視窗裡「勾選」的節點，姓名也是讀當下輸入框裡的內容
+  // （可能被手動改過，不一定跟自動偵測建議的一樣）——取消勾選的節點完全跳過，
+  // 舊的格式錯誤節點會被保留，不會被刪除或改名。
+  const selectedEntries = plan.messyEntries.map((m,i)=>{
+    const checkEl=document.getElementById('cleanup-check-'+i);
+    const inputEl=document.getElementById('cleanup-input-'+i);
+    if(!checkEl || !checkEl.checked) return null;
+    const names=(inputEl?inputEl.value:'').split(/[,，、]/).map(s=>s.trim()).filter(Boolean);
+    return {oldName:m.oldName, splitInto:names};
+  }).filter(Boolean);
+
+  // 1) 正規化整個 db 的卡司欄位（結構性修正：角色/姓名拆開、逗號多人拆開，這一步不分是否勾選都會做，
+  //    因為它只是把資料格式寫對，不會幫任何人改名字）
   db.forEach(item=>{
     if(!item || item.category!=='musical') return;
     if(item.actors) item.actors = normalizeCastArray(item.actors);
@@ -5208,25 +5218,29 @@ async function confirmActorsCleanup(){
   });
   save();
 
-  // 2) 補上尚未存在於 musicalActors 的乾淨姓名
-  const cleanNames = Object.keys(plan.cleanNameCounts);
+  // 2) 補上勾選節點裡尚未存在於 musicalActors 的乾淨姓名
+  const cleanNames=new Set();
+  selectedEntries.forEach(m=>m.splitInto.forEach(n=>cleanNames.add(n)));
   for(const name of cleanNames){
     if(!musicalActors.some(a=>a.name===name)){
       await addMusicalActor(name);
     }
   }
-  // 刪除已經被拆解掉的格式錯誤節點
-  for(const m of plan.messyEntries){
+  // 刪除已經被拆解掉的格式錯誤節點（只刪有勾選的）
+  for(const m of selectedEntries){
     await deleteMusicalActorRow(m.oldName);
   }
 
   if(sb) await loadMusicalActors();
-  else musicalActors = musicalActors.filter(a=>!isMessyActorName(a.name));
+  else{
+    const deletedIds=new Set(selectedEntries.map(m=>String(m.oldName)));
+    musicalActors = musicalActors.filter(a=>!deletedIds.has(String(a.id)));
+  }
 
   closeActorsCleanupModal();
   renderActorsGrid();
   if(btn){ btn.disabled=false; btn.textContent='確認套用'; }
-  alert('演員資料清理完成！');
+  alert(`演員資料清理完成！已套用 ${selectedEntries.length} 筆，跳過 ${plan.messyEntries.length-selectedEntries.length} 筆。`);
 }
 
 // 刪除單一 musical_actors 節點（用於清掉格式錯誤的舊資料）。
