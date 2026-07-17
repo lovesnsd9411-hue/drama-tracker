@@ -1,6 +1,6 @@
 {
-  "name": "在看什麼？",
-  "short_name": "在看什麼？",
+  "name": "觀劇手記",
+  "short_name": "觀劇手記",
   "description": "個人追劇紀錄與管理 app",
   "start_url": "./index.html",
   "display": "standalone",

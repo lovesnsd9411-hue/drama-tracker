@@ -6,10 +6,10 @@
 <meta name="theme-color" content="#1A1A2E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="在看什麼？">
+<meta name="apple-mobile-web-app-title" content="觀劇手記">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.png">
-<title>在看什麼？</title>
+<title>觀劇手記</title>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -459,8 +459,8 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
      因為登入/註冊視窗本身也是 body 底下的 DOM，蓋掉就打不開了，所以用顯示/隱藏切換。 -->
 <div id="auth-gate-screen" style="display:none;min-height:100vh;align-items:center;justify-content:center;padding:2rem;text-align:center">
   <div>
-    <div style="font-size:40px;margin-bottom:1rem">🎬</div>
-    <div style="font-size:18px;font-weight:800;color:#1A1A2E;margin-bottom:.4rem">在看什麼？</div>
+    <div style="font-size:40px;margin-bottom:1rem">📖</div>
+    <div style="font-size:18px;font-weight:800;color:#1A1A2E;margin-bottom:.4rem">觀劇手記</div>
     <div style="font-size:13.5px;color:#888;margin-bottom:1.6rem">登入或註冊帳號，開始記錄你的追劇清單</div>
     <div style="display:flex;gap:8px;justify-content:center">
       <button class="icon-btn" onclick="openLoginModal()">登入</button>
@@ -471,7 +471,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
 <div class="app">
   <div class="header">
     <div style="display:flex;align-items:center;gap:8px">
-      <div class="app-title">🎬 <span id="sync-status" style="font-size:11px;font-weight:500;color:#aaa;vertical-align:middle"></span></div>
+      <div class="app-title">📖 <span id="sync-status" style="font-size:11px;font-weight:500;color:#aaa;vertical-align:middle"></span></div>
       <button class="icon-btn" id="login-trigger-btn" onclick="openLoginModal()" style="display:none"><i class="ti ti-login"></i> 登入</button>
     </div>
     <div class="actions" id="admin-actions">
