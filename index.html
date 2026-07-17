@@ -4332,7 +4332,10 @@ async function submitSignup(){
     }
   }catch(e){
     console.error('Signup failed',e);
-    const msg=(e&&e.message&&e.message.toLowerCase().includes('already'))?'這個 Email 已經註冊過了，請直接登入':'註冊失敗，請稍後再試';
+    // 直接把 Supabase 回傳的原始錯誤訊息顯示出來（通常是英文），比起自己亂猜原因、
+    // 一律顯示「請稍後再試」更容易排查問題出在哪裡（密碼規則、驗證設定、網路問題…）。
+    const raw=(e&&e.message)?e.message:'未知錯誤';
+    const msg=raw.toLowerCase().includes('already')?'這個 Email 已經註冊過了，請直接登入':`註冊失敗：${raw}`;
     if(errEl){ errEl.textContent=msg; errEl.style.display='block'; }
     if(btn){ btn.disabled=false; btn.textContent='註冊'; }
   }
