@@ -454,6 +454,20 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
 </style>
 </head>
 <body>
+<!-- 還沒登入、也不是分享連結訪客模式時顯示這個畫面，取代整個主畫面——避免像以前那樣
+     嘗試去撈資料失敗、誤判成「離線模式」。這裡不能整個蓋掉 body（像 showExpiredScreen 那樣），
+     因為登入/註冊視窗本身也是 body 底下的 DOM，蓋掉就打不開了，所以用顯示/隱藏切換。 -->
+<div id="auth-gate-screen" style="display:none;min-height:100vh;align-items:center;justify-content:center;padding:2rem;text-align:center">
+  <div>
+    <div style="font-size:40px;margin-bottom:1rem">🎬</div>
+    <div style="font-size:18px;font-weight:800;color:#1A1A2E;margin-bottom:.4rem">在看什麼？</div>
+    <div style="font-size:13.5px;color:#888;margin-bottom:1.6rem">登入或註冊帳號，開始記錄你的追劇清單</div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button class="icon-btn" onclick="openLoginModal()">登入</button>
+      <button class="btn-primary" onclick="openSignupModal()">註冊新帳號</button>
+    </div>
+  </div>
+</div>
 <div class="app">
   <div class="header">
     <div style="display:flex;align-items:center;gap:8px">
@@ -703,13 +717,32 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
      只允許登入的擁有者寫入，不是只靠前端隱藏按鈕（前端隱藏擋不住直接呼叫 API）。 -->
 <div class="modal-bg" id="login-modal">
   <div class="modal" style="width:min(360px,92vw)">
-    <div class="modal-title">管理者登入</div>
+    <div class="modal-title">登入</div>
     <div class="field"><label for="login-email">Email</label><input type="text" id="login-email" placeholder="you@example.com" autocomplete="username"></div>
     <div class="field"><label for="login-password">密碼</label><input type="password" id="login-password" placeholder="密碼" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitLogin()"></div>
     <div id="login-error" style="display:none;font-size:12px;color:#B91C1C;margin-bottom:.75rem;font-weight:600"></div>
+    <div style="font-size:12.5px;color:#888;margin-bottom:.75rem">還沒有帳號？<a href="javascript:void(0)" onclick="closeModal('login-modal');openSignupModal()" style="color:#7C6FE0;font-weight:700;text-decoration:none">註冊新帳號</a></div>
     <div class="mfooter">
       <button class="icon-btn" onclick="closeModal('login-modal')">取消</button>
       <button class="btn-primary" onclick="submitLogin()">登入</button>
+    </div>
+  </div>
+</div>
+
+<!-- 註冊 modal -->
+<div class="modal-bg" id="signup-modal">
+  <div class="modal" style="width:min(360px,92vw)">
+    <div class="modal-title">註冊新帳號</div>
+    <p style="font-size:12.5px;color:#888;margin:0 0 1rem;line-height:1.6">註冊後會有自己獨立的追劇清單，跟其他人的資料完全分開。</p>
+    <div class="field"><label for="signup-email">Email</label><input type="text" id="signup-email" placeholder="you@example.com" autocomplete="username"></div>
+    <div class="field"><label for="signup-password">密碼</label><input type="password" id="signup-password" placeholder="至少 6 個字元" autocomplete="new-password"></div>
+    <div class="field"><label for="signup-password2">再輸入一次密碼</label><input type="password" id="signup-password2" placeholder="再輸入一次" autocomplete="new-password" onkeydown="if(event.key==='Enter')submitSignup()"></div>
+    <div id="signup-error" style="display:none;font-size:12px;color:#B91C1C;margin-bottom:.75rem;font-weight:600"></div>
+    <div id="signup-success" style="display:none;font-size:12.5px;color:#0F6E56;margin-bottom:.75rem;font-weight:600;line-height:1.6"></div>
+    <div style="font-size:12.5px;color:#888;margin-bottom:.75rem">已經有帳號？<a href="javascript:void(0)" onclick="closeModal('signup-modal');openLoginModal()" style="color:#7C6FE0;font-weight:700;text-decoration:none">登入</a></div>
+    <div class="mfooter">
+      <button class="icon-btn" onclick="closeModal('signup-modal')">取消</button>
+      <button class="btn-primary" id="signup-submit-btn" onclick="submitSignup()">註冊</button>
     </div>
   </div>
 </div>
@@ -742,10 +775,12 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
         <button class="icon-btn" onclick="copyShareLink()" style="flex-shrink:0"><i class="ti ti-copy"></i> 複製</button>
       </div>
       <div id="share-copied-msg" style="display:none;font-size:12px;color:#0F6E56;font-weight:600;margin-top:6px">✓ 已複製到剪貼簿</div>
+      <button class="icon-btn" onclick="revokeShareLink()" style="margin-top:8px;color:#B91C1C;font-size:12px"><i class="ti ti-link-off"></i> 讓這個連結立刻失效</button>
     </div>
+    <div id="share-link-error" style="display:none;font-size:12px;color:#B91C1C;margin-bottom:.75rem;font-weight:600"></div>
     <div class="mfooter">
       <button class="icon-btn" onclick="closeModal('share-modal')">關閉</button>
-      <button class="btn-primary" onclick="generateShareLink()">產生連結</button>
+      <button class="btn-primary" id="share-generate-btn" onclick="generateShareLink()">產生連結</button>
     </div>
   </div>
 </div>
@@ -868,16 +903,31 @@ const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 const STORAGE_BUCKET='photos';
 let sb=null;
 let sbRowId=null; // the id of the single row we use to store all data
+let currentUserId=null; // 目前登入者的 auth uid，多租戶下每個人的 dramas/musical_actors 都是靠 RLS 用這個自動隔開
+
+function showAuthGateScreen(){
+  const gate=document.getElementById('auth-gate-screen');
+  const app=document.querySelector('.app');
+  if(gate) gate.style.display='flex';
+  if(app) app.style.display='none';
+}
+function hideAuthGateScreen(){
+  const gate=document.getElementById('auth-gate-screen');
+  const app=document.querySelector('.app');
+  if(gate) gate.style.display='none';
+  if(app) app.style.display='';
+}
 let saveDebounce=null;
 
 // 把使用者選的圖片檔上傳到 Supabase Storage，回傳可以直接拿來用的公開網址；
 // 失敗（離線模式、檔案太大、bucket 還沒建立…）回傳 null 並跳出提示，呼叫端可以請使用者改貼網址。
 async function uploadImageFile(file){
   if(!file) return null;
-  if(!sb){ alert('目前是離線模式，無法上傳檔案，請改貼圖片網址'); return null; }
+  if(!sb||!currentUserId){ alert('目前是離線模式，無法上傳檔案，請改貼圖片網址'); return null; }
   if(file.size>5*1024*1024){ alert('檔案太大了（上限 5MB），請選小一點的圖片，或改貼圖片網址'); return null; }
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
-  const path=`${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+  // 上傳路徑要加上自己的 uid 資料夾前綴，才符合 photos bucket「只能寫自己資料夾」的權限規則。
+  const path=`${currentUserId}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
   try{
     const {error:upErr}=await sb.storage.from(STORAGE_BUCKET).upload(path,file);
     if(upErr) throw upErr;
@@ -905,16 +955,30 @@ function initSupabase(){
 async function loadFromCloud(){
   setSyncStatus('☁️ 同步中…','#888');
   // 分享連結（訪客模式）已經在外面同步設定過 isReadOnly 了，不用再檢查登入狀態；
-  // 非分享連結進站時，先確認有沒有登入，沒登入一律當唯讀（實際擋寫入的是 Supabase 那邊的 RLS 規則）。
+  // 非分享連結進站時，先確認有沒有登入——這個 app 現在是多人共用的，每個人的資料
+  // 靠 Supabase 那邊的 RLS 用 user_id 自動隔開，沒登入就完全沒有資料可以撈，
+  // 與其硬撈一次失敗、誤判成「離線模式」，不如直接顯示登入/註冊畫面。
   if(!isGuestMode){
     try{
       const {data:{session}}=await sb.auth.getSession();
       isAuthenticated=!!session;
+      currentUserId=session?session.user.id:null;
     }catch(e){
       console.error('Failed to check auth session',e);
       isAuthenticated=false;
+      currentUserId=null;
     }
-    if(!isAuthenticated) applyUnauthenticatedReadOnly();
+    if(!isAuthenticated){
+      applyUnauthenticatedReadOnly();
+      showAuthGateScreen();
+      updateAuthUI();
+      return;
+    }
+  }else{
+    // 訪客模式（分享連結）：不查 dramas 表（現在的 RLS 不允許匿名查表），
+    // 改用帶 token 的資料庫函式換資料，換完直接 return，不要往下走一般擁有者的載入流程。
+    await loadSharedData();
+    return;
   }
   try{
     const {data,error}=await sb.from('dramas').select('id,data').order('id',{ascending:true}).limit(1);
@@ -924,11 +988,11 @@ async function loadFromCloud(){
       db=data[0].data||[];
       setSyncStatus('☁️ 已同步','#0F6E56');
     }else{
-      // no row yet - create one, migrate localStorage data if present
+      // 這個帳號還沒有自己的資料列——多半是剛註冊的新使用者，從空清單開始，
+      // 不套用 seedData() 的示範資料（那是給完全連不上雲端時的離線 fallback 用的）。
       let localData=[];
       try{localData=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{}
-      if(!localData.length) seedData();
-      else db=localData;
+      db=localData;
       const {data:inserted,error:insErr}=await sb.from('dramas').insert({data:db}).select('id').single();
       if(insErr) throw insErr;
       sbRowId=inserted.id;
@@ -940,8 +1004,7 @@ async function loadFromCloud(){
     try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
     if(!db.length) seedData();
   }
-  // 資料讀取成功會把同步狀態蓋成「已同步」，但沒登入的話要繼續顯示「唯讀模式」，不能讓使用者誤以為自己能編輯。
-  if(!isGuestMode && !isAuthenticated) setSyncStatus('👀 唯讀模式（尚未登入）','#888');
+  hideAuthGateScreen();
   updateAuthUI();
   stripMusicalDataForGuest();
   // 訪客模式下完全不對 musical_actors 資料表發出 fetch 請求，從根本隔絕音樂劇資料外洩的可能性。
@@ -3858,12 +3921,14 @@ const BACKUP_AUTO_THROTTLE_KEY='last-auto-backup-at';
 const BACKUP_AUTO_INTERVAL_MS=20*60*60*1000; // 20 小時內不重複自動備份
 const BACKUP_KEEP_COUNT=30;
 
+// 每個人的備份都放在自己 uid 的資料夾底下（跟 storage 那邊「只能碰自己資料夾」的權限規則對應），
+// 不是同一層扁平路徑——不然多人共用這個 bucket 之後，備份檔名就會互相衝突、甚至被其他人的權限擋下來。
 async function performBackup(){
-  if(!sb) return false;
+  if(!sb||!currentUserId) return false;
   try{
     const json=JSON.stringify(db);
     const blob=new Blob([json],{type:'application/json'});
-    const path=`${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+    const path=`${currentUserId}/${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
     const {error}=await sb.storage.from(BACKUP_BUCKET).upload(path,blob,{contentType:'application/json'});
     if(error) throw error;
     await pruneOldBackups();
@@ -3875,10 +3940,11 @@ async function performBackup(){
 }
 
 async function pruneOldBackups(){
+  if(!currentUserId) return;
   try{
-    const {data,error}=await sb.storage.from(BACKUP_BUCKET).list('',{limit:1000,sortBy:{column:'name',order:'desc'}});
+    const {data,error}=await sb.storage.from(BACKUP_BUCKET).list(currentUserId,{limit:1000,sortBy:{column:'name',order:'desc'}});
     if(error||!data) return;
-    const toDelete=data.slice(BACKUP_KEEP_COUNT).map(f=>f.name);
+    const toDelete=data.slice(BACKUP_KEEP_COUNT).map(f=>`${currentUserId}/${f.name}`);
     if(toDelete.length) await sb.storage.from(BACKUP_BUCKET).remove(toDelete);
   }catch(e){ console.error('Prune backups failed',e); }
 }
@@ -3923,10 +3989,10 @@ function formatBackupName(filename){
 async function renderBackupList(){
   const el=document.getElementById('backup-list');
   if(!el) return;
-  if(!sb){ el.innerHTML='<p style="font-size:12px;color:#999">目前是離線模式，無法讀取備份紀錄</p>'; return; }
+  if(!sb||!currentUserId){ el.innerHTML='<p style="font-size:12px;color:#999">目前是離線模式，無法讀取備份紀錄</p>'; return; }
   el.innerHTML='<p style="font-size:12px;color:#999">載入中…</p>';
   try{
-    const {data,error}=await sb.storage.from(BACKUP_BUCKET).list('',{limit:100,sortBy:{column:'name',order:'desc'}});
+    const {data,error}=await sb.storage.from(BACKUP_BUCKET).list(currentUserId,{limit:100,sortBy:{column:'name',order:'desc'}});
     if(error) throw error;
     if(!data||!data.length){ el.innerHTML='<p style="font-size:12px;color:#999">還沒有任何備份，按上面「立即備份」開始第一份</p>'; return; }
     el.innerHTML=data.map(f=>`
@@ -3944,9 +4010,12 @@ async function renderBackupList(){
   }
 }
 
+// name 是 renderBackupList() 從 .list(currentUserId,...) 拿回來、相對於自己資料夾的檔名（不含 uid 前綴），
+// 這裡下載/還原時要自己補回 uid 前綴，才會對到 storage 裡真正的完整路徑。
 async function downloadBackup(name){
+  if(!currentUserId) return;
   try{
-    const {data,error}=await sb.storage.from(BACKUP_BUCKET).download(name);
+    const {data,error}=await sb.storage.from(BACKUP_BUCKET).download(`${currentUserId}/${name}`);
     if(error) throw error;
     const a=document.createElement('a');
     a.href=URL.createObjectURL(data);
@@ -3960,9 +4029,10 @@ async function downloadBackup(name){
 
 async function restoreBackup(name){
   if(isReadOnly){alert('目前是唯讀模式，無法還原');return;}
+  if(!currentUserId) return;
   if(!confirm(`確定要用「${formatBackupName(name)}」這份備份取代目前所有資料嗎？\n這個動作無法復原，現在畫面上的資料會被蓋掉。`)) return;
   try{
-    const {data,error}=await sb.storage.from(BACKUP_BUCKET).download(name);
+    const {data,error}=await sb.storage.from(BACKUP_BUCKET).download(`${currentUserId}/${name}`);
     if(error) throw error;
     const text=await data.text();
     const parsed=JSON.parse(text);
@@ -4016,22 +4086,55 @@ function openShareModal(){
   openModal('share-modal');
 }
 
-function generateShareLink(){
+// 分享連結不再把「範圍」「到期時間」直接寫在網址上讓任何人可以自己竄改
+// （以前 ?scope=all／?expires=... 這些參數使用者自己在網址列改一改就能繞過限制）。
+// 改成：先把 share_token／share_expires_at／share_scope 存到自己這一列資料
+// （這是一般的 update，RLS 只允許改自己的資料），網址只帶一個查不出規則的 token，
+// 實際的範圍/是否過期都是訪客端呼叫 get_shared_drama() 這個資料庫函式時，
+// 由資料庫自己判斷、自己回傳，網址上的參數說了不算。
+async function generateShareLink(){
+  const errEl=document.getElementById('share-link-error');
+  if(errEl) errEl.style.display='none';
+  if(!sb||sbRowId===null){
+    if(errEl){ errEl.textContent='目前是離線模式，無法產生分享連結'; errEl.style.display='block'; }
+    return;
+  }
   const days=parseInt(document.getElementById('share-expiry').value);
   const scope=document.getElementById('share-scope').value; // 'drama'（預設，隱藏音樂劇）或 'all'（分享全部，金額遮蔽）
-  const baseUrl=window.location.origin+window.location.pathname;
-  const params=new URLSearchParams();
-  params.set('mode','share');
-  if(scope==='all') params.set('scope','all');
-  if(days!==0){
-    // days===0 is a permanent link - no expires param at all
-    params.set('expires',String(Date.now()+days*24*60*60*1000));
+  const expiresAt=days!==0 ? new Date(Date.now()+days*24*60*60*1000).toISOString() : null;
+  const token=crypto.randomUUID();
+  const btn=document.getElementById('share-generate-btn');
+  if(btn){ btn.disabled=true; btn.textContent='產生中…'; }
+  try{
+    const {error}=await sb.from('dramas').update({share_token:token,share_expires_at:expiresAt,share_scope:scope}).eq('id',sbRowId);
+    if(error) throw error;
+    const baseUrl=window.location.origin+window.location.pathname;
+    const url=`${baseUrl}?mode=share&token=${token}`;
+    const out=document.getElementById('share-link-output');
+    out.value=url;
+    document.getElementById('share-link-field').style.display='block';
+    document.getElementById('share-copied-msg').style.display='none';
+  }catch(e){
+    console.error('Generate share link failed',e);
+    if(errEl){ errEl.textContent='產生連結失敗，請確認資料庫已經照設定說明加上 share_token 等欄位'; errEl.style.display='block'; }
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='產生連結'; }
   }
-  const url=`${baseUrl}?${params.toString()}`;
-  const out=document.getElementById('share-link-output');
-  out.value=url;
-  document.getElementById('share-link-field').style.display='block';
-  document.getElementById('share-copied-msg').style.display='none';
+}
+
+// 讓目前的分享連結立刻失效：把 token 清空，之前發出去的連結馬上查不到資料。
+async function revokeShareLink(){
+  if(!sb||sbRowId===null) return;
+  if(!confirm('確定要讓目前的分享連結立刻失效嗎？之前拿到這個連結的人之後就打不開了。')) return;
+  try{
+    const {error}=await sb.from('dramas').update({share_token:null,share_expires_at:null}).eq('id',sbRowId);
+    if(error) throw error;
+    document.getElementById('share-link-field').style.display='none';
+    alert('已經讓連結失效了');
+  }catch(e){
+    console.error('Revoke share link failed',e);
+    alert('操作失敗，請稍後再試');
+  }
 }
 
 function copyShareLink(){
@@ -4051,27 +4154,18 @@ function copyShareLink(){
   }
 }
 
-// Detect read-only / share mode from URL params. Returns:
-//  'expired'  -> link is share mode but past expiry, must NOT load cloud data
-//  'readonly' -> valid share mode (within expiry, or permanent), load data but hide all edit controls
-//  null       -> normal admin mode
+// 判斷網址是不是分享連結（訪客模式）。以前這裡還會順便檢查 ?expires= 是否過期，
+// 但那個參數是使用者自己在網址列就能改掉的，不能拿來當真正的判斷依據——
+// 現在过期與否完全交給資料庫的 get_shared_drama() 函式判斷（見 loadSharedData()），
+// 這裡只單純看網址格式對不對。
 function detectShareMode(){
   const params=new URLSearchParams(window.location.search);
   if(params.get('mode')!=='share') return null;
-  const expires=params.get('expires');
-  if(expires){
-    const expiresAt=parseInt(expires,10);
-    if(!isNaN(expiresAt) && Date.now()>expiresAt){
-      return 'expired';
-    }
-  }
-  return 'readonly';
+  return params.get('token') ? 'readonly' : null;
 }
 
-// 分享範圍：'drama'（預設，音樂劇完全隱藏、不出現在 db 裡）或 'all'（音樂劇正常顯示，但金額一律遮蔽）
-function detectShareScope(){
-  const params=new URLSearchParams(window.location.search);
-  return params.get('scope')==='all' ? 'all' : 'drama';
+function getShareTokenFromUrl(){
+  return new URLSearchParams(window.location.search).get('token')||'';
 }
 
 function showExpiredScreen(){
@@ -4079,17 +4173,41 @@ function showExpiredScreen(){
     <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:2rem;text-align:center;font-family:'Nunito','PingFang TC',sans-serif">
       <div>
         <div style="font-size:48px;margin-bottom:1rem">🔒</div>
-        <div style="font-size:18px;font-weight:700;color:#1A1A2E;margin-bottom:.5rem">此連結已超過有效期限</div>
+        <div style="font-size:18px;font-weight:700;color:#1A1A2E;margin-bottom:.5rem">這個連結已經失效或不存在</div>
         <div style="font-size:14px;color:#888">請向對方索取新的分享連結</div>
       </div>
     </div>`;
+}
+
+// 訪客模式（分享連結）實際撈資料：不再直接查 dramas 表（RLS 已經不允許匿名查表了），
+// 改成呼叫資料庫的 get_shared_drama() 函式，帶著網址上的 token 去換資料。
+// 範圍（drama/all）也是用這個函式回傳的 share_scope，不是網址上的 ?scope= 參數——
+// 這樣訪客自己在網址列亂改都不會有作用，範圍/是否過期完全由資料庫端說了算。
+async function loadSharedData(){
+  const token=getShareTokenFromUrl();
+  if(!token){ showExpiredScreen(); return; }
+  try{
+    const {data,error}=await sb.rpc('get_shared_drama',{p_token:token});
+    if(error) throw error;
+    const row=data&&data.length?data[0]:null;
+    if(!row||!row.data){ showExpiredScreen(); return; }
+    db=row.data||[];
+    guestShareScope=row.share_scope==='all'?'all':'drama';
+    if(guestShareScope==='drama') document.body.classList.add('guest-hide-musical');
+    setSyncStatus('👀 唯讀模式','#888');
+    stripMusicalDataForGuest();
+    render();
+    handleRoute();
+  }catch(e){
+    console.error('Load shared data failed',e);
+    showExpiredScreen();
+  }
 }
 
 function applyReadOnlyMode(){
   isReadOnly=true;
   isGuestMode=true;
   document.body.classList.add('read-only-mode','guest-mode');
-  if(guestShareScope==='drama') document.body.classList.add('guest-hide-musical');
   setSyncStatus('👀 唯讀模式','#888');
 }
 
@@ -4146,15 +4264,77 @@ async function submitLogin(){
     if(error) throw error;
     localStorage.setItem(LOGIN_EMAIL_KEY,email);
     closeModal('login-modal');
-    isAuthenticated=true;
     isReadOnly=false;
     document.body.classList.remove('read-only-mode');
-    setSyncStatus('☁️ 已同步','#0F6E56');
-    updateAuthUI();
-    render();
+    // 現在沒登入的話一開始就完全不會撈資料（見 loadFromCloud 的登入前擋牆），
+    // 所以登入成功後要重新跑一次 loadFromCloud() 才會真的把這個帳號的資料抓下來，
+    // 不能只是把 isAuthenticated 設成 true 就直接 render()（那時候 db 還是空的）。
+    await loadFromCloud();
   }catch(e){
     console.error('Login failed',e);
     if(errEl){ errEl.textContent='登入失敗，請確認 Email 和密碼是否正確'; errEl.style.display='block'; }
+  }
+}
+
+function openSignupModal(){
+  const errEl=document.getElementById('signup-error');
+  const okEl=document.getElementById('signup-success');
+  if(errEl) errEl.style.display='none';
+  if(okEl) okEl.style.display='none';
+  setFieldVal('signup-email','');
+  setFieldVal('signup-password','');
+  setFieldVal('signup-password2','');
+  const btn=document.getElementById('signup-submit-btn');
+  if(btn){ btn.disabled=false; btn.textContent='註冊'; }
+  openModal('signup-modal');
+}
+
+async function submitSignup(){
+  const email=fieldVal('signup-email').trim();
+  const password=fieldVal('signup-password');
+  const password2=fieldVal('signup-password2');
+  const errEl=document.getElementById('signup-error');
+  const okEl=document.getElementById('signup-success');
+  if(errEl) errEl.style.display='none';
+  if(okEl) okEl.style.display='none';
+  if(!sb){
+    if(errEl){ errEl.textContent='目前是離線模式，無法註冊'; errEl.style.display='block'; }
+    return;
+  }
+  if(!email||!password){
+    if(errEl){ errEl.textContent='請輸入 Email 和密碼'; errEl.style.display='block'; }
+    return;
+  }
+  if(password.length<6){
+    if(errEl){ errEl.textContent='密碼至少要 6 個字元'; errEl.style.display='block'; }
+    return;
+  }
+  if(password!==password2){
+    if(errEl){ errEl.textContent='兩次輸入的密碼不一樣'; errEl.style.display='block'; }
+    return;
+  }
+  const btn=document.getElementById('signup-submit-btn');
+  if(btn){ btn.disabled=true; btn.textContent='註冊中…'; }
+  try{
+    const {data,error}=await sb.auth.signUp({email,password});
+    if(error) throw error;
+    // Supabase 專案如果開了「Confirm email」，這裡拿到的 session 會是 null（帳號還沒生效），
+    // 要請使用者去信箱點確認信；如果專案關掉了這個設定，會直接拿到 session，可以馬上登入使用。
+    if(data && data.session){
+      localStorage.setItem(LOGIN_EMAIL_KEY,email);
+      closeModal('signup-modal');
+      isReadOnly=false;
+      document.body.classList.remove('read-only-mode');
+      await loadFromCloud();
+    }else{
+      if(okEl){ okEl.textContent='註冊成功！請到信箱收信，點擊確認連結後就能登入了。'; okEl.style.display='block'; }
+      if(btn){ btn.disabled=false; btn.textContent='註冊'; }
+    }
+  }catch(e){
+    console.error('Signup failed',e);
+    const msg=(e&&e.message&&e.message.toLowerCase().includes('already'))?'這個 Email 已經註冊過了，請直接登入':'註冊失敗，請稍後再試';
+    if(errEl){ errEl.textContent=msg; errEl.style.display='block'; }
+    if(btn){ btn.disabled=false; btn.textContent='註冊'; }
   }
 }
 
@@ -4201,31 +4381,29 @@ function jsStr(s){
 }
 
 const shareMode=detectShareMode();
-guestShareScope=detectShareScope();
 
-if(shareMode==='expired'){
-  // CRITICAL: do not initialize Supabase or load any data when link is expired
+if(shareMode==='readonly'){
+  applyReadOnlyMode();
+}
+if(initSupabase()){
+  loadFromCloud();
+}else if(shareMode==='readonly'){
+  // 訪客模式下如果連 Supabase 都初始化失敗，沒有任何本機資料可以退回顯示，
+  // 直接顯示連結失效訊息，不要顯示示範資料（那對一個分享連結的訪客沒有意義）。
   showExpiredScreen();
 }else{
-  if(shareMode==='readonly'){
-    applyReadOnlyMode();
-  }
-  if(initSupabase()){
-    loadFromCloud();
-  }else{
-    setSyncStatus('⚠️ 離線模式','#B91C1C');
-    try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
-    if(!db.length) seedData();
-    stripMusicalDataForGuest();
-    render();
-    handleRoute();
-  }
+  setSyncStatus('⚠️ 離線模式','#B91C1C');
+  try{db=JSON.parse(localStorage.getItem(KEY)||'[]')}catch{db=[]}
+  if(!db.length) seedData();
+  stripMusicalDataForGuest();
+  render();
+  handleRoute();
+}
 
-  if('serviceWorker' in navigator){
-    window.addEventListener('load',()=>{
-      navigator.serviceWorker.register('sw.js').catch(()=>{});
-    });
-  }
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
 }
 // ==========================================
 // 🧑‍🎤 演員詳細頁：路由與框架
