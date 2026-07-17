@@ -10,7 +10,7 @@
 alter table dramas add column if not exists user_id uuid references auth.users(id);
 
 -- 把現有唯一一列資料，補成擁有者自己的 uid（把 OWNER_UID 換成你複製的真正 UID）
-update dramas set user_id = 'OWNER_UID' where user_id is null;
+update dramas set user_id = 'ae2cf678-1445-4472-bc11-43e052cc7ac3' where user_id is null;
 
 alter table dramas alter column user_id set not null;
 alter table dramas alter column user_id set default auth.uid();
