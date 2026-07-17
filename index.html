@@ -5156,19 +5156,22 @@ function openActorsCleanupPreview(){
     const confirmBtn=document.getElementById('actors-cleanup-confirm-btn');
     if(confirmBtn) confirmBtn.style.display='none';
   }else{
-    // 每一筆都可以勾選要不要套用、也可以直接編輯建議的乾淨姓名（逗號分隔多個人）——
-    // 不是每個自動判斷的拆解建議都一定對，讓使用者可以取消勾選（跳過不處理）或修正內容再套用。
+    // 每一筆都可以選「套用」或「不更改」（不更改就整個跳過，保留原樣），也可以直接編輯
+    // 建議的乾淨姓名（逗號分隔多個人）——不是每個自動判斷的拆解建議都一定對。
     const rows = plan.messyEntries.map((m,i)=>{
       const suggested = m.splitInto.join(', ');
-      return `<div class="cleanup-row" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F0F0F5;flex-wrap:wrap">
-        <input type="checkbox" class="cleanup-row-check" id="cleanup-check-${i}" checked style="flex-shrink:0;width:16px;height:16px">
+      return `<div class="cleanup-row" data-idx="${i}" data-skip="false" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #F0F0F5;flex-wrap:wrap">
         <span style="color:#B91C1C;text-decoration:line-through;font-size:13px;flex-shrink:0">${esc(m.oldLabel)}</span>
         <span style="color:#ccc">→</span>
         <input type="text" class="cleanup-row-input" id="cleanup-input-${i}" value="${esc(suggested)}" placeholder="留空＝直接刪除，不保留任何姓名" style="flex:1;min-width:160px;font-size:13px;padding:5px 9px;border:1px solid #E0E0EE;border-radius:8px">
+        <div class="type-filter">
+          <button type="button" class="on" id="cleanup-apply-${i}" onclick="setCleanupRowMode(${i},'apply')">套用</button>
+          <button type="button" id="cleanup-skip-${i}" onclick="setCleanupRowMode(${i},'skip')">不更改</button>
+        </div>
       </div>`;
     }).join('');
     body.innerHTML = `
-      <p style="font-size:13px;color:#3C3489;font-weight:700;margin-bottom:6px">將拆解 / 修正 ${plan.messyEntries.length} 筆格式錯誤的節點（取消勾選可以跳過某一筆，或直接改輸入框裡的建議姓名）：</p>
+      <p style="font-size:13px;color:#3C3489;font-weight:700;margin-bottom:6px">將拆解 / 修正 ${plan.messyEntries.length} 筆格式錯誤的節點（可以個別選「不更改」跳過，或直接改輸入框裡的建議姓名）：</p>
       ${rows}
       <p style="color:#888;font-size:12px;margin-top:12px">另有 ${plan.unchangedCount} 位演員格式正確，不會被更動。</p>
     `;
@@ -5183,6 +5186,21 @@ function closeActorsCleanupModal(){
   if(bg) bg.classList.remove('open');
 }
 
+// 切換單一節點的「套用／不更改」狀態：選「不更改」的話輸入框變灰、鎖住不能編輯，
+// 提醒使用者這一筆不會被套用；狀態存在 data-skip 上，confirmActorsCleanup() 讀取的時候用這個判斷。
+function setCleanupRowMode(i,mode){
+  const row=document.querySelector(`.cleanup-row[data-idx="${i}"]`);
+  const applyBtn=document.getElementById('cleanup-apply-'+i);
+  const skipBtn=document.getElementById('cleanup-skip-'+i);
+  const input=document.getElementById('cleanup-input-'+i);
+  if(!row) return;
+  const skip = mode==='skip';
+  row.dataset.skip = skip ? 'true' : 'false';
+  if(applyBtn) applyBtn.classList.toggle('on',!skip);
+  if(skipBtn) skipBtn.classList.toggle('on',skip);
+  if(input) input.disabled = skip;
+}
+
 // 使用者在預覽視窗按下「確認套用」後才會執行：
 // 1) 正規化 db 裡每部音樂劇的 actors / actors_all / 每場 viewing_history 的卡司欄位
 // 2) 把乾淨姓名補進 musicalActors（若尚未存在），並刪除格式錯誤的舊節點
@@ -5193,13 +5211,13 @@ async function confirmActorsCleanup(){
   const btn=document.getElementById('actors-cleanup-confirm-btn');
   if(btn){ btn.disabled=true; btn.textContent='套用中…'; }
 
-  // 只處理使用者在預覽視窗裡「勾選」的節點，姓名也是讀當下輸入框裡的內容
-  // （可能被手動改過，不一定跟自動偵測建議的一樣）——取消勾選的節點完全跳過，
+  // 只處理使用者選「套用」的節點，姓名也是讀當下輸入框裡的內容
+  // （可能被手動改過，不一定跟自動偵測建議的一樣）——選「不更改」的節點完全跳過，
   // 舊的格式錯誤節點會被保留，不會被刪除或改名。
   const selectedEntries = plan.messyEntries.map((m,i)=>{
-    const checkEl=document.getElementById('cleanup-check-'+i);
+    const rowEl=document.querySelector(`.cleanup-row[data-idx="${i}"]`);
     const inputEl=document.getElementById('cleanup-input-'+i);
-    if(!checkEl || !checkEl.checked) return null;
+    if(!rowEl || rowEl.dataset.skip==='true') return null;
     const names=(inputEl?inputEl.value:'').split(/[,，、]/).map(s=>s.trim()).filter(Boolean);
     return {oldName:m.oldName, splitInto:names};
   }).filter(Boolean);
@@ -5266,7 +5284,7 @@ async function deleteMusicalActorRow(id){
     <div style="display:flex;justify-content:space-between;align-items:center">
       <button class="icon-btn" onclick="closeActorsListPage()"><i class="ti ti-arrow-left"></i> 返回</button>
       <h3 style="margin:0;font-size:16px"><i class="ti ti-users"></i> 演員資料庫</h3>
-      <button class="icon-btn" onclick="openActorsCleanupPreview()" style="color:#B45309;border-color:#F5D9A8"><i class="ti ti-broom"></i></button>
+      <button class="icon-btn" onclick="openActorsCleanupPreview()" title="演員資料清理" style="color:#B45309;border-color:#F5D9A8"><i class="ti ti-wand"></i></button>
     </div>
     <div class="actors-search-bar">
       <input type="text" id="actors-search-input" placeholder="搜尋演員姓名…" oninput="setActorsSearch(this.value)">
