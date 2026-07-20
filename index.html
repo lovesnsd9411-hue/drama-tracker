@@ -580,9 +580,9 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       </div>
       <div class="poster-preview" id="poster-preview"></div>
       <div style="margin-top:8px">
-        <label style="font-size:12px;color:#aaa;font-weight:600">搜不到海報？直接貼圖片網址</label>
+        <label style="font-size:12px;color:#aaa;font-weight:600">搜不到海報？直接貼圖片網址，或把複製好的圖片直接貼進來（Ctrl/Cmd+V）</label>
         <div style="display:flex;gap:8px;margin-top:4px">
-          <input type="text" id="f-poster-url" placeholder="https://..." oninput="onPosterUrlInput()" style="flex:1">
+          <input type="text" id="f-poster-url" placeholder="https://... 或直接貼圖片" oninput="onPosterUrlInput()" onpaste="handleImagePaste(event,'poster')" style="flex:1">
         </div>
         <label style="font-size:12px;color:#aaa;font-weight:600;display:block;margin-top:8px">或直接上傳圖片檔（存到 Supabase Storage，不怕原網站的圖片失效）</label>
         <input type="file" id="f-poster-file" accept="image/*" onchange="handlePosterFileUpload(event)" style="margin-top:4px">
@@ -688,7 +688,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <!-- 只有設定了兩季以上才會顯示，選項直接讀上面「季度設定」填的季名，不用另外輸入 -->
       <div class="type-filter" id="settlement-season-tabs" style="display:none;margin-bottom:.6rem"></div>
       <div id="settlement-preview" style="margin-bottom:8px"></div>
-      <input type="text" id="f-settlement-url" placeholder="https://...（貼圖片網址）" oninput="onSettlementUrlInput()">
+      <input type="text" id="f-settlement-url" placeholder="https://...（貼圖片網址，或直接貼圖片 Ctrl/Cmd+V）" oninput="onSettlementUrlInput()" onpaste="handleImagePaste(event,'settlement')">
       <label style="font-size:12px;color:#aaa;font-weight:600;display:block;margin-top:8px">或直接上傳圖片檔（存到 Supabase Storage，不怕原網站的圖片失效）</label>
       <input type="file" id="f-settlement-file" accept="image/*" onchange="handleSettlementFileUpload(event)" style="margin-top:4px">
       <div id="f-settlement-upload-status" style="font-size:11px;color:#aaa;margin-top:4px"></div>
@@ -942,6 +942,37 @@ async function uploadImageFile(file){
     console.error('Upload failed',e);
     alert('上傳失敗，請確認 Supabase Storage 裡已經建立好「'+STORAGE_BUCKET+'」這個 bucket（見說明），或改貼圖片網址');
     return null;
+  }
+}
+
+// 讓「貼圖片網址」欄位也能直接貼上剪貼簿裡複製的圖片（例如在別的網頁上對圖片按右鍵「複製圖片」
+// 之後回來 Ctrl/Cmd+V），不用先手動另存新檔再選檔案上傳——貼上的圖片一樣會傳到 Supabase Storage，
+// 拿到的是永久網址，不是像貼別人網站圖片網址那樣容易失效。kind 是 'poster' 或 'settlement'，
+// 對應各自的 url input id / 上傳狀態文字 id / 貼上網址後要重新整理預覽用的 function 名稱。
+const IMAGE_PASTE_TARGETS={
+  poster:{urlInputId:'f-poster-url',statusId:'f-poster-upload-status',onUrlSet:onPosterUrlInput},
+  settlement:{urlInputId:'f-settlement-url',statusId:'f-settlement-upload-status',onUrlSet:onSettlementUrlInput}
+};
+async function handleImagePaste(event,kind){
+  const items=event.clipboardData&&event.clipboardData.items;
+  if(!items) return;
+  let imageFile=null;
+  for(const item of items){
+    if(item.type&&item.type.startsWith('image/')){ imageFile=item.getAsFile(); break; }
+  }
+  if(!imageFile) return; // 不是圖片（例如貼的是文字網址），維持原本貼上行為就好
+  event.preventDefault();
+  const target=IMAGE_PASTE_TARGETS[kind];
+  if(!target) return;
+  const statusEl=document.getElementById(target.statusId);
+  if(statusEl) statusEl.textContent='上傳中…';
+  const url=await uploadImageFile(imageFile);
+  if(url){
+    setFieldVal(target.urlInputId,url);
+    target.onUrlSet();
+    if(statusEl) statusEl.textContent='✓ 上傳完成';
+  }else if(statusEl){
+    statusEl.textContent='';
   }
 }
 
