@@ -1532,7 +1532,8 @@ function renderCastChipsInline(items, filterable){
 }
 
 // 將候選卡司（該劇目的「主要演員」欄位，即完整候選名單）依角色分組，
-// 渲染成勾選清單：角色名稱（粗體）＋分隔線「｜」＋每位候選演員一個 checkbox 膠囊 (actor-cb)。
+// 渲染成勾選清單：一個角色一行——角色名稱（粗體）＋分隔線「｜」，
+// 該角色底下的候選演員 checkbox 膠囊 (actor-cb) 排在同一行，不同角色不會混在一起。
 // 用於「新增多刷紀錄」時勾選本場實際觀看的演員，取代原本的純文字輸入。
 function renderCastCheckboxList(items, checkedList){
   if(!items || !items.length) return '';
@@ -1545,14 +1546,26 @@ function renderCastCheckboxList(items, checkedList){
     return name ? role+'\u0001'+name : null;
   }).filter(Boolean));
   const norm = items.map(c => (typeof c==='string') ? {role:'',name:c} : {role:c.role||'',name:c.name||c});
-  // 不再依角色分組成一整塊區塊（太佔垂直空間）——每位候選演員一張「角色｜演員」合併晶片，
-  // 全部平鋪在同一個 flex-wrap 容器裡並排顯示，跟多刷紀錄的卡司晶片是同一套排版邏輯。
-  const boxes = norm.filter(c=>c.name).map(c=>{
-    const checkedAttr = checkedKeys.has(c.role+'\u0001'+c.name) ? ' checked' : '';
-    const roleHtml = c.role ? `<span class="cast-chip-role" title="${esc(c.role)}">${esc(c.role)}</span><span class="cast-chip-sep">｜</span>` : '';
-    return `<label class="actor-cb">${roleHtml}<input type="checkbox" value="${esc(c.name)}" data-role="${esc(c.role)}" onchange="enforceSingleCastPerRole(this)"${checkedAttr}>${esc(c.name)}</label>`;
+  // 依角色分組：同角色的候選演員合併進同一行；沒有角色的各自獨立成一行（不顯示角色標籤）。
+  const groups=[];
+  const roleIndex={};
+  norm.forEach(c=>{
+    if(!c.name) return;
+    if(c.role && roleIndex.hasOwnProperty(c.role)){
+      groups[roleIndex[c.role]].items.push(c);
+    }else{
+      if(c.role) roleIndex[c.role]=groups.length;
+      groups.push({role:c.role,items:[c]});
+    }
+  });
+  return groups.map(g=>{
+    const boxes=g.items.map(c=>{
+      const checkedAttr = checkedKeys.has(c.role+'\u0001'+c.name) ? ' checked' : '';
+      return `<label class="actor-cb"><input type="checkbox" value="${esc(c.name)}" data-role="${esc(c.role)}" onchange="enforceSingleCastPerRole(this)"${checkedAttr}>${esc(c.name)}</label>`;
+    }).join('');
+    const header = g.role ? `<div class="cast-role-name">${esc(g.role)}<span class="cast-divider">｜</span></div>` : '';
+    return `<div class="cast-role-block">${header}<div class="actor-list-container">${boxes}</div></div>`;
   }).join('');
-  return `<div class="cast-chip-row">${boxes}</div>`;
 }
 
 // 同一個角色（例如「洪蓮」）一場只會有一位演員演出，所以同角色底下勾了新的人，
@@ -1562,7 +1575,7 @@ function renderCastCheckboxList(items, checkedList){
 function enforceSingleCastPerRole(checkboxEl){
   const role=checkboxEl.dataset.role||'';
   if(!role||!checkboxEl.checked) return;
-  const container=checkboxEl.closest('.cast-chip-row');
+  const container=checkboxEl.closest('.cast-role-block');
   if(!container) return;
   container.querySelectorAll('input[type=checkbox]').forEach(inp=>{
     if(inp!==checkboxEl && inp.dataset.role===role) inp.checked=false;
