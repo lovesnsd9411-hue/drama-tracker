@@ -4813,7 +4813,7 @@ function renderActorPage(name){
     if(ratedWorks.length) miniStats.push(`<div class="actor-mini-stat"><div class="n">⭐ ${avgRating.toFixed(1)}</div><div class="l">平均評分</div></div>`);
 
     summaryEl.innerHTML = `
-      ${catCards.length?`<div class="actor-cat-row">${catCards.join('')}</div>`:''}
+      ${catCards.length?`<div class="actor-cat-row" style="grid-template-columns:repeat(${catCards.length},1fr)">${catCards.join('')}</div>`:''}
       <div class="actor-mini-row">${miniStats.join('')}</div>
     `;
   }
