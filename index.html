@@ -432,6 +432,10 @@ textarea{height:80px;resize:vertical}
 .cast-role-group-header{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:800;color:#3C3489;margin-bottom:5px}
 .cast-role-group-move{cursor:pointer;opacity:.5;font-size:10px;user-select:none}
 .cast-role-group-move:hover{opacity:1}
+.cast-role-multi-toggle{margin-left:auto;cursor:pointer;user-select:none;font-size:10.5px;font-weight:700;color:#aaa;padding:2px 7px;border-radius:10px;border:1px solid #E0E0EE;background:#fff}
+.cast-role-multi-toggle:hover{border-color:#8B86D4;color:#3C3489}
+.cast-role-multi-toggle.on{background:#EEEDFE;color:#3C3489;border-color:#AFA9EC}
+.cast-role-multi-badge{font-size:10px;font-weight:700;color:#3C3489;background:#EEEDFE;border-radius:8px;padding:1px 6px;margin-left:5px;vertical-align:middle}
 .cast-role-group-chips{display:flex;flex-wrap:wrap;gap:6px}
 .tag-suggest-dropdown{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #E5E5F0;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.1);z-index:20;max-height:220px;overflow-y:auto;margin-top:4px}
 .tag-suggest-item{padding:8px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -1326,6 +1330,10 @@ function actorAvatarHtml(actor,sizeClass){
 
 // scope -> 'form' (新增/編輯劇目表單的音樂劇主要演員) 或 'show' (新增場次表單) 或 'cameo' (電視劇的客串／特別演出)
 const castChipsStore = { form: [], show: [], cameo: [] };
+// 記錄哪些角色被標成「可複選」（例如群演池：好幾位候選演員裡，當場只挑幾位出席）。
+// 只有 season-N 這個 scope 會實際用到（候選卡司勾選清單只看季度專屬卡司），
+// 但每個 scope 各自存一份也沒有壞處，跟 castChipsStore 的資料結構對齊。
+const castMultiRolesStore = {};
 
 function castScopeIds(scope){
   return {
@@ -1338,16 +1346,26 @@ function castScopeIds(scope){
 
 // 初始化某個 scope 的卡司輸入區，selected 可以是字串陣列（純演員名）
 // 或物件陣列 [{role,name}]，兩種都接受，方便影劇/音樂劇兩邊重用。
-function initCastTagInput(scope, selected){
+function initCastTagInput(scope, selected, multiRoles){
   const items = (selected||[]).map(s=>{
     if (typeof s === 'string') return { role:'', name:s };
     return { role: s.role||'', name: s.name||s };
   }).filter(s=>s.name);
   castChipsStore[scope] = items;
+  castMultiRolesStore[scope] = new Set(multiRoles||[]);
   renderCastChips(scope);
   const ids=castScopeIds(scope);
   const suggestEl=document.getElementById(ids.suggest);
   if(suggestEl){ suggestEl.style.display='none'; }
+}
+
+// 切換某個角色是否「可複選」（群演池：一次可以勾選多位候選演員）。
+// 只影響 castMultiRolesStore 這份表單暫存狀態，實際存檔時才會寫進 season.multiRoles。
+function toggleRoleMultiSelect(scope, role){
+  if(!castMultiRolesStore[scope]) castMultiRolesStore[scope]=new Set();
+  const set=castMultiRolesStore[scope];
+  if(set.has(role)) set.delete(role); else set.add(role);
+  renderCastChips(scope);
 }
 
 // 把卡司陣列切成「連續同角色」的區塊——同一個角色的人通常是一起輸入的，本來就會排在一起；
@@ -1391,12 +1409,21 @@ function renderCastChips(scope){
 
     if(!g.role) return `<div class="cast-role-group cast-role-group-plain">${chipsHtml}</div>`;
 
+    // 「可複選」切換只對季度專屬卡司（season-N scope）有意義——這個標記會決定
+    // 之後「新增多刷紀錄」勾選卡司時，這個角色能不能同時勾選好幾位候選演員（群演池）。
+    const isSeasonScope=scope.indexOf('season-')===0;
+    const isMulti=(castMultiRolesStore[scope]||new Set()).has(g.role);
+    const multiToggleHtml=isSeasonScope
+      ? `<span class="cast-role-multi-toggle${isMulti?' on':''}" onclick="toggleRoleMultiSelect('${scope}','${jsStr(g.role)}')" title="開啟後，這個角色在「新增多刷紀錄」勾選卡司時可以同時勾選多位候選演員（例如群演池）">${isMulti?'☑':'☐'} 可複選</span>`
+      : '';
+
     return `
       <div class="cast-role-group">
         <div class="cast-role-group-header">
           <span class="cast-role-group-move" onclick="moveRoleGroup('${scope}',${g.indices[0]},-1)" style="${gi===0?'visibility:hidden':''}" title="這個角色整組往前移">▲</span>
           <span class="cast-role-group-move" onclick="moveRoleGroup('${scope}',${g.indices[0]},1)" style="${gi===groups.length-1?'visibility:hidden':''}" title="這個角色整組往後移">▼</span>
           <span class="cast-role-group-name">${esc(g.role)}</span>
+          ${multiToggleHtml}
         </div>
         <div class="cast-role-group-chips">${chipsHtml}</div>
       </div>`;
@@ -1536,8 +1563,11 @@ function renderCastChipsInline(items, filterable){
 // 渲染成勾選清單：一個角色一行——角色名稱（粗體）＋分隔線「｜」，
 // 該角色底下的候選演員 checkbox 膠囊 (actor-cb) 排在同一行，不同角色不會混在一起。
 // 用於「新增多刷紀錄」時勾選本場實際觀看的演員，取代原本的純文字輸入。
-function renderCastCheckboxList(items, checkedList){
+// multiRoles：這一季被標成「可複選」的角色名稱清單（群演池），這些角色底下的勾選框
+// 不會套用「同角色自動互斥」規則，可以同時勾選好幾位候選演員。
+function renderCastCheckboxList(items, checkedList, multiRoles){
   if(!items || !items.length) return '';
+  const multiRoleSet=new Set(multiRoles||[]);
   // 用「角色＋姓名」組合鍵判斷是否勾選，不能只看姓名——
   // 同一位演員可能一人分飾多角，這場如果只勾了其中一個角色，
   // 不能因為同名就連帶把他在另一個角色底下的框也自動勾起來。
@@ -1562,20 +1592,22 @@ function renderCastCheckboxList(items, checkedList){
   return groups.map(g=>{
     const boxes=g.items.map(c=>{
       const checkedAttr = checkedKeys.has(c.role+'\u0001'+c.name) ? ' checked' : '';
-      return `<label class="actor-cb"><input type="checkbox" value="${esc(c.name)}" data-role="${esc(c.role)}" onchange="enforceSingleCastPerRole(this)"${checkedAttr}>${esc(c.name)}</label>`;
+      const multiAttr = multiRoleSet.has(c.role) ? ' data-multi="true"' : '';
+      return `<label class="actor-cb"><input type="checkbox" value="${esc(c.name)}" data-role="${esc(c.role)}"${multiAttr} onchange="enforceSingleCastPerRole(this)"${checkedAttr}>${esc(c.name)}</label>`;
     }).join('');
-    const header = g.role ? `<div class="cast-role-name">${esc(g.role)}<span class="cast-divider">｜</span></div>` : '';
+    const header = g.role ? `<div class="cast-role-name">${esc(g.role)}<span class="cast-divider">｜</span>${multiRoleSet.has(g.role)?'<span class="cast-role-multi-badge" title="這個角色可以同時勾選多位候選演員（群演池）">複選</span>':''}</div>` : '';
     return `<div class="cast-role-block">${header}<div class="actor-list-container">${boxes}</div></div>`;
   }).join('');
 }
 
-// 同一個角色（例如「洪蓮」）一場只會有一位演員演出，所以同角色底下勾了新的人，
+// 同一個角色（例如「洪蓮」）一場通常只會有一位演員演出，所以同角色底下勾了新的人，
 // 就要自動把同角色其他已勾選的人取消掉——不然「複製上一場」帶入舊卡司後，
 // 手動改勾別的演員時，兩個人會同時被勾選，變成一個角色有兩位演員的錯誤資料。
-// 沒有角色標籤的（純合唱/群演名單）維持可以多選，不受這條規則限制。
+// 沒有角色標籤的（純合唱/群演名單）、或在「編輯音樂劇」表單裡把該角色標成「可複選」的
+// （data-multi="true"，例如群演池：好幾位候選演員裡當場只挑幾位出席），都不受這條規則限制。
 function enforceSingleCastPerRole(checkboxEl){
   const role=checkboxEl.dataset.role||'';
-  if(!role||!checkboxEl.checked) return;
+  if(!role||!checkboxEl.checked||checkboxEl.dataset.multi==='true') return;
   const container=checkboxEl.closest('.cast-role-block');
   if(!container) return;
   container.querySelectorAll('input[type=checkbox]').forEach(inp=>{
@@ -2650,6 +2682,7 @@ function getMusicalSeasons(d){
       name:s.name,
       period:s.period||'',
       cast:s.actors||[],
+      multiRoles:s.multiRoles||[],
       records:history.filter(h=>h && ((h.season||'').trim())===(s.name||'').trim())
     }));
   }else{
@@ -2768,7 +2801,7 @@ function renderSeasonBlocksContainer(){
     return;
   }
   el.innerHTML=formSeasonsState.map((s,i)=>renderSeasonBlockHtml(i,s)).join('');
-  formSeasonsState.forEach((s,i)=>{ initCastTagInput('season-'+i, s.actors||[]); });
+  formSeasonsState.forEach((s,i)=>{ initCastTagInput('season-'+i, s.actors||[], s.multiRoles||[]); });
 }
 
 // 在改變區塊數量（新增/刪除季度）之前，先把使用者目前在畫面上打的內容（季名/期間/卡司）
@@ -2779,13 +2812,14 @@ function syncSeasonBlocksFromDOM(){
       s.name=fieldVal('season-'+i+'-name');
       s.period=fieldVal('season-'+i+'-period');
       s.actors=getCastChipsData('season-'+i);
+      s.multiRoles=Array.from(castMultiRolesStore['season-'+i]||[]);
     }
   });
 }
 
 function addSeasonBlock(){
   syncSeasonBlocksFromDOM();
-  formSeasonsState.push({name:'',period:'',actors:[]});
+  formSeasonsState.push({name:'',period:'',actors:[],multiRoles:[]});
   renderSeasonBlocksContainer();
   renderSettlementSeasonTabs();
 }
@@ -3334,7 +3368,7 @@ async function openAddShowForm(dramaId, editShowId){
   const castFieldHtml = hasRoster
     ? `<div class="field">
         <label>本次卡司（勾選本場實際觀看的演員）</label>
-        <div id="show-viewed-actors-wrap">${renderCastCheckboxList(roster, existingCast)}</div>
+        <div id="show-viewed-actors-wrap">${renderCastCheckboxList(roster, existingCast, matchedInitialSeason?matchedInitialSeason.multiRoles:[])}</div>
       </div>`
     : `<div class="field">
         <label>卡司（此劇尚未設定「主要演員」候選名單，暫用文字輸入；可先在編輯劇目視窗建立候選名單，之後就能直接勾選）</label>
@@ -3458,7 +3492,7 @@ function refreshShowCastForSeason(dramaId,editShowId,overrideCast){
     existingCast=existingShow?((existingShow.viewed_actors&&existingShow.viewed_actors.length)?existingShow.viewed_actors:existingShow.cast):[];
   }
 
-  wrapEl.innerHTML=renderCastCheckboxList(roster,existingCast);
+  wrapEl.innerHTML=renderCastCheckboxList(roster,existingCast,matchedSeason?matchedSeason.multiRoles:[]);
 }
 
 // 「複製上一場」找上一場記錄：優先抓「目前季度」裡日期最新的一筆，
@@ -3774,7 +3808,7 @@ function openAdd(){
     fillYearSel('f-year','');
     initCastTagInput('form', []);
     initCastTagInput('cameo', []);
-    formSeasonsState=[{name:'',period:'',actors:[]}];
+    formSeasonsState=[{name:'',period:'',actors:[],multiRoles:[]}];
     renderSeasonBlocksContainer();
     renderSettlementSeasonTabs();
     setFormCategory('drama');
@@ -3844,9 +3878,9 @@ function openEdit(id){
     // wait for actor list load (setFormCategory awaits it) before populating chips
     setTimeout(()=>{
       formSeasonsState = (d.seasons && d.seasons.length)
-        ? d.seasons.map(s=>({name:s.name||'',period:s.period||'',actors:s.actors||[]}))
+        ? d.seasons.map(s=>({name:s.name||'',period:s.period||'',actors:s.actors||[],multiRoles:s.multiRoles||[]}))
         // 舊資料還沒用季度表單設定過：先用既有的候選名單墊成一個季度，方便使用者接手拆分成正式的多季結構
-        : [{name:'',period:'',actors:(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[])}];
+        : [{name:'',period:'',actors:(d.actors_all&&d.actors_all.length)?d.actors_all:(d.actors||[]),multiRoles:[]}];
       renderSeasonBlocksContainer();
 
       // 정산판暫存資料：依季度名稱把已存的圖片對應回現在的季度位置（改名之後就對不上了，
@@ -3905,7 +3939,8 @@ function saveForm(){
       id:'season_'+i,
       name:(s.name||'').trim()||('第'+(i+1)+'季'),
       period:(s.period||'').trim(),
-      actors:s.actors||[]
+      actors:s.actors||[],
+      multiRoles:s.multiRoles||[]
     }));
     // 向下相容：d.actors／d.actors_all 保留給還沒改用 seasons 結構的功能讀取
     // （人物總表、演員詳細頁、搜尋…），內容是所有季度卡司的聯集，依「角色＋姓名」去重。
