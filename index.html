@@ -951,7 +951,8 @@ async function uploadImageFile(file){
 // 對應各自的 url input id / 上傳狀態文字 id / 貼上網址後要重新整理預覽用的 function 名稱。
 const IMAGE_PASTE_TARGETS={
   poster:{urlInputId:'f-poster-url',statusId:'f-poster-upload-status',onUrlSet:onPosterUrlInput},
-  settlement:{urlInputId:'f-settlement-url',statusId:'f-settlement-upload-status',onUrlSet:onSettlementUrlInput}
+  settlement:{urlInputId:'f-settlement-url',statusId:'f-settlement-upload-status',onUrlSet:onSettlementUrlInput},
+  actor:{urlInputId:'actor-edit-image',statusId:'actor-edit-upload-status',onUrlSet:updateActorEditPreview}
 };
 async function handleImagePaste(event,kind){
   const items=event.clipboardData&&event.clipboardData.items;
@@ -5384,8 +5385,8 @@ async function deleteMusicalActorRow(id){
     </div>
     <div class="field"><label for="actor-edit-name">姓名</label><input type="text" id="actor-edit-name"></div>
     <div class="field">
-      <label for="actor-edit-image">照片網址（可留空）</label>
-      <input type="text" id="actor-edit-image" placeholder="https://..." oninput="updateActorEditPreview()">
+      <label for="actor-edit-image">照片網址（可留空，或直接貼上複製好的圖片 Ctrl/Cmd+V）</label>
+      <input type="text" id="actor-edit-image" placeholder="https://... 或直接貼圖片" oninput="updateActorEditPreview()" onpaste="handleImagePaste(event,'actor')">
       <div style="margin-top:6px">
         <label style="font-size:12px;color:#aaa;font-weight:600">或直接上傳照片檔（存到 Supabase Storage，不怕原網站的圖片失效）</label>
         <input type="file" id="actor-edit-image-file" accept="image/*" onchange="handleActorImageFileUpload(event)" style="margin-top:4px">
