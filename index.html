@@ -720,7 +720,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
   <div class="modal" style="width:min(360px,92vw)">
     <div class="modal-title">登入</div>
     <form onsubmit="return false" autocomplete="on">
-      <div class="field"><label for="login-email">Email</label><input type="text" id="login-email" placeholder="you@example.com" autocomplete="username"></div>
+      <div class="field"><label for="login-email">Email</label><input type="email" id="login-email" placeholder="you@example.com" autocomplete="username" inputmode="email"></div>
       <div class="field"><label for="login-password">密碼</label><input type="password" id="login-password" placeholder="密碼" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitLogin()"></div>
     </form>
     <div id="login-error" style="display:none;font-size:12px;color:#B91C1C;margin-bottom:.75rem;font-weight:600"></div>
@@ -738,7 +738,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
     <div class="modal-title">註冊新帳號</div>
     <p style="font-size:12.5px;color:#888;margin:0 0 1rem;line-height:1.6">註冊後會有自己獨立的追劇清單，跟其他人的資料完全分開。</p>
     <form onsubmit="return false" autocomplete="on">
-      <div class="field"><label for="signup-email">Email</label><input type="text" id="signup-email" placeholder="you@example.com" autocomplete="username"></div>
+      <div class="field"><label for="signup-email">Email</label><input type="email" id="signup-email" placeholder="you@example.com" autocomplete="username" inputmode="email"></div>
       <div class="field"><label for="signup-password">密碼</label><input type="password" id="signup-password" placeholder="至少 6 個字元" autocomplete="new-password"></div>
       <div class="field"><label for="signup-password2">再輸入一次密碼</label><input type="password" id="signup-password2" placeholder="再輸入一次" autocomplete="new-password" onkeydown="if(event.key==='Enter')submitSignup()"></div>
     </form>
