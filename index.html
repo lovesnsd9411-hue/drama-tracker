@@ -46,7 +46,11 @@ input,select,textarea,button{font-family:inherit}
 
 /* 「全部」分頁專用：電視劇／音樂劇兩排統計疊在一起，故意用比單一分頁矮、緊湊的樣式，
    讓使用者一眼就能分辨「這是全部總覽」而不是誤以為是某個分頁單獨的統計列。 */
-.stats-wrap-all{margin-bottom:.4rem}
+/* #stats 本身是 grid-template-columns:repeat(4,1fr)（給單一分頁的 4 顆大格子用的）。
+   「全部」分頁只塞這一個 wrapper 當唯一的子元素，如果不讓它跨滿所有欄，會被那個 4 欄 grid
+   當成「只佔第 1 欄」，整組內容被硬擠進 1/4 版面寬——這是手機版看起來超擠、文字瘋狂換行
+   的真正原因，跟欄數/字級都無關，先前那個「窄螢幕改 2 欄」的嘗試方向就對錯了。 */
+.stats-wrap-all{grid-column:1/-1;margin-bottom:.4rem}
 .stat-section-label{font-size:12.5px;color:#1A1A2E;font-weight:800;margin:0 0 6px 1px;display:flex;align-items:center;gap:7px}
 .stat-section-icon{width:20px;height:20px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px}
 .stat-section-icon.drama{background:rgba(122,122,144,.14);color:#7A7A90}
@@ -58,6 +62,11 @@ input,select,textarea,button{font-family:inherit}
 .stat-compact.stat-active{border-color:#8B86D4;box-shadow:0 3px 10px rgba(139,134,212,.2);background:#FAFAFF}
 .stat-compact .stat-n{font-size:17px;font-weight:700}
 .stat-compact .stat-l{font-size:10.5px;color:#888;margin-top:1px;font-weight:500}
+/* 手機寬度不夠塞 4 欄，四字的「預計演出」會被擠到自動斷行，跟旁邊的格子高度對不齊、很醜——
+   窄螢幕改成 2 欄 2 排，每格寬度多一倍，文字才塞得下不用換行。 */
+@media (max-width:480px){
+  .stats-compact{grid-template-columns:repeat(2,1fr)}
+}
 
 /* ── 年度儀表板：可切換年度，電視劇／音樂劇／話劇／本年度花費最多四欄（沒有話劇紀錄的年度自動變回三欄），
       歷史累計固定顯示在右上角。淺紫底跟音樂劇本來的紫色系一致，圖示直接用飽和分類色，不加圓圈襯底。 ── */
