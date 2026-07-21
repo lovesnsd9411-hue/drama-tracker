@@ -670,11 +670,6 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
     </div>
 
     <!-- ── 音樂劇專用欄位 ── -->
-    <div class="field" id="musical-only-season" style="display:none">
-      <label>目前上演期間（顯示用，可留空）</label>
-      <input type="text" id="f-musical-season" placeholder="例：2026.03 ~ 2026.05　或　2026 三演">
-    </div>
-
     <div class="field" id="namu-field"><label>나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label><input type="text" id="f-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋" autocomplete="off"></div>
 
     <!-- ── 音樂劇專用：季度區塊（取代舊版單一共用的「主要演員」欄位）──
@@ -1968,7 +1963,7 @@ async function setFormCategory(cat){
     if(el) el.style.display=isMusical?'none':'';
   });
   // musical-only field groups
-  ['musical-only-name','musical-only-type','musical-only-season','musical-only-settlement','musical-only-cast'].forEach(id=>{
+  ['musical-only-name','musical-only-type','musical-only-settlement','musical-only-cast'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display=isMusical?'':'none';
   });
@@ -2282,8 +2277,8 @@ function setPerson(name,role){pFilter={name,role};closeModal('detail-modal');ren
 function renderChips(){
   let h='';
   if(aFilter.type){
-    const tl={status:'狀態',year:'年度',genre:'類型',platform:'平台',rating:'評分',viewYear:'年度'}[aFilter.type]||'';
-    const vl=aFilter.type==='status'?(aFilter.val==='done'?'看完':aFilter.val==='dropped'?'棄劇':'觀看中'):aFilter.type==='year'?aFilter.val+'年看完':aFilter.type==='viewYear'?aFilter.val+'年觀看':aFilter.type==='rating'?rLabel(parseFloat(aFilter.val)):aFilter.val;
+    const tl={status:'狀態',year:'年度',genre:'類型',platform:'平台',rating:'評分',viewYear:'年度',musicalRunStatus:'現況'}[aFilter.type]||'';
+    const vl=aFilter.type==='status'?(aFilter.val==='done'?'看完':aFilter.val==='dropped'?'棄劇':'觀看中'):aFilter.type==='year'?aFilter.val+'年看完':aFilter.type==='viewYear'?aFilter.val+'年觀看':aFilter.type==='rating'?rLabel(parseFloat(aFilter.val)):aFilter.type==='musicalRunStatus'?({ongoing:'演出中',upcoming:'預計演出',finished:'演出完畢'}[aFilter.val]||aFilter.val):aFilter.val;
     h+=`<span class="chip chip-filter">${tl}：${vl}<button onclick="clearFilter()"><i class="ti ti-x"></i></button></span>`;
   }
   if(pFilter){
@@ -2342,6 +2337,7 @@ function getFiltered(){
   // 音樂劇／話劇沒有像電視劇一樣的「看完年度」欄位，是不是屬於某一年要看那年有沒有實際觀看場次紀錄，
   // 跟年度儀表板的次數統計（countsTowardWorks）算法保持一致，不然點進來的作品清單會跟儀表板數字對不起來。
   else if(aFilter.type==='viewYear') list=list.filter(d=>(d.viewing_history||[]).some(h=>countsTowardWorks(h)&&(h.date||'').startsWith(aFilter.val)));
+  else if(aFilter.type==='musicalRunStatus') list=list.filter(d=>getMusicalRunStatus(d)===aFilter.val);
   if(pFilter){
     if(pFilter.role==='actor') list=list.filter(d=>castNames(d.actors).includes(pFilter.name));
     else if(pFilter.role==='director') list=list.filter(d=>(d.directors&&d.directors.length?d.directors:(d.director?[d.director]:[])).includes(pFilter.name));
@@ -2620,8 +2616,12 @@ document.addEventListener('click', function(e){
   }
 });
 
-// 全部／看完／觀看中／棄劇這排統計，只算電視劇——音樂劇沒有「狀態」這個概念，不該混進來counter。
+// 全部／看完／觀看中／棄劇這排統計是電視劇專用的（狀態是使用者自己手動設定的）；
+// 音樂劇／話劇沒有這種手動狀態，改用「演出現況」（演出中／預計演出／演出完畢，
+// 依演出期間跟今天的日期自動算出來，見 getMusicalRunStatus）。兩排統計依目前
+// 停留的分頁（mainCategory）二選一顯示，不會同時出現、也不會混在一起計算。
 function renderStats(){
+  if(mainCategory==='musical'){ renderMusicalRunStats(); return; }
   const dramaList=db.filter(d=>(d.category||'drama')==='drama');
   const t=dramaList.length,done=dramaList.filter(d=>d.status==='done').length,on=dramaList.filter(d=>d.status==='ongoing').length,dropped=dramaList.filter(d=>d.status==='dropped').length;
   const cur=aFilter.type==='status'?aFilter.val:'';
@@ -2647,6 +2647,32 @@ function filterByStatus(val){
     vs.innerHTML='<option value="done">看完</option><option value="ongoing">觀看中</option><option value="dropped">棄劇</option>';
     vs.value=val;
   }
+  render();
+}
+
+// 音樂劇／話劇專用的「演出現況」統計：全部／演出中／預計演出／演出完畢。
+// unknown（所有季度都沒填演出期間，判斷不出來）不算進任何一個現況分類，只算進「全部」。
+function renderMusicalRunStats(){
+  const list=db.filter(d=>(d.category||'drama')==='musical');
+  const t=list.length;
+  let ongoing=0,upcoming=0,finished=0;
+  list.forEach(d=>{
+    const s=getMusicalRunStatus(d);
+    if(s==='ongoing') ongoing++;
+    else if(s==='upcoming') upcoming++;
+    else if(s==='finished') finished++;
+  });
+  const cur=aFilter.type==='musicalRunStatus'?aFilter.val:'';
+  document.getElementById('stats').innerHTML=`
+    <div class="stat${cur===''?' stat-active':''}" onclick="filterByMusicalRunStatus('')" style="cursor:pointer"><div class="stat-n">${t}</div><div class="stat-l">全部</div></div>
+    <div class="stat${cur==='ongoing'?' stat-active':''}" onclick="filterByMusicalRunStatus('ongoing')" style="cursor:pointer"><div class="stat-n" style="color:#185FA5">${ongoing}</div><div class="stat-l">演出中</div></div>
+    <div class="stat${cur==='upcoming'?' stat-active':''}" onclick="filterByMusicalRunStatus('upcoming')" style="cursor:pointer"><div class="stat-n" style="color:#B8860B">${upcoming}</div><div class="stat-l">預計演出</div></div>
+    <div class="stat${cur==='finished'?' stat-active':''}" onclick="filterByMusicalRunStatus('finished')" style="cursor:pointer"><div class="stat-n" style="color:#0F6E56">${finished}</div><div class="stat-l">演出完畢</div></div>`;
+}
+
+function filterByMusicalRunStatus(val){
+  setMainCategory('musical',true);
+  aFilter = val ? {type:'musicalRunStatus',val} : {type:'',val:''};
   render();
 }
 
@@ -2711,6 +2737,47 @@ function getMusicalSeasons(d){
   }
 
   return seasons.sort((a,b)=>seasonRunOrderIndex(a.name)-seasonRunOrderIndex(b.name));
+}
+
+// ── 演出現況（演出中／預計演出／演出完畢）──
+// 用季度的「演出期間」欄位（例：2026.06.30 ~ 2026.09.13）跟今天的日期比對，
+// 自動判斷這部音樂劇／話劇目前的演出現況，取代原本手動填寫、純顯示用的「目前上演期間」欄位。
+// endOfRange：只給到年或年.月時，起點補成當年/當月第一天，終點補成當年/當月最後一天，
+// 這樣「2026.06」這種粗略寫法也能被當成「整個 2026 年 6 月都算演出期間」來判斷。
+function parseFlexibleDate(str, endOfRange){
+  const nums=str.trim().split(/[.\-\/]/).map(p=>p.trim()).filter(Boolean).map(n=>parseInt(n,10));
+  if(!nums.length || nums.some(isNaN)) return null;
+  const year=nums[0];
+  if(year<1000||year>3000) return null; // 防呆：不是四位數年份的開頭就不當日期解析（例如純角色/季名文字）
+  if(nums.length>=3) return new Date(year, nums[1]-1, nums[2]);
+  if(nums.length===2) return endOfRange ? new Date(year, nums[1], 0) : new Date(year, nums[1]-1, 1);
+  return endOfRange ? new Date(year, 11, 31) : new Date(year, 0, 1);
+}
+function parsePeriodRange(periodStr){
+  const s=(periodStr||'').trim();
+  if(!s) return null;
+  const parts=s.split(/\s*[~～]\s*|\s+-\s+/);
+  if(parts.length===2){
+    const start=parseFlexibleDate(parts[0],false);
+    const end=parseFlexibleDate(parts[1],true);
+    if(!start && !end) return null;
+    return {start:start||end, end:end||start};
+  }
+  const start=parseFlexibleDate(s,false);
+  if(!start) return null;
+  const end=parseFlexibleDate(s,true)||start;
+  return {start,end};
+}
+// 回傳 'ongoing'｜'upcoming'｜'finished'｜'unknown'（所有季度的演出期間都留白/無法解析，判斷不出來）。
+// 只要有任何一季「現在」落在期間內就算演出中；沒有演出中但還有未來的季度就算預計演出；
+// 全部季度都已經過去才算演出完畢。
+function getMusicalRunStatus(d){
+  const ranges=getMusicalSeasons(d).map(s=>parsePeriodRange(s.period)).filter(Boolean);
+  if(!ranges.length) return 'unknown';
+  const today=new Date(); today.setHours(0,0,0,0);
+  if(ranges.some(r=>r.start<=today && today<=r.end)) return 'ongoing';
+  if(ranges.some(r=>r.start>today)) return 'upcoming';
+  return 'finished';
 }
 
 // 依照目前季度候選卡司的角色設定，回頭幫歷史場次裡「還沒標角色」的演員自動補上角色——
@@ -3785,7 +3852,7 @@ function openAdd(){
     editId=null;
     const titleEl=document.getElementById('form-title');
     if(titleEl) titleEl.textContent='新增劇目';
-    ['f-name','f-orig','f-platform','f-actors','f-director','f-writer','f-note','f-poster','f-poster-url','f-musical-name','f-poster-q','f-musical-season','f-episode','f-settlement-url'].forEach(id=>setFieldVal(id,''));
+    ['f-name','f-orig','f-platform','f-actors','f-director','f-writer','f-note','f-poster','f-poster-url','f-musical-name','f-poster-q','f-episode','f-settlement-url'].forEach(id=>setFieldVal(id,''));
 
     const posterPrev=document.getElementById('poster-preview');
     if(posterPrev) posterPrev.innerHTML='';
@@ -3845,7 +3912,6 @@ function openEdit(id){
   setGenreCheckboxValues(d.genres && d.genres.length ? d.genres : (d.genre || ''));
 
   setFieldVal('f-platform',d.platform||'');
-  setFieldVal('f-musical-season',d.season||'');
   setSelectedStageType(d.stageType||'musical');
   setFieldVal('f-namu',d.namu||'');
   setFieldVal('f-actors',(d.actors||[]).join(', '));
@@ -3955,7 +4021,7 @@ function saveForm(){
       name,orig,category,
       status:'',rating:0,genre:'',genres:[],
       platform:'',
-      airDate:'',yearDone:'',season:fieldVal('f-musical-season').trim(),
+      airDate:'',yearDone:'',
       seasons,
       actors:unionCast,
       actors_all:aggregateActorsAll(unionCast,existing), // 匯總目前填寫的卡司＋歷史所有場次記錄過的卡司
