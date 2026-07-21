@@ -44,6 +44,21 @@ input,select,textarea,button{font-family:inherit}
 .stat-n{font-size:24px;font-weight:700}
 .stat-l{font-size:12px;color:#888;margin-top:2px;font-weight:500}
 
+/* 「全部」分頁專用：電視劇／音樂劇兩排統計疊在一起，故意用比單一分頁矮、緊湊的樣式，
+   讓使用者一眼就能分辨「這是全部總覽」而不是誤以為是某個分頁單獨的統計列。 */
+.stats-wrap-all{margin-bottom:.4rem}
+.stat-section-label{font-size:12.5px;color:#1A1A2E;font-weight:800;margin:0 0 6px 1px;display:flex;align-items:center;gap:7px}
+.stat-section-icon{width:20px;height:20px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px}
+.stat-section-icon.drama{background:rgba(122,122,144,.14);color:#7A7A90}
+.stat-section-icon.musical{background:rgba(124,111,224,.14);color:#7C6FE0}
+.stats-compact{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:.85rem}
+.stats-compact:last-of-type{margin-bottom:0}
+.stat-compact{background:#fff;border-radius:11px;border:.5px solid #E5E5F0;padding:.45rem .5rem;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.04);transition:all .15s;cursor:pointer}
+.stat-compact:hover{border-color:#B8B5E8;box-shadow:0 3px 10px rgba(0,0,0,.08)}
+.stat-compact.stat-active{border-color:#8B86D4;box-shadow:0 3px 10px rgba(139,134,212,.2);background:#FAFAFF}
+.stat-compact .stat-n{font-size:17px;font-weight:700}
+.stat-compact .stat-l{font-size:10.5px;color:#888;margin-top:1px;font-weight:500}
+
 /* ── 年度儀表板：可切換年度，電視劇／音樂劇／話劇／本年度花費最多四欄（沒有話劇紀錄的年度自動變回三欄），
       歷史累計固定顯示在右上角。淺紫底跟音樂劇本來的紫色系一致，圖示直接用飽和分類色，不加圓圈襯底。 ── */
 .annual-dashboard{padding:1.1rem 1rem;background:linear-gradient(135deg,#F8F6FE,#F1EDFC);border:1px solid #E5DCF8;border-radius:16px;margin-bottom:1.4rem;box-shadow:0 3px 14px rgba(124,111,224,.1)}
@@ -2618,18 +2633,36 @@ document.addEventListener('click', function(e){
 
 // 全部／看完／觀看中／棄劇這排統計是電視劇專用的（狀態是使用者自己手動設定的）；
 // 音樂劇／話劇沒有這種手動狀態，改用「演出現況」（演出中／預計演出／演出完畢，
-// 依演出期間跟今天的日期自動算出來，見 getMusicalRunStatus）。兩排統計依目前
-// 停留的分頁（mainCategory）二選一顯示，不會同時出現、也不會混在一起計算。
+// 依演出期間跟今天的日期自動算出來，見 getMusicalRunStatus）。停留在「影劇」或「音樂劇」
+// 分頁時各自顯示單獨一排（原本的大格子樣式）；停留在「全部」分頁時兩排一起疊出來，
+// 改用比較矮、緊湊的樣式＋圖示標籤區分，讓使用者一眼看出「這是全部總覽」不是單一分頁。
 function renderStats(){
-  if(mainCategory==='musical'){ renderMusicalRunStats(); return; }
+  if(mainCategory==='musical'){ document.getElementById('stats').innerHTML=musicalStatsHtml(false); return; }
+  if(mainCategory==='drama'){ document.getElementById('stats').innerHTML=dramaStatsHtml(false); return; }
+  document.getElementById('stats').innerHTML=`
+    <div class="stats-wrap-all">
+      <div class="stat-section-label"><span class="stat-section-icon drama"><i class="ti ti-device-tv"></i></span>電視劇</div>
+      ${dramaStatsHtml(true)}
+      <div class="stat-section-label"><span class="stat-section-icon musical"><i class="ti ti-music"></i></span>音樂劇</div>
+      ${musicalStatsHtml(true)}
+    </div>`;
+}
+
+// compact=false 時不另外包 wrapper——#stats 這個容器本身就有 .stats 這個 grid class 了，
+// 直接輸出 4 個 .stat 磚就好，不然會變成 .stats 裡面又疊一層 .stats，多一層沒有用的巢狀 grid。
+// compact=true（「全部」分頁合併顯示時）才需要自己包一層 .stats-compact，因為 #stats 底下
+// 這時候要放兩組（電視劇＋音樂劇），每組要各自有自己的 4 欄 grid，不能共用最外層那個 grid。
+function dramaStatsHtml(compact){
   const dramaList=db.filter(d=>(d.category||'drama')==='drama');
   const t=dramaList.length,done=dramaList.filter(d=>d.status==='done').length,on=dramaList.filter(d=>d.status==='ongoing').length,dropped=dramaList.filter(d=>d.status==='dropped').length;
   const cur=aFilter.type==='status'?aFilter.val:'';
-  document.getElementById('stats').innerHTML=`
-    <div class="stat${cur===''?' stat-active':''}" onclick="filterByStatus('')" style="cursor:pointer"><div class="stat-n">${t}</div><div class="stat-l">全部</div></div>
-    <div class="stat${cur==='done'?' stat-active':''}" onclick="filterByStatus('done')" style="cursor:pointer"><div class="stat-n" style="color:#0F6E56">${done}</div><div class="stat-l">看完</div></div>
-    <div class="stat${cur==='ongoing'?' stat-active':''}" onclick="filterByStatus('ongoing')" style="cursor:pointer"><div class="stat-n" style="color:#185FA5">${on}</div><div class="stat-l">觀看中</div></div>
-    <div class="stat${cur==='dropped'?' stat-active':''}" onclick="filterByStatus('dropped')" style="cursor:pointer"><div class="stat-n" style="color:#B91C1C">${dropped}</div><div class="stat-l">棄劇</div></div>`;
+  const itemCls=compact?'stat-compact':'stat';
+  const inner=`
+    <div class="${itemCls}${cur===''?' stat-active':''}" onclick="filterByStatus('')" style="cursor:pointer"><div class="stat-n">${t}</div><div class="stat-l">全部</div></div>
+    <div class="${itemCls}${cur==='done'?' stat-active':''}" onclick="filterByStatus('done')" style="cursor:pointer"><div class="stat-n" style="color:#0F6E56">${done}</div><div class="stat-l">看完</div></div>
+    <div class="${itemCls}${cur==='ongoing'?' stat-active':''}" onclick="filterByStatus('ongoing')" style="cursor:pointer"><div class="stat-n" style="color:#185FA5">${on}</div><div class="stat-l">觀看中</div></div>
+    <div class="${itemCls}${cur==='dropped'?' stat-active':''}" onclick="filterByStatus('dropped')" style="cursor:pointer"><div class="stat-n" style="color:#B91C1C">${dropped}</div><div class="stat-l">棄劇</div></div>`;
+  return compact ? `<div class="stats-compact">${inner}</div>` : inner;
 }
 
 function filterByStatus(val){
@@ -2652,7 +2685,7 @@ function filterByStatus(val){
 
 // 音樂劇／話劇專用的「演出現況」統計：全部／演出中／預計演出／演出完畢。
 // unknown（所有季度都沒填演出期間，判斷不出來）不算進任何一個現況分類，只算進「全部」。
-function renderMusicalRunStats(){
+function musicalStatsHtml(compact){
   const list=db.filter(d=>(d.category||'drama')==='musical');
   const t=list.length;
   let ongoing=0,upcoming=0,finished=0;
@@ -2663,11 +2696,13 @@ function renderMusicalRunStats(){
     else if(s==='finished') finished++;
   });
   const cur=aFilter.type==='musicalRunStatus'?aFilter.val:'';
-  document.getElementById('stats').innerHTML=`
-    <div class="stat${cur===''?' stat-active':''}" onclick="filterByMusicalRunStatus('')" style="cursor:pointer"><div class="stat-n">${t}</div><div class="stat-l">全部</div></div>
-    <div class="stat${cur==='ongoing'?' stat-active':''}" onclick="filterByMusicalRunStatus('ongoing')" style="cursor:pointer"><div class="stat-n" style="color:#185FA5">${ongoing}</div><div class="stat-l">演出中</div></div>
-    <div class="stat${cur==='upcoming'?' stat-active':''}" onclick="filterByMusicalRunStatus('upcoming')" style="cursor:pointer"><div class="stat-n" style="color:#B8860B">${upcoming}</div><div class="stat-l">預計演出</div></div>
-    <div class="stat${cur==='finished'?' stat-active':''}" onclick="filterByMusicalRunStatus('finished')" style="cursor:pointer"><div class="stat-n" style="color:#0F6E56">${finished}</div><div class="stat-l">演出完畢</div></div>`;
+  const itemCls=compact?'stat-compact':'stat';
+  const inner=`
+    <div class="${itemCls}${cur===''?' stat-active':''}" onclick="filterByMusicalRunStatus('')" style="cursor:pointer"><div class="stat-n">${t}</div><div class="stat-l">全部</div></div>
+    <div class="${itemCls}${cur==='ongoing'?' stat-active':''}" onclick="filterByMusicalRunStatus('ongoing')" style="cursor:pointer"><div class="stat-n" style="color:#185FA5">${ongoing}</div><div class="stat-l">演出中</div></div>
+    <div class="${itemCls}${cur==='upcoming'?' stat-active':''}" onclick="filterByMusicalRunStatus('upcoming')" style="cursor:pointer"><div class="stat-n" style="color:#B8860B">${upcoming}</div><div class="stat-l">預計演出</div></div>
+    <div class="${itemCls}${cur==='finished'?' stat-active':''}" onclick="filterByMusicalRunStatus('finished')" style="cursor:pointer"><div class="stat-n" style="color:#0F6E56">${finished}</div><div class="stat-l">演出完畢</div></div>`;
+  return compact ? `<div class="stats-compact">${inner}</div>` : inner;
 }
 
 function filterByMusicalRunStatus(val){
