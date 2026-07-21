@@ -62,11 +62,6 @@ input,select,textarea,button{font-family:inherit}
 .stat-compact.stat-active{border-color:#8B86D4;box-shadow:0 3px 10px rgba(139,134,212,.2);background:#FAFAFF}
 .stat-compact .stat-n{font-size:17px;font-weight:700}
 .stat-compact .stat-l{font-size:10.5px;color:#888;margin-top:1px;font-weight:500}
-/* 手機寬度不夠塞 4 欄，四字的「預計演出」會被擠到自動斷行，跟旁邊的格子高度對不齊、很醜——
-   窄螢幕改成 2 欄 2 排，每格寬度多一倍，文字才塞得下不用換行。 */
-@media (max-width:480px){
-  .stats-compact{grid-template-columns:repeat(2,1fr)}
-}
 
 /* ── 年度儀表板：可切換年度，電視劇／音樂劇／話劇／本年度花費最多四欄（沒有話劇紀錄的年度自動變回三欄），
       歷史累計固定顯示在右上角。淺紫底跟音樂劇本來的紫色系一致，圖示直接用飽和分類色，不加圓圈襯底。 ── */
