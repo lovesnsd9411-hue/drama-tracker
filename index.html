@@ -2327,9 +2327,10 @@ function castNames(list){
   return (list||[]).map(c=>(typeof c==='string')?c:(c&&c.name)).filter(Boolean);
 }
 
-// 多刷紀錄排序：日期新→舊排在前面，但同一天有午場／晚場兩筆的話，午場要排在晚場前面
-// （照實際演出的時間先後排，不是單純比對字串或看資料建立順序）；沒填場次的排最後面。
-const SHOW_TIME_ORDER={'午場':0,'晚場':1};
+// 多刷紀錄排序：日期新→舊排在前面；同一天有午場／晚場兩筆的話，跟整體「新→舊」方向一致，
+// 晚場（比較晚）排在午場（比較早）前面，這樣整份清單從上到下都是時間遞減，不會突然反過來。
+// 沒填場次的排最後面。
+const SHOW_TIME_ORDER={'晚場':0,'午場':1};
 function showTimeOrder(t){ return SHOW_TIME_ORDER[t]!==undefined ? SHOW_TIME_ORDER[t] : 2; }
 function compareShowRecords(a,b){
   const dateCmp=(b.date||'').localeCompare(a.date||'');
