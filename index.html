@@ -1071,29 +1071,33 @@ async function loadFromCloud(){
 
 async function loadMusicalActors(){
   if(!sb)return;
+  // 資料表可能還沒有 namu／actor_type／profile_image 欄位，逐層退回，這樣就算資料庫欄位還沒補齊，
+  // App 也不會整個掛掉——只是那個欄位讀不到而已。
+  try{
+    const {data,error}=await sb.from('musical_actors').select('id,name,profile_image,actor_type,namu').order('name',{ascending:true});
+    if(error) throw error;
+    musicalActors=data||[];
+    return;
+  }catch(e){ console.error('Failed to load musical_actors with namu, retrying without it',e); }
   try{
     const {data,error}=await sb.from('musical_actors').select('id,name,profile_image,actor_type').order('name',{ascending:true});
     if(error) throw error;
     musicalActors=data||[];
+    return;
+  }catch(e){ console.error('Failed to load musical_actors with actor_type, retrying with just profile_image',e); }
+  try{
+    const {data,error}=await sb.from('musical_actors').select('id,name,profile_image').order('name',{ascending:true});
+    if(error) throw error;
+    musicalActors=data||[];
+    return;
+  }catch(e){ console.error('Failed to load musical_actors with profile_image, retrying without it',e); }
+  try{
+    const {data,error}=await sb.from('musical_actors').select('id,name').order('name',{ascending:true});
+    if(error) throw error;
+    musicalActors=data||[];
   }catch(e){
-    // 資料表可能還沒有 actor_type／profile_image 欄位，逐層退回，這樣就算資料庫欄位還沒補齊，
-    // App 也不會整個掛掉——只是那個欄位讀不到而已。
-    console.error('Failed to load musical_actors with actor_type, retrying with just profile_image',e);
-    try{
-      const {data,error}=await sb.from('musical_actors').select('id,name,profile_image').order('name',{ascending:true});
-      if(error) throw error;
-      musicalActors=data||[];
-    }catch(e2){
-      console.error('Failed to load musical_actors with profile_image, retrying without it',e2);
-      try{
-        const {data,error}=await sb.from('musical_actors').select('id,name').order('name',{ascending:true});
-        if(error) throw error;
-        musicalActors=data||[];
-      }catch(e3){
-        console.error('Failed to load musical_actors',e3);
-        musicalActors=[];
-      }
-    }
+    console.error('Failed to load musical_actors',e);
+    musicalActors=[];
   }
 }
 
@@ -1166,19 +1170,19 @@ async function saveActor(id,updates){
 
 // 把一位「虛擬演員」（目前只出現在電視劇資料裡、還沒有正式紀錄的人）升級成正式的 musical_actors 節點，
 // 讓電視劇演員也能設定照片／類型（本來這個編輯功能只對有正式紀錄的音樂劇演員開放）。
-async function createActorRecord(name,profile_image,actor_type){
+async function createActorRecord(name,profile_image,actor_type,namu){
   name=name.trim();
   if(!name) return null;
   if(!sb){
-    const local={id:'local-'+uid(),name,profile_image:profile_image||null,actor_type:actor_type||null};
+    const local={id:'local-'+uid(),name,profile_image:profile_image||null,actor_type:actor_type||null,namu:namu||null};
     musicalActors.push(local);
     musicalActors.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
     return local;
   }
   try{
     const {data,error}=await sb.from('musical_actors')
-      .insert({name,profile_image:profile_image||null,actor_type:actor_type||null})
-      .select('id,name,profile_image,actor_type').single();
+      .insert({name,profile_image:profile_image||null,actor_type:actor_type||null,namu:namu||null})
+      .select('id,name,profile_image,actor_type,namu').single();
     if(error) throw error;
     musicalActors.push(data);
     musicalActors.sort((a,b)=>a.name.localeCompare(b.name,'ko'));
@@ -1232,13 +1236,14 @@ function editActor(id,fallbackName){
   actorEditingIsVirtual=!actor;
   if(!actor){
     if(!fallbackName) return;
-    actor={id,name:fallbackName,profile_image:null,actor_type:null};
+    actor={id,name:fallbackName,profile_image:null,actor_type:null,namu:null};
   }
   actorEditingId=id;
   actorEditingOriginalName=actor.name;
   setFieldVal('actor-edit-name',actor.name||'');
   setFieldVal('actor-edit-image',actor.profile_image||'');
   setFieldVal('actor-edit-type',actor.actor_type||'');
+  setFieldVal('actor-edit-namu',actor.namu||'');
   const uploadStatus=document.getElementById('actor-edit-upload-status');
   if(uploadStatus) uploadStatus.textContent='';
   updateActorEditPreview();
@@ -1291,6 +1296,7 @@ async function submitActorEdit(){
   if(!trimmedName){ alert('姓名不能是空的'); return; }
   const newProfileImage=fieldVal('actor-edit-image').trim();
   const newActorType=fieldVal('actor-edit-type').trim();
+  const newNamu=fieldVal('actor-edit-namu').trim();
 
   if(!isVirtual){
     const actor=musicalActors.find(a=>String(a.id)===String(id));
@@ -1304,24 +1310,32 @@ async function submitActorEdit(){
       }
       renameActorEverywhere(actor.name,trimmedName);
     }
-    await saveActor(id,{name:trimmedName,profile_image:newProfileImage||null,actor_type:newActorType||null});
+    await saveActor(id,{name:trimmedName,profile_image:newProfileImage||null,actor_type:newActorType||null,namu:newNamu||null});
   }else{
     // 虛擬演員：先確認新姓名沒有撞到既有的正式紀錄，姓名有改的話同步更新電視劇資料裡的舊引用，
-    // 最後建立一筆正式的 musical_actors 紀錄（把照片／類型也一起存進去）。
+    // 最後建立一筆正式的 musical_actors 紀錄（把照片／類型／나무위키連結也一起存進去）。
     const conflict=musicalActors.find(a=>a.name===trimmedName);
     if(conflict){
       alert(`已經有另一位演員叫做「${trimmedName}」了，請換一個名字；如果本來就是同一個人，可以改用「演員資料庫」的清理工具合併。`);
       return;
     }
     if(trimmedName!==actorEditingOriginalName) renameActorEverywhere(actorEditingOriginalName,trimmedName);
-    await createActorRecord(trimmedName,newProfileImage,newActorType);
+    await createActorRecord(trimmedName,newProfileImage,newActorType,newNamu);
   }
 
   closeActorEditModal();
   renderActorsGrid();
-  // 如果目前正打開這位演員的詳細卡片，改名後網址也要跟著換成新名字
-  if(location.hash.startsWith('#actor/')) location.hash='actor/'+encodeURIComponent(trimmedName);
-  else renderActorPage(trimmedName);
+  // 如果目前正打開這位演員的詳細卡片，改名後網址也要跟著換成新名字；
+  // 但如果姓名沒有改變，把 hash 設成跟目前一樣的值不會觸發 hashchange，
+  // 卡片畫面就不會跟著刷新（照片／類型／나무위키連結存檔後看起來像沒生效）——
+  // 這種情況要自己手動呼叫 renderActorPage() 補刷新一次。
+  if(location.hash.startsWith('#actor/')){
+    const newHash='#actor/'+encodeURIComponent(trimmedName);
+    if(location.hash!==newHash) location.hash=newHash;
+    else renderActorPage(trimmedName);
+  }else{
+    renderActorPage(trimmedName);
+  }
 }
 
 // 依姓名找出照片／預設頭像（首字圓形圖示）的 HTML；圖片載入失敗時自動退回預設頭像，避免版面破碎
@@ -4794,6 +4808,9 @@ function renderActorPage(name){
     if(musicalWorks.length) tagsHtml+=`<span class="badge" style="background:#EEEDFE;color:#3C3489"><i class="ti ti-music" style="font-size:11px;margin-right:3px"></i>音樂劇</span>`;
     if(playWorks.length) tagsHtml+=`<span class="badge" style="background:#E3EFFB;color:#2C5E8C"><i class="ti ti-book-2" style="font-size:11px;margin-right:3px"></i>話劇</span>`;
     if(dramaWorks.length) tagsHtml+=`<span class="badge" style="background:#F5F5FA;color:#666"><i class="ti ti-device-tv" style="font-size:11px;margin-right:3px"></i>影劇</span>`;
+    // 나무위키：跟劇目詳細頁同一套邏輯——手動貼過網址就用那個，沒貼過就用姓名自動產生搜尋連結。
+    const namuUrl=(actorRecord&&actorRecord.namu)||(name?'https://namu.wiki/Search?q='+encodeURIComponent(name):'');
+    if(namuUrl) tagsHtml+=`<a href="${esc(namuUrl)}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#3C3489;font-weight:600;text-decoration:none;background:#EEEDFE;padding:4px 10px;border-radius:20px"><i class="ti ti-external-link"></i> 나무위키${(actorRecord&&actorRecord.namu)?'':' (搜尋)'}</a>`;
     tagsEl.innerHTML = tagsHtml;
   }
 
@@ -5540,6 +5557,10 @@ async function deleteMusicalActorRow(id){
         <option value="音樂劇演員"></option>
         <option value="影劇演員"></option>
       </datalist>
+    </div>
+    <div class="field">
+      <label for="actor-edit-namu">나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）</label>
+      <input type="text" id="actor-edit-namu" placeholder="留空＝自動搜尋，或貼上正確網址覆蓋" autocomplete="off">
     </div>
     <div style="display:flex;align-items:center;gap:10px;margin:.5rem 0 1rem">
       <span style="font-size:12px;color:#999">預覽：</span>
