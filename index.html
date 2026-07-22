@@ -2327,6 +2327,16 @@ function castNames(list){
   return (list||[]).map(c=>(typeof c==='string')?c:(c&&c.name)).filter(Boolean);
 }
 
+// 多刷紀錄排序：日期新→舊排在前面，但同一天有午場／晚場兩筆的話，午場要排在晚場前面
+// （照實際演出的時間先後排，不是單純比對字串或看資料建立順序）；沒填場次的排最後面。
+const SHOW_TIME_ORDER={'午場':0,'晚場':1};
+function showTimeOrder(t){ return SHOW_TIME_ORDER[t]!==undefined ? SHOW_TIME_ORDER[t] : 2; }
+function compareShowRecords(a,b){
+  const dateCmp=(b.date||'').localeCompare(a.date||'');
+  if(dateCmp!==0) return dateCmp;
+  return showTimeOrder(a.time)-showTimeOrder(b.time);
+}
+
 // ── 演出狀態 ──
 // 每一場「多刷紀錄」都有一個演出狀態：已觀看／持有票券／已退票或轉讓。
 // 舊資料沒有這個欄位，一律視為「已觀看」（原本的紀錄本來就代表已經看過）。
@@ -3157,7 +3167,7 @@ function renderMusicalTabContent(dramaId){
   if(!d || !contentEl) return; // 防呆：容器或資料不存在就不繼續
 
   if(currentSeasonFilter==='all'){
-    const history=(d.viewing_history||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    const history=(d.viewing_history||[]).slice().sort(compareShowRecords);
     const totalShows=history.filter(countsTowardWorks).length;
     const totalSpent=history.filter(countsTowardSpend).reduce((s,h)=>s+convertToTWD(h.amount,h.currency||'TWD'),0);
     // 「持有票券」但日期已經過了，代表那場應該已經發生卻忘記回來更新狀態——順手提醒一下。
@@ -3210,7 +3220,7 @@ function renderMusicalTabContent(dramaId){
     const seasons=getMusicalSeasons(d);
     const season=seasons.find(s=>s.name===currentSeasonFilter);
     const seasonCast=season?season.cast:[];
-    const seasonHistory=season?season.records.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')):[];
+    const seasonHistory=season?season.records.slice().sort(compareShowRecords):[];
     const seasonShows=seasonHistory.filter(countsTowardWorks).length;
     const seasonSpent=seasonHistory.filter(countsTowardSpend).reduce((s,h)=>s+convertToTWD(h.amount,h.currency||'TWD'),0);
 
@@ -3254,10 +3264,10 @@ function setTimelineFilter(filterVal,dramaId){
 
   let scopedHistory;
   if(currentSeasonFilter==='all'){
-    scopedHistory=(d.viewing_history||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    scopedHistory=(d.viewing_history||[]).slice().sort(compareShowRecords);
   }else{
     const season=getMusicalSeasons(d).find(s=>s.name===currentSeasonFilter);
-    scopedHistory=season?season.records.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')):[];
+    scopedHistory=season?season.records.slice().sort(compareShowRecords):[];
   }
 
   const filterEl=document.getElementById('musical-timeline-filter');
@@ -3588,6 +3598,10 @@ async function openAddShowForm(dramaId, editShowId){
     // 不用使用者自己再選一次——卡司候選名單也已經在上面用同一個 currentSeasonFilter 縮小過了。
     setFieldVal('show-season', currentSeasonFilter);
   }
+
+  // 這個表單容器固定在詳細頁最上方，但點擊「編輯」的那個場次紀錄可能在下面滑了很久才看得到；
+  // 表單填好之後自動捲動過去，不用使用者自己再往上滑一次才找得到剛剛點開的表單。
+  wrap.scrollIntoView({behavior:'smooth', block:'start'});
 }
 
 // 解決「卡司勾選清單過長」的問題：新增/編輯紀錄時，季度欄位每次輸入都會呼叫這裡，
@@ -3622,7 +3636,7 @@ function findLastShowForCopy(d,seasonHint){
   if(!history.length) return null;
   const scoped=seasonHint?history.filter(h=>(h.season||'').trim()===seasonHint):[];
   const pool=scoped.length?scoped:history;
-  return pool.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''))[0];
+  return pool.slice().sort(compareShowRecords)[0];
 }
 
 // 一鍵把「上一場」的觀看方式／季度／卡司／金額幣別都帶進目前這張新增場次表單，
