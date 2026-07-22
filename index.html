@@ -257,7 +257,7 @@ input,select,textarea,button{font-family:inherit}
 .show-method-badge{background:#EEEDFE;color:#3C3489}
 .ticket-badge{display:inline-flex;align-items:center;gap:4px;background:#EEEDFE;color:#3C3489;font-size:10.5px;font-weight:800;padding:2px 9px;border-radius:20px;margin-left:6px;vertical-align:middle}
 
-/* 持有票券過期提醒：總覽分頁的提示條，以及該筆場次卡片本身的標示＋快速動作 */
+/* 未觀看過期提醒：總覽分頁的提示條，以及該筆場次卡片本身的標示＋快速動作 */
 .overdue-banner{display:flex;align-items:flex-start;gap:10px;background:#FFF7ED;border:1px solid #FBD9A5;border-radius:12px;padding:.75rem .9rem;margin-bottom:1rem;font-size:13px}
 .overdue-banner i{color:#D97706;flex-shrink:0;margin-top:1px;font-size:17px}
 .overdue-banner-text{flex:1;color:#92400E;font-weight:600}
@@ -911,7 +911,7 @@ let stageTypeFilter=''; // 音樂劇分頁專用的次分類篩選：'' = 全部
 // 在初始化階段就丟出 ReferenceError，讓整個 App 卡死、之後所有按鈕都沒反應。
 let suppressNextRouteModalClose=false;
 // 音樂劇詳細頁的分頁狀態：currentSeasonFilter='all' 代表「總覽」頂層分頁，其餘值是季度名稱；
-// currentTimelineFilter 是季度分頁內的演出狀態篩選（全部／已觀看／持有票券／已退票或轉讓）。
+// currentTimelineFilter 是季度分頁內的演出狀態篩選（全部／已觀看／未觀看／나눔）。
 // 宣告放在檔案最前面，理由跟上面 suppressNextRouteModalClose 一樣：避免 TDZ 讓初始化流程整個掛掉。
 let currentTimelineFilter='all';
 let currentSeasonFilter='all';
@@ -2341,19 +2341,26 @@ function compareShowRecords(a,b){
 // ── 演出狀態 ──
 // 每一場「多刷紀錄」都有一個演出狀態：已觀看／持有票券／已退票或轉讓。
 // 舊資料沒有這個欄位，一律視為「已觀看」（原本的紀錄本來就代表已經看過）。
+// 內部代碼（存進資料、拿來比對用）維持不變，才不會讓舊資料裡已經存好的字串對不起來；
+// 畫面上顯示的文字改用 SHOW_STATUS_LABELS 這份對照表，「持有票券」顯示成「未觀看」、
+// 「已退票/轉讓」顯示成「나눔」。
 const SHOW_STATUSES=['已觀看','持有票券','已退票/轉讓'];
+const SHOW_STATUS_LABELS={'已觀看':'已觀看','持有票券':'未觀看','已退票/轉讓':'나눔'};
+function showStatusLabel(s){ return SHOW_STATUS_LABELS[s]||s; }
 function getShowStatus(h){ return (h&&h.showStatus) || '已觀看'; }
-// 作品統計（次數、場次）只算「已觀看」
-function countsTowardWorks(h){ return getShowStatus(h)==='已觀看'; }
-// 財務花費統計包含「已觀看」與「持有票券」（票已經買了就是花了錢），但不含已退票/轉讓
-function countsTowardSpend(h){ const s=getShowStatus(h); return s==='已觀看'||s==='持有票券'; }
+// 算「看過幾次」同時算「已觀看」跟「未觀看（持有票券）」——已經買票、記錄下來的場次
+// 就算數，不用等到真的看完才算進次數；나눔（已退票/轉讓）沒有實際看到，不算數。
+function countsTowardWorks(h){ const s=getShowStatus(h); return s==='已觀看'||s==='持有票券'; }
+// 財務花費統計三種狀態都算——票錢已經花下去了，就算最後是나눔（退票/轉讓）出去，
+// 這筆錢對使用者來說還是真實發生過的花費，不該從花費統計裡消失。
+function countsTowardSpend(h){ return true; }
 // 演員／角色的觀看次數只算「現場」看的——線上/錄播看到的不算是「見過這位演員」，
 // 跟「這部劇本身被看過幾次」（countsTowardWorks，不分現場/線上）是分開的兩件事。
 // 沒有 method 欄位的舊資料一律視為現場（這個欄位是後來才加的，舊紀錄本來就是現場觀劇時代的資料）。
 function countsTowardActorAppearance(h){ return countsTowardWorks(h) && (!h.method || h.method==='現場'); }
 
-// 「持有票券」代表票已經買了、還沒去看；但日期一旦過了今天，代表那場應該已經發生了卻忘記回來更新狀態。
-// 花費有算進統計，但「看過次數」沒算到，數字會悄悄兜不起來——用這個抓出來提醒使用者確認一下。
+// 「未觀看」（內部代碼仍是「持有票券」）代表票已經買了、還沒去看；但日期一旦過了今天，
+// 代表那場應該已經發生了卻忘記回來更新狀態，用這個抓出來提醒使用者確認一下。
 // h.overdueDismissed 是使用者手動按過「不用管這筆」留下的記號，之後就不會再被這裡抓到。
 function isOverdueTicket(h){
   if(!h || h.overdueDismissed) return false;
@@ -2444,7 +2451,7 @@ function episodeLabel(d){
 }
 
 // 大劇目卡片統計：加總這部音樂劇所有季度、所有場次的總觀看場次與總花費（統一換算成台幣）。
-// 沿用既有規則：場次只算「已觀看」，花費包含「已觀看」＋「持有票券」，不含已退票或轉讓。
+// 沿用既有規則：場次算「已觀看」＋「未觀看」，花費三種狀態都算。
 function musicalCardStats(d){
   const history=d.viewing_history||[];
   const count=history.filter(countsTowardWorks).length;
@@ -2579,7 +2586,7 @@ function computeAnnualStats(year){
   return {year,dramaCount,musicalCount,playCount,yearSpent};
 }
 
-// 歷史累計花費：不限年度，加總所有音樂劇場次（已觀看＋持有票券）換算成台幣後的總金額。
+// 歷史累計花費：不限年度，加總所有音樂劇場次換算成台幣後的總金額。
 function computeAllTimeSpent(){
   let total=0;
   db.forEach(d=>{
@@ -3171,12 +3178,12 @@ function renderMusicalTabContent(dramaId){
     const history=(d.viewing_history||[]).slice().sort(compareShowRecords);
     const totalShows=history.filter(countsTowardWorks).length;
     const totalSpent=history.filter(countsTowardSpend).reduce((s,h)=>s+convertToTWD(h.amount,h.currency||'TWD'),0);
-    // 「持有票券」但日期已經過了，代表那場應該已經發生卻忘記回來更新狀態——順手提醒一下。
+    // 「未觀看」但日期已經過了，代表那場應該已經發生卻忘記回來更新狀態——順手提醒一下。
     const overdueList=history.filter(isOverdueTicket);
     const overdueBannerHtml=overdueList.length?`
       <div class="overdue-banner">
         <i class="ti ti-alert-triangle"></i>
-        <span class="overdue-banner-text">有 ${overdueList.length} 場「持有票券」的日期已經過了
+        <span class="overdue-banner-text">有 ${overdueList.length} 場「未觀看」的日期已經過了
           <span class="sub">${overdueList.slice(0,3).map(h=>esc(h.date||'')+(h.season?' '+esc(h.season)+'場':'')).join('、')}${overdueList.length>3?' 等':''}——是不是忘記回來更新狀態了？</span>
         </span>
         <button class="overdue-banner-btn" onclick="jumpToOverdueRecords()">去看看</button>
@@ -3249,7 +3256,7 @@ function renderTimelineFilterBar(history,dramaId){
   const counts={};
   SHOW_STATUSES.forEach(s=>{ counts[s]=0; });
   history.forEach(h=>{ const s=getShowStatus(h); if(counts.hasOwnProperty(s)) counts[s]++; });
-  const options=[['all','全部',history.length],...SHOW_STATUSES.map(s=>[s,s.replace('/','·'),counts[s]])];
+  const options=[['all','全部',history.length],...SHOW_STATUSES.map(s=>[s,showStatusLabel(s),counts[s]])];
   return `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:.6rem">
     ${options.map(([val,label,count])=>
       `<button class="filter-chip${currentTimelineFilter===val?' active':''}" onclick="setTimelineFilter('${jsStr(val)}','${jsStr(dramaId)}')">${esc(label)}${count?` (${count})`:''}</button>`
@@ -3323,7 +3330,7 @@ function renderMusicalTimeline(history,dramaId,hideCast){
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
           <div>
             <div style="font-weight:700;color:#1A1A2E">${esc(h.date||'')}${h.time?' '+esc(h.time):''}${h.note?` <span style="font-weight:500;color:#888;font-size:12px">${esc(h.note)}</span>`:''}${h.ticketCount>1?`<span class="ticket-badge"><i class="ti ti-ticket"></i> 共 ${h.ticketCount} 張</span>`:''}</div>
-            <span class="show-status-badge ${showStatusClass(status)}">${esc(status)}</span>
+            <span class="show-status-badge ${showStatusClass(status)}">${esc(showStatusLabel(status))}</span>
             ${h.method&&h.method!=='現場'?`<span class="show-status-badge show-method-badge">${esc(h.method)}</span>`:''}
             ${overdue?'<span class="overdue-flag"><i class="ti ti-alert-triangle"></i> 已過期</span>':''}
             ${(()=>{if(hideCast)return '';const castData=(h.viewed_actors&&h.viewed_actors.length)?h.viewed_actors:h.cast;
@@ -3346,7 +3353,7 @@ function renderMusicalTimeline(history,dramaId,hideCast){
         ${overdue&&!isReadOnly?`
         <div class="overdue-actions">
           <button class="oa-watched" onclick="markShowWatchedQuick('${jsStr(dramaId)}','${jsStr(h.id)}')">✓ 標記已觀看</button>
-          <button class="oa-refund" onclick="markShowRefundedQuick('${jsStr(dramaId)}','${jsStr(h.id)}')">已退票/轉讓</button>
+          <button class="oa-refund" onclick="markShowRefundedQuick('${jsStr(dramaId)}','${jsStr(h.id)}')">나눔</button>
           <button class="oa-ignore" onclick="dismissOverdueTicket('${jsStr(dramaId)}','${jsStr(h.id)}')">不用管這筆</button>
         </div>`:''}
       </div>`;
@@ -3354,7 +3361,7 @@ function renderMusicalTimeline(history,dramaId,hideCast){
   </div>`;
 }
 
-// 「分割這筆」：一筆記錄裡總票數不只 1 張時（例如先買 3 張持有票券），
+// 「分割這筆」：一筆記錄裡總票數不只 1 張時（例如先買 3 張還沒看的票），
 // 可以把其中幾張分出去變成新的一筆、狀態自己選（通常是已觀看），
 // 原本這筆保留剩下的票數，不用刪掉重打整筆資料。
 function renderSplitPanel(dramaId,h){
@@ -3366,7 +3373,7 @@ function renderSplitPanel(dramaId,h){
       <input type="number" id="split-count-${h.id}" value="1" min="1" max="${total-1}">
       張，狀態改成
       <select id="split-status-${h.id}">
-        ${SHOW_STATUSES.map(s=>`<option value="${esc(s)}"${s==='已觀看'?' selected':''}>${esc(s)}</option>`).join('')}
+        ${SHOW_STATUSES.map(s=>`<option value="${esc(s)}"${s==='已觀看'?' selected':''}>${esc(showStatusLabel(s))}</option>`).join('')}
       </select>
     </div>
     <div style="font-size:11.5px;color:#9A9AA8;margin-top:6px">分出去的這筆會是新的一筆記錄，日期／卡司／季度都跟這筆一樣，可以之後再自己調整；金額不會自動拆分，兩筆都要自己確認金額對不對。</div>
@@ -3415,12 +3422,22 @@ function confirmSplitShow(dramaId,showId){
 }
 
 // 新增/編輯場次時，一旦票數改成 1 張以上，通常代表這是先買起來、還沒全部看的一批票券，
-// 演出狀態預設值（已觀看）就不合理了，自動幫忙切成「持有票券」（已經手動選過其他狀態的話不覆蓋）。
+// 演出狀態預設值（已觀看）就不合理了，自動幫忙切成「未觀看」（已經手動選過其他狀態的話不覆蓋）。
 function onTicketCountChange(el){
   const n=parseInt(el.value,10)||1;
   const statusSel=document.getElementById('show-status');
   if(!statusSel) return;
   if(n>1 && statusSel.value==='已觀看') statusSel.value='持有票券';
+}
+
+// 選的觀看日期如果還沒到（比今天晚），代表這是先買好票、還沒去看的紀錄，
+// 演出狀態預設值（已觀看）就不合理了，自動幫忙切成「未觀看」（已經手動選過其他狀態的話不覆蓋）。
+function onShowDateChange(){
+  const dateVal=fieldVal('show-date');
+  const statusSel=document.getElementById('show-status');
+  if(!statusSel || !dateVal) return;
+  const today=new Date().toISOString().slice(0,10);
+  if(dateVal>today && statusSel.value==='已觀看') statusSel.value='持有票券';
 }
 
 // 觀看方式只有「現場」才有場次（午/晚場）、活動、演出狀態這些概念——
@@ -3539,7 +3556,7 @@ async function openAddShowForm(dramaId, editShowId){
         </div>
       </div>
       <div class="row2">
-        <div class="field"><label>觀看日期</label><input type="date" id="show-date"></div>
+        <div class="field"><label>觀看日期</label><input type="date" id="show-date" oninput="onShowDateChange()"></div>
         <div class="field" id="show-time-field"><label>場次</label>
           <select id="show-time">
             <option value="">未指定</option>
@@ -3552,7 +3569,7 @@ async function openAddShowForm(dramaId, editShowId){
       <div class="row2">
         <div class="field" id="show-status-field"><label>演出狀態</label>
           <select id="show-status">
-            ${SHOW_STATUSES.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}
+            ${SHOW_STATUSES.map(s=>`<option value="${esc(s)}">${esc(showStatusLabel(s))}</option>`).join('')}
           </select>
         </div>
         <div class="field"><label>季度（可選，例：第一季）</label>
@@ -3768,7 +3785,7 @@ function deleteShow(dramaId,showId){
   if(stayOnTab && stayOnTab!=='all') setTopTab(stayOnTab,dramaId);
 }
 
-// 持有票券過期提醒的三個快速動作：標記已觀看／已退票或轉讓／不用管這筆（永久忽略）。
+// 未觀看過期提醒的三個快速動作：標記已觀看／나눔／不用管這筆（永久忽略）。
 function refreshAfterOverdueAction(dramaId){
   const stayOnTab=currentSeasonFilter;
   // renderMusicalTabContent 每次都會把「查看完整場次紀錄」重建成預設收起的樣子——
@@ -4653,7 +4670,7 @@ function getActorWorks(name){
 }
 
 // 該演員在「單一這部作品」裡，被實際記錄觀看過的場次（用於重刷次數聚合顯示）
-// 只計入「現場」看到的已觀看場次——線上/錄播不算「見過這位演員」，持有票券／已退票或轉讓也不算。
+// 只計入「現場」看到的已觀看場次——線上/錄播不算「見過這位演員」，未觀看／나눔也不算。
 function getActorViewCountInWork(d,name){
   if((d.category||'drama')!=='musical') return 0;
   let count=0;
@@ -4747,7 +4764,7 @@ function openWorkFromActorCard(id){
 }
 
 // 該演員被觀看過的所有場次，加總花費並統一換算成台幣
-// 花費統計包含「已觀看」與「持有票券」，已退票或轉讓的不算是實際花費
+// 花費統計三種狀態都算——票錢已經花下去了就是實際花費
 function getActorSpendTWD(name){
   let total=0;
   db.forEach(d=>{
