@@ -738,7 +738,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
   <div class="modal" style="width:min(360px,92vw)">
     <div class="modal-title">登入</div>
     <form onsubmit="return false" autocomplete="on">
-      <div class="field"><label for="login-email">Email</label><input type="email" id="login-email" placeholder="you@example.com" autocomplete="username" inputmode="email"></div>
+      <div class="field"><label for="login-email">帳號</label><input type="text" id="login-email" placeholder="你的帳號" autocomplete="username"></div>
       <div class="field"><label for="login-password">密碼</label><input type="password" id="login-password" placeholder="密碼" autocomplete="current-password" onkeydown="if(event.key==='Enter')submitLogin()"></div>
     </form>
     <div id="login-error" style="display:none;font-size:12px;color:#B91C1C;margin-bottom:.75rem;font-weight:600"></div>
@@ -754,9 +754,9 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
 <div class="modal-bg" id="signup-modal">
   <div class="modal" style="width:min(360px,92vw)">
     <div class="modal-title">註冊新帳號</div>
-    <p style="font-size:12.5px;color:#888;margin:0 0 1rem;line-height:1.6">註冊後會有自己獨立的追劇清單，跟其他人的資料完全分開。</p>
+    <p style="font-size:12.5px;color:#888;margin:0 0 1rem;line-height:1.6">註冊後會有自己獨立的追劇清單，跟其他人的資料完全分開，不需要提供電子信箱。</p>
     <form onsubmit="return false" autocomplete="on">
-      <div class="field"><label for="signup-email">Email</label><input type="email" id="signup-email" placeholder="you@example.com" autocomplete="username" inputmode="email"></div>
+      <div class="field"><label for="signup-email">帳號</label><input type="text" id="signup-email" placeholder="英數字、底線、句點或連字號，3~20 個字元" autocomplete="username"></div>
       <div class="field"><label for="signup-password">密碼</label><input type="password" id="signup-password" placeholder="至少 6 個字元" autocomplete="new-password"></div>
       <div class="field"><label for="signup-password2">再輸入一次密碼</label><input type="password" id="signup-password2" placeholder="再輸入一次" autocomplete="new-password" onkeydown="if(event.key==='Enter')submitSignup()"></div>
     </form>
@@ -4464,9 +4464,29 @@ function applyUnauthenticatedReadOnly(){
   setSyncStatus('👀 唯讀模式（尚未登入）','#888');
 }
 
-// 登入成功過的 email 記在這台裝置的 localStorage，下次打開登入視窗會自動帶入，
+// 登入成功過的帳號記在這台裝置的 localStorage，下次打開登入視窗會自動帶入，
 // 少數真的需要重新登入的情況（換瀏覽器、清過資料、登出過）只需要打密碼就好。
 const LOGIN_EMAIL_KEY='remembered-login-email';
+
+// Supabase Auth 本身只認 email/password，沒有「純帳號」這種登入方式；為了不強迫使用者
+// 提供真正的電子信箱，註冊時把使用者輸入的「帳號」轉成一個內部專用的假 email
+// （xxx@drama-tracker.local），實際上不會、也不需要寄信到這個地址。
+// .local 是保留給內部用途、不會被真正註冊出去的網域。
+// 重要前提：Supabase 後台的 Authentication 設定裡「Confirm email」一定要關掉，
+// 不然使用者永遠收不到驗證信，帳號會卡在「還沒驗證」、登入不了。
+function usernameToSyntheticEmail(username){
+  return username.trim().toLowerCase()+'@drama-tracker.local';
+}
+function isValidUsername(username){
+  return /^[a-z0-9_.-]{3,20}$/i.test(username.trim());
+}
+// 登入欄位要同時相容「新式純帳號」跟「舊式真實信箱」（例如擁有者原本就是用真正的
+// Gmail 註冊的帳號，不應該因為這次改版就登不進去）——含有 @ 的話直接當成真正的 email，
+// 沒有的話才當成帳號、轉換成內部假 email。
+function loginInputToEmail(input){
+  const trimmed=input.trim();
+  return trimmed.includes('@') ? trimmed : usernameToSyntheticEmail(trimmed);
+}
 
 function openLoginModal(){
   const errEl=document.getElementById('login-error');
@@ -4484,21 +4504,22 @@ function openLoginModal(){
 }
 
 async function submitLogin(){
-  const email=fieldVal('login-email').trim();
+  const rawInput=fieldVal('login-email').trim();
   const password=fieldVal('login-password');
   const errEl=document.getElementById('login-error');
   if(!sb){
     if(errEl){ errEl.textContent='目前是離線模式，無法登入'; errEl.style.display='block'; }
     return;
   }
-  if(!email||!password){
-    if(errEl){ errEl.textContent='請輸入 Email 和密碼'; errEl.style.display='block'; }
+  if(!rawInput||!password){
+    if(errEl){ errEl.textContent='請輸入帳號和密碼'; errEl.style.display='block'; }
     return;
   }
   try{
+    const email=loginInputToEmail(rawInput);
     const {error}=await sb.auth.signInWithPassword({email,password});
     if(error) throw error;
-    localStorage.setItem(LOGIN_EMAIL_KEY,email);
+    localStorage.setItem(LOGIN_EMAIL_KEY,rawInput); // 記住使用者實際輸入的帳號，不是轉換後的內部 email
     closeModal('login-modal');
     isReadOnly=false;
     document.body.classList.remove('read-only-mode');
@@ -4508,7 +4529,7 @@ async function submitLogin(){
     await loadFromCloud();
   }catch(e){
     console.error('Login failed',e);
-    if(errEl){ errEl.textContent='登入失敗，請確認 Email 和密碼是否正確'; errEl.style.display='block'; }
+    if(errEl){ errEl.textContent='登入失敗，請確認帳號和密碼是否正確'; errEl.style.display='block'; }
   }
 }
 
@@ -4526,7 +4547,7 @@ function openSignupModal(){
 }
 
 async function submitSignup(){
-  const email=fieldVal('signup-email').trim();
+  const username=fieldVal('signup-email').trim();
   const password=fieldVal('signup-password');
   const password2=fieldVal('signup-password2');
   const errEl=document.getElementById('signup-error');
@@ -4537,8 +4558,12 @@ async function submitSignup(){
     if(errEl){ errEl.textContent='目前是離線模式，無法註冊'; errEl.style.display='block'; }
     return;
   }
-  if(!email||!password){
-    if(errEl){ errEl.textContent='請輸入 Email 和密碼'; errEl.style.display='block'; }
+  if(!username||!password){
+    if(errEl){ errEl.textContent='請輸入帳號和密碼'; errEl.style.display='block'; }
+    return;
+  }
+  if(!isValidUsername(username)){
+    if(errEl){ errEl.textContent='帳號只能用英文字母、數字、底線、句點或連字號，長度 3~20 個字元'; errEl.style.display='block'; }
     return;
   }
   if(password.length<6){
@@ -4552,18 +4577,20 @@ async function submitSignup(){
   const btn=document.getElementById('signup-submit-btn');
   if(btn){ btn.disabled=true; btn.textContent='註冊中…'; }
   try{
+    const email=usernameToSyntheticEmail(username);
     const {data,error}=await sb.auth.signUp({email,password});
     if(error) throw error;
     // Supabase 專案如果開了「Confirm email」，這裡拿到的 session 會是 null（帳號還沒生效），
-    // 要請使用者去信箱點確認信；如果專案關掉了這個設定，會直接拿到 session，可以馬上登入使用。
+    // 但因為帳號用的是自動產生的內部假信箱，不會有人真的收到驗證信、帳號會永遠卡住——
+    // 這邊要請使用者去 Supabase 後台把「Confirm email」關掉才行，不是叫他去收信。
     if(data && data.session){
-      localStorage.setItem(LOGIN_EMAIL_KEY,email);
+      localStorage.setItem(LOGIN_EMAIL_KEY,username);
       closeModal('signup-modal');
       isReadOnly=false;
       document.body.classList.remove('read-only-mode');
       await loadFromCloud();
     }else{
-      if(okEl){ okEl.textContent='註冊成功！請到信箱收信，點擊確認連結後就能登入了。'; okEl.style.display='block'; }
+      if(okEl){ okEl.textContent='帳號已經建立，但這個網站目前還開著「需要驗證信箱」的設定——因為現在是用帳號自動產生的內部信箱，不會有人收到驗證信，帳號會一直卡住登不進去。請管理者到 Supabase 後台的 Authentication 設定裡把「Confirm email」關掉之後再重新註冊一次。'; okEl.style.display='block'; }
       if(btn){ btn.disabled=false; btn.textContent='註冊'; }
     }
   }catch(e){
@@ -4571,7 +4598,7 @@ async function submitSignup(){
     // 直接把 Supabase 回傳的原始錯誤訊息顯示出來（通常是英文），比起自己亂猜原因、
     // 一律顯示「請稍後再試」更容易排查問題出在哪裡（密碼規則、驗證設定、網路問題…）。
     const raw=(e&&e.message)?e.message:'未知錯誤';
-    const msg=raw.toLowerCase().includes('already')?'這個 Email 已經註冊過了，請直接登入':`註冊失敗：${raw}`;
+    const msg=raw.toLowerCase().includes('already')?'這個帳號已經被註冊過了，請直接登入或換一個帳號':`註冊失敗：${raw}`;
     if(errEl){ errEl.textContent=msg; errEl.style.display='block'; }
     if(btn){ btn.disabled=false; btn.textContent='註冊'; }
   }
