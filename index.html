@@ -4320,7 +4320,7 @@ async function generateShareLink(){
     document.getElementById('share-copied-msg').style.display='none';
   }catch(e){
     console.error('Generate share link failed',e);
-    if(errEl){ errEl.textContent='產生連結失敗，請確認資料庫已經照設定說明加上 share_token 等欄位'; errEl.style.display='block'; }
+    if(errEl){ errEl.textContent='產生連結失敗：'+(e&&e.message?e.message:'請確認資料庫已經照設定說明加上 share_token 等欄位'); errEl.style.display='block'; }
   }finally{
     if(btn){ btn.disabled=false; btn.textContent='產生連結'; }
   }
