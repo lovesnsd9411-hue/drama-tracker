@@ -200,12 +200,16 @@ input,select,textarea,button{font-family:inherit}
 .role-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 @media (max-width:480px){.role-stat-grid{grid-template-columns:1fr}}
 .role-stat-block{background:#F8F8FB;border:1px solid #EFEFF5;border-radius:11px;padding:.5rem .65rem}
-.role-stat-role{font-size:11px;font-weight:700;color:#1A1A2E;margin-bottom:5px;display:flex;align-items:baseline;gap:5px}
+.role-stat-role{font-size:11px;font-weight:700;color:#1A1A2E;margin-bottom:5px;display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
 .role-stat-role .role-total{font-size:10px;font-weight:600;color:#999}
+.role-stat-role .role-frac{font-size:10px;font-weight:700;color:#8B86D4}
 .role-stat-actors{display:flex;flex-wrap:wrap;gap:4px}
 .role-actor-chip{display:inline-flex;align-items:center;gap:5px;background:#fff;border-radius:16px;padding:2px 5px 2px 9px;font-size:11.5px}
 .role-actor-chip .name{color:#1A1A2E;font-weight:600}
 .role-actor-chip .n{background:#F3F2FC;color:#3C3489;font-weight:700;font-size:10px;border-radius:12px;padding:1px 6px;font-variant-numeric:tabular-nums}
+/* 候選卡司裡還沒被看過的演員：同一款晶片，只是沒有數字圓標、名字改用淺灰色 */
+.role-actor-chip.unseen{padding:2px 9px}
+.role-actor-chip.unseen .name{color:#B5B5C0;font-weight:600}
 
 /* 每一季各自摺疊（手風琴）：預設只展開最新一季，其他季度收起只留標題列 */
 .season-accordion{border:1px solid #EFEFF5;border-radius:12px;overflow:hidden;margin-bottom:8px}
@@ -3352,11 +3356,16 @@ function getSeasonRoleActorStats(season){
   // 記住候選名單裡每位演員原本的輸入順序（依角色分開記），角色底下的演員要照這個順序顯示，
   // 不要照觀看次數重新排——使用者輸入候選名單時的順序是刻意排的，不該被次數蓋過去。
   const castOrderIndex=new Map();
+  const roleCandidates=new Map(); // role -> Set(候選演員姓名)，當這個角色的候選總數分母用
   (season.cast||[]).forEach((c,i)=>{
     const role=(typeof c==='string')?'':(c.role||'');
     const name=(typeof c==='string')?c:(c.name||'');
     if(!seenRoles.has(role)){ seenRoles.add(role); roleOrder.push(role); }
-    if(name && !castOrderIndex.has(role+''+name)) castOrderIndex.set(role+''+name,i);
+    if(name){
+      if(!castOrderIndex.has(role+''+name)) castOrderIndex.set(role+''+name,i);
+      if(!roleCandidates.has(role)) roleCandidates.set(role,new Set());
+      roleCandidates.get(role).add(name);
+    }
   });
   const roleMap=new Map(); // role -> Map(name -> count)
   // 只算現場看的——線上/錄播不算「見過這位演員演出」，跟劇目本身的觀看次數是分開算的。
@@ -3373,22 +3382,28 @@ function getSeasonRoleActorStats(season){
       if(!seenRoles.has(role)){ seenRoles.add(role); roleOrder.push(role); }
     });
   });
-  return roleOrder.filter(role=>roleMap.has(role)).map(role=>{
-    const actorMap=roleMap.get(role);
-    const actors=[...actorMap.entries()]
-      .map(([name,count])=>({name,count}))
+  return roleOrder.filter(role=>roleMap.has(role) || roleCandidates.has(role)).map(role=>{
+    const actorMap=roleMap.get(role)||new Map();
+    const candidateSet=roleCandidates.get(role);
+    const nameSet=new Set([...actorMap.keys(), ...(candidateSet||[])]);
+    const actors=[...nameSet]
+      .map(name=>({name,count:actorMap.get(name)||0}))
       .sort((a,b)=>{
         const ia=castOrderIndex.has(role+''+a.name)?castOrderIndex.get(role+''+a.name):Infinity;
         const ib=castOrderIndex.has(role+''+b.name)?castOrderIndex.get(role+''+b.name):Infinity;
         return ia!==ib ? ia-ib : a.name.localeCompare(b.name,'ko');
       });
     const total=actors.reduce((s,a)=>s+a.count,0);
-    return {role,total,actors};
+    const seenCount=actors.filter(a=>a.count>0).length;
+    const candidateTotal=candidateSet?candidateSet.size:null;
+    return {role,total,actors,seenCount,candidateTotal};
   });
 }
 
-// 「總覽」分頁的各角色觀看次數：每一季各自一個可摺疊區塊（完全沒有觀看紀錄的季度不顯示），
-// 預設只展開最新（陣列最後）一季，其他季度收起只留標題列，避免季數/角色一多整頁被拉得很長。
+// 「總覽」分頁的各角色觀看次數：每一季各自一個可摺疊區塊（完全沒有候選卡司、也沒有觀看紀錄
+// 的季度才不顯示——只要有候選名單，就算一次都還沒看過也會顯示出來，這樣才看得出候選卡司
+// 還差誰沒看到），預設只展開最新（陣列最後）一季，其他季度收起只留標題列，避免季數/角色一多
+// 整頁被拉得很長。
 function renderOverviewActorStats(d){
   const seasons=getMusicalSeasons(d);
   const validSeasons=seasons.map(season=>{
@@ -3402,11 +3417,18 @@ function renderOverviewActorStats(d){
   if(!validSeasons.length) return '<div style="font-size:12px;color:#aaa;padding:.5rem 0 0">尚無觀看紀錄</div>';
   const lastIdx=validSeasons.length-1;
   return validSeasons.map(({season,roles,seasonTotal},i)=>{
-    const roleBlocksHtml=roles.map(r=>`
+    const roleBlocksHtml=roles.map(r=>{
+      const fracHtml=r.candidateTotal!=null?`<span class="role-frac">(${r.seenCount}/${r.candidateTotal})</span>`:'';
+      const actorsHtml=r.actors.map(a=>{
+        const seenAttrs=a.count>0?`<span class="n">${a.count}</span>`:'';
+        return `<span class="role-actor-chip${a.count>0?'':' unseen'}" onclick="openActorPageFromWork('${jsStr(a.name)}')" style="cursor:pointer"><span class="name">${esc(a.name)}</span>${seenAttrs}</span>`;
+      }).join('');
+      return `
       <div class="role-stat-block">
-        ${r.role?`<div class="role-stat-role">${esc(r.role)} <span class="role-total">共 ${r.total} 次</span></div>`:''}
-        <div class="role-stat-actors">${r.actors.map(a=>`<span class="role-actor-chip" onclick="openActorPageFromWork('${jsStr(a.name)}')" style="cursor:pointer"><span class="name">${esc(a.name)}</span><span class="n">${a.count}</span></span>`).join('')}</div>
-      </div>`).join('');
+        ${r.role?`<div class="role-stat-role">${esc(r.role)} <span class="role-total">共 ${r.total} 次</span>${fracHtml}</div>`:''}
+        <div class="role-stat-actors">${actorsHtml}</div>
+      </div>`;
+    }).join('');
     const isOpen=i===lastIdx;
     return `
       <div class="season-accordion">
