@@ -249,7 +249,18 @@ input,select,textarea,button{font-family:inherit}
 .cal-month-nav{display:flex;align-items:center;gap:14px;margin:0 auto}
 .cal-month-nav button{background:#fff;border:1px solid #E5E5F0;border-radius:20px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#7C6FE0;cursor:pointer;font-size:14px}
 .cal-month-nav button:hover{border-color:#B8B5E8}
-.cal-month-label{font-size:15.5px;font-weight:800;color:#1A1A2E;min-width:108px;text-align:center}
+.cal-ym-wrap{position:relative}
+.cal-month-label{font-size:15.5px;font-weight:800;color:#1A1A2E;min-width:108px;text-align:center;background:none;border:none;cursor:pointer;font-family:inherit;padding:3px 8px;border-radius:8px}
+.cal-month-label:hover{background:#F3F3F8}
+.cal-ym-menu{display:none;position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);background:#fff;border:.5px solid #E5E5F0;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:10px;z-index:30;width:210px}
+.cal-ym-menu.open{display:block}
+.cal-ym-year-row{display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:8px;font-size:14px;font-weight:800;color:#1A1A2E}
+.cal-ym-year-row button{background:#F3F3F8;border:none;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:#7C6FE0;cursor:pointer;font-size:12px}
+.cal-ym-year-row button:hover{background:#EEEDFE}
+.cal-ym-months{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.cal-ym-months button{background:none;border:none;border-radius:8px;padding:7px 0;font-size:12.5px;font-weight:700;color:#666;cursor:pointer;font-family:inherit}
+.cal-ym-months button:hover{background:#F3F3F8}
+.cal-ym-months button.on{background:#EEEDFE;color:#3C3489}
 .cal-grid-list-toggle{display:flex;gap:4px;background:#E8E8F0;border-radius:10px;padding:3px;flex-shrink:0}
 .cal-grid-list-toggle button{width:28px;height:28px;border-radius:7px;background:none;border:none;display:flex;align-items:center;justify-content:center;color:#888;cursor:pointer;font-size:13px}
 .cal-grid-list-toggle button.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
@@ -2516,6 +2527,53 @@ function calendarNextMonth(){
   if(calendarMonth>11){ calendarMonth=0; calendarYear++; }
   renderMusicalCalendarView();
 }
+// 月份標題點下去可以直接選年份＋月份，不用一直點左右箭頭慢慢翻——
+// 選單裡的年份是自己暫存的一份（calendarYmPickerYear），跟正式顯示用的 calendarYear
+// 分開，這樣選單裡按年份箭頭switch年份時，不會在選到月份之前就先跳頁面。
+let calendarYmPickerYear=calendarYear;
+const CALENDAR_MONTH_NAMES=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+function toggleCalendarYmMenu(e){
+  if(e) e.stopPropagation();
+  const menu=document.getElementById('cal-ym-menu');
+  if(!menu) return;
+  const willOpen=!menu.classList.contains('open');
+  if(willOpen){
+    calendarYmPickerYear=calendarYear; // 每次打開都從目前顯示的年份開始，不沿用上次選單關掉時停留的年份
+    renderCalendarYmMenu();
+  }
+  menu.classList.toggle('open',willOpen);
+}
+function calendarYmPickerPrevYear(){ calendarYmPickerYear--; renderCalendarYmMenu(); }
+function calendarYmPickerNextYear(){ calendarYmPickerYear++; renderCalendarYmMenu(); }
+function pickCalendarMonth(m){
+  calendarYear=calendarYmPickerYear;
+  calendarMonth=m;
+  const menu=document.getElementById('cal-ym-menu');
+  if(menu) menu.classList.remove('open');
+  renderMusicalCalendarView();
+}
+function renderCalendarYmMenu(){
+  const menu=document.getElementById('cal-ym-menu');
+  if(!menu) return;
+  menu.innerHTML=`
+    <div class="cal-ym-year-row">
+      <button onclick="calendarYmPickerPrevYear()"><i class="ti ti-chevron-left"></i></button>
+      <span>${calendarYmPickerYear} 年</span>
+      <button onclick="calendarYmPickerNextYear()"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div class="cal-ym-months">
+      ${CALENDAR_MONTH_NAMES.map((label,i)=>`<button class="${calendarYmPickerYear===calendarYear&&i===calendarMonth?'on':''}" onclick="pickCalendarMonth(${i})">${label}</button>`).join('')}
+    </div>
+  `;
+}
+document.addEventListener('click', function(e){
+  const wrap=document.getElementById('cal-ym-wrap');
+  if(wrap && !wrap.contains(e.target)){
+    const menu=document.getElementById('cal-ym-menu');
+    if(menu) menu.classList.remove('open');
+  }
+});
+
 function setCalendarDisplayMode(mode){
   calendarDisplayMode=mode;
   renderMusicalCalendarView();
@@ -2641,7 +2699,10 @@ function renderMusicalCalendarView(){
       <div class="cal-nav-spacer"></div>
       <div class="cal-month-nav">
         <button onclick="calendarPrevMonth()"><i class="ti ti-chevron-left"></i></button>
-        <div class="cal-month-label">${calendarYear} 年 ${calendarMonth+1} 月</div>
+        <div class="cal-ym-wrap" id="cal-ym-wrap">
+          <button class="cal-month-label" onclick="toggleCalendarYmMenu(event)">${calendarYear} 年 ${calendarMonth+1} 月</button>
+          <div class="cal-ym-menu" id="cal-ym-menu"></div>
+        </div>
         <button onclick="calendarNextMonth()"><i class="ti ti-chevron-right"></i></button>
       </div>
       <div class="cal-grid-list-toggle">
