@@ -243,6 +243,47 @@ input,select,textarea,button{font-family:inherit}
 .view-btn{background:none;border:none;border-radius:8px;padding:5px 10px;cursor:pointer;color:#888;font-size:15px;transition:all .15s}
 .view-btn.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
 
+/* ── 音樂劇月曆：格狀（月曆網格＋海報）／列表（只列有紀錄的日子）二選一，兩種裝置都能切換 ── */
+.cal-nav-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:1rem;flex-wrap:wrap}
+.cal-nav-spacer{width:64px;flex-shrink:0}
+.cal-month-nav{display:flex;align-items:center;gap:14px;margin:0 auto}
+.cal-month-nav button{background:#fff;border:1px solid #E5E5F0;border-radius:20px;width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#7C6FE0;cursor:pointer;font-size:14px}
+.cal-month-nav button:hover{border-color:#B8B5E8}
+.cal-month-label{font-size:15.5px;font-weight:800;color:#1A1A2E;min-width:108px;text-align:center}
+.cal-grid-list-toggle{display:flex;gap:4px;background:#E8E8F0;border-radius:10px;padding:3px;flex-shrink:0}
+.cal-grid-list-toggle button{width:28px;height:28px;border-radius:7px;background:none;border:none;display:flex;align-items:center;justify-content:center;color:#888;cursor:pointer;font-size:13px}
+.cal-grid-list-toggle button.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+
+.cal-weekday-row{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px}
+.cal-weekday-row div{text-align:center;font-size:11px;font-weight:700;color:#9A9AA8}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.cal-cell{aspect-ratio:3/4;border-radius:10px;position:relative;overflow:hidden;background:#FAFAFB;border:1px solid #E5E5F0}
+.cal-cell.dim{background:#F3F3F7;opacity:.45}
+.cal-cell.today{border-color:#7C6FE0;border-width:1.5px}
+.cal-daynum{position:absolute;top:4px;left:5px;font-size:10px;font-weight:700;color:#9A9AA8;z-index:2}
+.cal-cell.has-poster .cal-daynum{color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.cal-poster{position:absolute;inset:0;cursor:pointer}
+.cal-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.cal-poster-fallback{position:absolute;inset:0;background:linear-gradient(135deg,#2D2B55,#4A4580);display:flex;align-items:center;justify-content:center;text-align:center;padding:4px;color:#fff;font-size:9px;font-weight:800;line-height:1.25}
+.cal-poster-title{position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:800;color:#fff;text-align:center;padding:2px 3px;background:linear-gradient(transparent,rgba(0,0,0,.65));text-shadow:0 1px 2px rgba(0,0,0,.5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2}
+.cal-poster-badge{position:absolute;bottom:3px;right:3px;background:rgba(0,0,0,.55);color:#fff;font-size:8px;font-weight:800;border-radius:8px;min-width:14px;height:14px;display:flex;align-items:center;justify-content:center;z-index:3;padding:0 3px}
+.cal-type-badge{position:absolute;top:4px;right:4px;width:14px;height:14px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:8px;z-index:3;background:rgba(0,0,0,.4);color:#fff}
+.cal-split{position:absolute;inset:0;display:grid;gap:1px}
+.cal-split-half{position:relative;cursor:pointer;overflow:hidden}
+.cal-split-half img{width:100%;height:100%;object-fit:cover;display:block}
+
+.agenda-list{display:flex;flex-direction:column;gap:8px}
+.agenda-row{display:flex;gap:10px;align-items:center;background:#fff;border:1px solid #E5E5F0;border-radius:12px;padding:8px 10px}
+.agenda-row.today{border-color:#7C6FE0;border-width:1.5px}
+.agenda-date{width:42px;flex-shrink:0;text-align:center}
+.agenda-date .d{font-size:17px;font-weight:800;color:#1A1A2E}
+.agenda-date .w{font-size:9.5px;color:#9A9AA8;font-weight:700}
+.agenda-row.today .agenda-date .d{color:#7C6FE0}
+.agenda-posters{display:flex;gap:6px;flex-shrink:0}
+.agenda-poster{width:36px;height:48px;border-radius:6px;flex-shrink:0;overflow:hidden;position:relative;cursor:pointer;background:#2D2B55}
+.agenda-poster img{width:100%;height:100%;object-fit:cover;display:block}
+.agenda-name{font-size:12.5px;font-weight:700;color:#1A1A2E;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 .cat-toggle{display:flex;gap:4px;background:#E8E8F0;border-radius:10px;padding:3px;width:fit-content}
 .cat-btn{background:none;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;color:#888;font-size:13px;font-weight:600;transition:all .15s;display:flex;align-items:center;gap:5px}
 .cat-btn.on{background:#fff;color:#3C3489;box-shadow:0 1px 4px rgba(0,0,0,.1)}
@@ -551,11 +592,13 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
     <div class="view-toggle">
       <button class="view-btn on" id="btn-gallery" onclick="setView('gallery')" title="海報牆"><i class="ti ti-layout-grid"></i></button>
       <button class="view-btn" id="btn-table" onclick="setView('table')" title="表格"><i class="ti ti-table"></i></button>
+      <button class="view-btn" id="btn-calendar" onclick="setView('calendar')" title="月曆" style="display:none"><i class="ti ti-calendar"></i></button>
     </div>
   </div>
   <div class="chips" id="chips"></div>
   <div id="result-count"></div>
   <div id="list"></div>
+  <div id="musical-calendar" style="display:none"></div>
 </div>
 
 <!-- 新增/編輯 modal -->
@@ -843,6 +886,10 @@ const TMDB_SEARCH='https://api.themoviedb.org/3/search/tv';
 const RATINGS=[5.0,4.8,4.5,4.2,4.0,3.8,3.5,3.0,2.5,2.0,1.5,1.0,0.0];
 const NY=new Date().getFullYear();
 let db=[],editId=null,aFilter={type:'',val:''},aSort='rating-year',pFilter=null,viewMode='gallery';
+// 音樂劇月曆：目前顯示的年/月，預設今天所在的月份；格狀／列表二選一，不綁裝置寬度，
+// 只先依螢幕寬度給個合理預設（窄螢幕預設列表比較好讀），使用者可以自己切換覆蓋掉這個預設。
+let calendarYear=new Date().getFullYear(), calendarMonth=new Date().getMonth();
+let calendarDisplayMode=(window.innerWidth<600?'list':'grid');
 
 // ── 多幣別財務計算引擎 ──
 // 目前只需要處理 KRW（韓元，現場買票最常見）與 TWD（台幣）。
@@ -1957,6 +2004,8 @@ function setView(v){
   viewMode=v;
   document.getElementById('btn-gallery').classList.toggle('on',v==='gallery');
   document.getElementById('btn-table').classList.toggle('on',v==='table');
+  const calBtn=document.getElementById('btn-calendar');
+  if(calBtn) calBtn.classList.toggle('on',v==='calendar');
   render();
 }
 
@@ -1971,6 +2020,16 @@ function setMainCategory(cat,skipRender){
   const typeFilterEl=document.getElementById('stage-type-filter');
   if(typeFilterEl) typeFilterEl.style.display = cat==='musical' ? '' : 'none';
   if(cat!=='musical') stageTypeFilter='';
+  // 月曆檢視只在音樂劇分頁才有意義（依觀看日期看音樂劇/話劇海報），按鈕跟著分頁顯示/隱藏；
+  // 離開音樂劇分頁時如果剛好停在月曆檢視，退回海報牆，不然畫面會變成一片空白看不懂。
+  const calBtn=document.getElementById('btn-calendar');
+  if(calBtn) calBtn.style.display = cat==='musical' ? '' : 'none';
+  if(cat!=='musical' && viewMode==='calendar'){
+    viewMode='gallery';
+    document.getElementById('btn-gallery').classList.add('on');
+    document.getElementById('btn-table').classList.remove('on');
+    if(calBtn) calBtn.classList.remove('on');
+  }
   // clear genre/platform filters since they may not apply across categories
   if(!skipRender) render();
 }
@@ -2420,6 +2479,19 @@ function getFiltered(){
 
 function render(){
   renderChips();renderStats();renderAnnualDashboard();
+  const listEl=document.getElementById('list');
+  const calEl=document.getElementById('musical-calendar');
+  // 月曆檢視只在音樂劇分頁有意義，切走分頁時 setMainCategory() 已經把 viewMode 退回海報牆，
+  // 這裡只是防呆：萬一哪裡漏了沒退回，也不要顯示一個跟目前分頁對不起來的月曆。
+  if(viewMode==='calendar' && mainCategory==='musical'){
+    listEl.style.display='none';
+    calEl.style.display='';
+    document.getElementById('result-count').innerHTML='';
+    renderMusicalCalendarView();
+    return;
+  }
+  listEl.style.display='';
+  calEl.style.display='none';
   const list=getFiltered();
   const total=db.length;
   const countEl=document.getElementById('result-count');
@@ -2429,10 +2501,158 @@ function render(){
   } else {
     countEl.innerHTML='';
   }
-  const el=document.getElementById('list');
-  if(!list.length){el.innerHTML='<div class="empty">😶 找不到符合的劇目</div>';return}
-  if(viewMode==='gallery') renderGallery(list,el);
-  else renderTable(list,el);
+  if(!list.length){listEl.innerHTML='<div class="empty">😶 找不到符合的劇目</div>';return}
+  if(viewMode==='gallery') renderGallery(list,listEl);
+  else renderTable(list,listEl);
+}
+
+// ── 音樂劇月曆 ──
+function calendarPrevMonth(){
+  calendarMonth--;
+  if(calendarMonth<0){ calendarMonth=11; calendarYear--; }
+  renderMusicalCalendarView();
+}
+function calendarNextMonth(){
+  calendarMonth++;
+  if(calendarMonth>11){ calendarMonth=0; calendarYear++; }
+  renderMusicalCalendarView();
+}
+function setCalendarDisplayMode(mode){
+  calendarDisplayMode=mode;
+  renderMusicalCalendarView();
+}
+
+// 這個月每一天實際看過的音樂劇／話劇，依 stageTypeFilter 篩選（月曆分頁上面那排話劇/音樂劇
+// 篩選鈕一樣適用），依日期分組——只算「已觀看」跟「未觀看（持有票券）」，나눔（退票/轉讓）
+// 那天並沒有真的去看，不放進月曆。
+function getMusicalShowsByDate(year,month){
+  const byDate={};
+  db.forEach(d=>{
+    if((d.category||'drama')!=='musical') return;
+    if(stageTypeFilter && (d.stageType||'musical')!==stageTypeFilter) return;
+    (d.viewing_history||[]).forEach(h=>{
+      if(!h || !countsTowardWorks(h)) return;
+      const dateStr=(h.date||'').trim();
+      if(!dateStr) return;
+      const dt=new Date(dateStr+'T00:00:00');
+      if(isNaN(dt.getTime()) || dt.getFullYear()!==year || dt.getMonth()!==month) return;
+      if(!byDate[dateStr]) byDate[dateStr]=[];
+      byDate[dateStr].push({drama:d, record:h});
+    });
+  });
+  return byDate;
+}
+
+// 把某一天的所有場次紀錄依「劇目」分組——同一部劇同一天看兩場（例如午/晚場連刷）只算一組，
+// 用場次數角標標示；不同劇目才會各自成一組，畫面上才需要把格子切開。
+function groupShowsByDrama(entries){
+  const groups=[]; const idx={};
+  entries.forEach(e=>{
+    const id=e.drama.id;
+    if(idx.hasOwnProperty(id)) groups[idx[id]].count++;
+    else { idx[id]=groups.length; groups.push({drama:e.drama, count:1}); }
+  });
+  return groups;
+}
+function calendarPosterFillHtml(d){
+  const src=posterSrc(d);
+  return src
+    ? `<img src="${esc(src)}" loading="lazy" onerror="this.parentElement.classList.add('cal-poster-broken');this.remove()">`
+    : `<div class="cal-poster-fallback">${esc(d.name)}</div>`;
+}
+function calendarCellPosterHtml(entries){
+  const groups=groupShowsByDrama(entries);
+  if(groups.length===1){
+    const g=groups[0];
+    return `<div class="cal-poster" onclick="openDetail('${jsStr(g.drama.id)}')" title="${esc(g.drama.name)}">
+      ${calendarPosterFillHtml(g.drama)}
+      <span class="cal-poster-title">${esc(g.drama.name)}</span>
+      ${g.count>1?`<span class="cal-poster-badge">${g.count}</span>`:''}
+      <span class="cal-type-badge"><i class="ti ${stageTypeIcon(g.drama)}"></i></span>
+    </div>`;
+  }
+  return `<div class="cal-split" style="grid-template-rows:repeat(${groups.length},1fr)">${groups.map(g=>`
+    <div class="cal-split-half" onclick="openDetail('${jsStr(g.drama.id)}')" title="${esc(g.drama.name)}">
+      ${calendarPosterFillHtml(g.drama)}
+      ${g.count>1?`<span class="cal-poster-badge">${g.count}</span>`:''}
+    </div>`).join('')}</div>`;
+}
+
+function renderMusicalCalendarGrid(byDate,year,month){
+  const first=new Date(year,month,1);
+  const startWeekday=first.getDay();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const daysInPrevMonth=new Date(year,month,0).getDate();
+  const todayStr=new Date().toISOString().slice(0,10);
+
+  const cells=[];
+  for(let i=0;i<startWeekday;i++){
+    cells.push(`<div class="cal-cell dim"><div class="cal-daynum">${daysInPrevMonth-startWeekday+1+i}</div></div>`);
+  }
+  for(let day=1; day<=daysInMonth; day++){
+    const dateStr=`${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const entries=byDate[dateStr];
+    const isToday=dateStr===todayStr;
+    if(entries && entries.length){
+      cells.push(`<div class="cal-cell has-poster${isToday?' today':''}"><div class="cal-daynum">${day}</div>${calendarCellPosterHtml(entries)}</div>`);
+    }else{
+      cells.push(`<div class="cal-cell${isToday?' today':''}"><div class="cal-daynum">${day}</div></div>`);
+    }
+  }
+  const remainder=cells.length%7;
+  if(remainder!==0){
+    const trailingNeeded=7-remainder;
+    for(let i=1;i<=trailingNeeded;i++) cells.push(`<div class="cal-cell dim"><div class="cal-daynum">${i}</div></div>`);
+  }
+
+  return `
+    <div class="cal-weekday-row"><div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div>
+    <div class="cal-grid">${cells.join('')}</div>
+  `;
+}
+
+const CALENDAR_WEEKDAY_NAMES=['週日','週一','週二','週三','週四','週五','週六'];
+function renderMusicalCalendarList(byDate){
+  const dates=Object.keys(byDate).sort();
+  if(!dates.length) return '<div class="empty" style="padding:2rem 0">😶 這個月還沒有觀看紀錄</div>';
+  const todayStr=new Date().toISOString().slice(0,10);
+  return `<div class="agenda-list">${dates.map(dateStr=>{
+    const entries=byDate[dateStr];
+    const dt=new Date(dateStr+'T00:00:00');
+    const isToday=dateStr===todayStr;
+    const groups=groupShowsByDrama(entries);
+    const postersHtml=groups.map(g=>`<div class="agenda-poster" onclick="openDetail('${jsStr(g.drama.id)}')" title="${esc(g.drama.name)}">${calendarPosterFillHtml(g.drama)}</div>`).join('');
+    const namesText=groups.map(g=>g.drama.name+(g.count>1?` ×${g.count}`:'')).join(' · ');
+    return `<div class="agenda-row${isToday?' today':''}">
+      <div class="agenda-date"><div class="d">${dt.getDate()}</div><div class="w">${isToday?'今天':CALENDAR_WEEKDAY_NAMES[dt.getDay()]}</div></div>
+      <div class="agenda-posters">${postersHtml}</div>
+      <div class="agenda-name">${esc(namesText)}</div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderMusicalCalendarView(){
+  const el=document.getElementById('musical-calendar');
+  if(!el) return;
+  const byDate=getMusicalShowsByDate(calendarYear,calendarMonth);
+  const body = calendarDisplayMode==='grid'
+    ? renderMusicalCalendarGrid(byDate,calendarYear,calendarMonth)
+    : renderMusicalCalendarList(byDate);
+  el.innerHTML=`
+    <div class="cal-nav-row">
+      <div class="cal-nav-spacer"></div>
+      <div class="cal-month-nav">
+        <button onclick="calendarPrevMonth()"><i class="ti ti-chevron-left"></i></button>
+        <div class="cal-month-label">${calendarYear} 年 ${calendarMonth+1} 月</div>
+        <button onclick="calendarNextMonth()"><i class="ti ti-chevron-right"></i></button>
+      </div>
+      <div class="cal-grid-list-toggle">
+        <button class="${calendarDisplayMode==='grid'?'on':''}" onclick="setCalendarDisplayMode('grid')" title="格狀"><i class="ti ti-layout-grid"></i></button>
+        <button class="${calendarDisplayMode==='list'?'on':''}" onclick="setCalendarDisplayMode('list')" title="列表"><i class="ti ti-list"></i></button>
+      </div>
+    </div>
+    ${body}
+  `;
 }
 
 function posterImg(d,cls=''){
