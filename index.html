@@ -2543,8 +2543,13 @@ function toggleCalendarYmMenu(e){
   }
   menu.classList.toggle('open',willOpen);
 }
-function calendarYmPickerPrevYear(){ calendarYmPickerYear--; renderCalendarYmMenu(); }
-function calendarYmPickerNextYear(){ calendarYmPickerYear++; renderCalendarYmMenu(); }
+// 一定要擋住事件往上冒泡：renderCalendarYmMenu() 會整個換掉選單的 innerHTML，
+// 換掉之後原本被點的按鈕就從畫面上消失了；如果沒擋住，這個點擊事件繼續冒泡到
+// document 的「點外面關閉選單」監聽器時，wrap.contains(e.target) 會因為 e.target
+// 已經是離開畫面的舊節點而判斷失誤，誤以為「點在選單外面」，把剛換好的選單關掉——
+// 這正是切年份時選單會立刻自己關起來、看起來像完全沒反應的原因。
+function calendarYmPickerPrevYear(e){ if(e) e.stopPropagation(); calendarYmPickerYear--; renderCalendarYmMenu(); }
+function calendarYmPickerNextYear(e){ if(e) e.stopPropagation(); calendarYmPickerYear++; renderCalendarYmMenu(); }
 function pickCalendarMonth(m){
   calendarYear=calendarYmPickerYear;
   calendarMonth=m;
@@ -2557,9 +2562,9 @@ function renderCalendarYmMenu(){
   if(!menu) return;
   menu.innerHTML=`
     <div class="cal-ym-year-row">
-      <button onclick="calendarYmPickerPrevYear()"><i class="ti ti-chevron-left"></i></button>
+      <button onclick="calendarYmPickerPrevYear(event)"><i class="ti ti-chevron-left"></i></button>
       <span>${calendarYmPickerYear} 年</span>
-      <button onclick="calendarYmPickerNextYear()"><i class="ti ti-chevron-right"></i></button>
+      <button onclick="calendarYmPickerNextYear(event)"><i class="ti ti-chevron-right"></i></button>
     </div>
     <div class="cal-ym-months">
       ${CALENDAR_MONTH_NAMES.map((label,i)=>`<button class="${calendarYmPickerYear===calendarYear&&i===calendarMonth?'on':''}" onclick="pickCalendarMonth(${i})">${label}</button>`).join('')}
