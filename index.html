@@ -713,6 +713,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <option value="愛奇藝">愛奇藝</option>
       <option value="Prime Video">Prime Video</option>
       <option value="TVING">TVING</option>
+      <option value="未知">未知</option>
     </select>
   </div>
 </div>
@@ -883,7 +884,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
 <script>
  // 你可以在這裡隨意新增或刪除，不用管 HTML
  // 類型已改為 checkbox 多選（見 HTML 中的 f-genre-wrap），如需增減類型請直接編輯該區塊的 <label class="genre-cb"> 項目
-const MY_PLATFORMS = ["Netflix", "Disney+", "現場觀劇", "Friday", "Apple TV+", "YouTube"];
+const MY_PLATFORMS = ["Netflix", "Disney+", "現場觀劇", "Friday", "Apple TV+", "YouTube", "未知"];
 
 // 初始化選單的函式
 function initSelectOptions() {
@@ -1999,17 +2000,26 @@ function hasRating(d){ return d.rating>0 || d.status==='dropped'; }
 
 // 從 Notion 之類的地方大量匯入電視劇資料時，很多欄位常常沒填齊——用這個抓出「還缺東西」
 // 的電視劇，方便一次找出來補資料，不用一部一部自己核對。只檢查電視劇（音樂劇欄位結構不同，
-// 候選卡司本來就是分開維護，不適用這套判斷）。缺海報、缺原文劇名，或者類型／平台／演員／
-// 導演／編劇裡任何一項是空的，都算「待補充」。
+// 候選卡司本來就是分開維護，不適用這套判斷）。除了「筆記／心得」跟「客串／特別演出」這兩個
+// 本來就是選填的欄位以外，其他欄位只要空著都算「待補充」。評分／看完年度只有在已經選「看完」
+// 的狀態下才會要求要填（棄劇本來就會強制存 0 分、觀看中本來就還沒有分數跟看完年度，這兩種
+// 狀態下沒填不算資料不完整）。나무위키 連結留空會自動用原文劇名產生搜尋連結，本來就是正常的
+// 使用方式，所以不算在「待補充」裡。
 function isDramaIncomplete(d){
   if((d.category||'drama')!=='drama') return false;
   if(!d.poster) return true;
   if(!d.orig) return true;
   if(!((d.genres&&d.genres.length) || d.genre)) return true;
   if(!d.platform) return true;
+  if(!d.airDate) return true;
+  if(d.episode==null) return true;
   if(!(d.actors&&d.actors.length)) return true;
   if(!((d.directors&&d.directors.length) || d.director)) return true;
   if(!((d.writers&&d.writers.length) || d.writer)) return true;
+  if(d.status==='done'){
+    if(!hasRating(d)) return true;
+    if(!d.yearDone) return true;
+  }
   return false;
 }
 
