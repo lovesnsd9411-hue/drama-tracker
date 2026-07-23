@@ -1995,6 +1995,23 @@ const rLabel=r=>'⭐ '+parseFloat(r).toFixed(1);
 // 棄劇一律強制存成 0.0 分（不是「還沒評分」），所以卡片/詳細頁該顯示分數的地方也要認得這個情況，
 // 不能只看 rating>0——不然明明已經存了 0.0，畫面卻還是誤判成「未評分」。
 function hasRating(d){ return d.rating>0 || d.status==='dropped'; }
+
+// 從 Notion 之類的地方大量匯入電視劇資料時，很多欄位常常沒填齊——用這個抓出「還缺東西」
+// 的電視劇，方便一次找出來補資料，不用一部一部自己核對。只檢查電視劇（音樂劇欄位結構不同，
+// 候選卡司本來就是分開維護，不適用這套判斷）。缺海報、缺原文劇名，或者類型／平台／演員／
+// 導演／編劇裡任何一項是空的，都算「待補充」。
+function isDramaIncomplete(d){
+  if((d.category||'drama')!=='drama') return false;
+  if(!d.poster) return true;
+  if(!d.orig) return true;
+  if(!((d.genres&&d.genres.length) || d.genre)) return true;
+  if(!d.platform) return true;
+  if(!(d.actors&&d.actors.length)) return true;
+  if(!((d.directors&&d.directors.length) || d.director)) return true;
+  if(!((d.writers&&d.writers.length) || d.writer)) return true;
+  return false;
+}
+
 function posterSrc(d){
   if(!d.poster)return '';
   if(d.poster.startsWith('http://')||d.poster.startsWith('https://')) return d.poster;
@@ -2383,8 +2400,8 @@ function setPerson(name,role){pFilter={name,role};closeModal('detail-modal');ren
 function renderChips(){
   let h='';
   if(aFilter.type){
-    const tl={status:'狀態',year:'年度',genre:'類型',platform:'平台',rating:'評分',viewYear:'年度',musicalRunStatus:'現況'}[aFilter.type]||'';
-    const vl=aFilter.type==='status'?(aFilter.val==='done'?'看完':aFilter.val==='dropped'?'棄劇':'觀看中'):aFilter.type==='year'?aFilter.val+'年看完':aFilter.type==='viewYear'?aFilter.val+'年觀看':aFilter.type==='rating'?rLabel(parseFloat(aFilter.val)):aFilter.type==='musicalRunStatus'?({ongoing:'演出中',upcoming:'預計演出',finished:'演出完畢'}[aFilter.val]||aFilter.val):aFilter.val;
+    const tl={status:'狀態',year:'年度',genre:'類型',platform:'平台',rating:'評分',viewYear:'年度',musicalRunStatus:'現況',incomplete:'資料'}[aFilter.type]||'';
+    const vl=aFilter.type==='status'?(aFilter.val==='done'?'看完':aFilter.val==='dropped'?'棄劇':'觀看中'):aFilter.type==='year'?aFilter.val+'年看完':aFilter.type==='viewYear'?aFilter.val+'年觀看':aFilter.type==='rating'?rLabel(parseFloat(aFilter.val)):aFilter.type==='musicalRunStatus'?({ongoing:'演出中',upcoming:'預計演出',finished:'演出完畢'}[aFilter.val]||aFilter.val):aFilter.type==='incomplete'?'待補充':aFilter.val;
     h+=`<span class="chip chip-filter">${tl}：${vl}<button onclick="clearFilter()"><i class="ti ti-x"></i></button></span>`;
   }
   if(pFilter){
@@ -2462,6 +2479,7 @@ function getFiltered(){
   // 跟年度儀表板的次數統計（countsTowardWorks）算法保持一致，不然點進來的作品清單會跟儀表板數字對不起來。
   else if(aFilter.type==='viewYear') list=list.filter(d=>(d.viewing_history||[]).some(h=>countsTowardWorks(h)&&(h.date||'').startsWith(aFilter.val)));
   else if(aFilter.type==='musicalRunStatus') list=list.filter(d=>getMusicalRunStatus(d)===aFilter.val);
+  else if(aFilter.type==='incomplete') list=list.filter(isDramaIncomplete);
   if(pFilter){
     if(pFilter.role==='actor') list=list.filter(d=>castNames(d.actors).includes(pFilter.name));
     else if(pFilter.role==='director') list=list.filter(d=>(d.directors&&d.directors.length?d.directors:(d.director?[d.director]:[])).includes(pFilter.name));
@@ -2961,9 +2979,14 @@ document.addEventListener('click', function(e){
 // 分頁時各自顯示單獨一排（原本的大格子樣式）；停留在「全部」分頁時兩排一起疊出來，
 // 改用比較矮、緊湊的樣式＋圖示標籤區分，讓使用者一眼看出「這是全部總覽」不是單一分頁。
 function renderStats(){
-  if(mainCategory==='musical'){ document.getElementById('stats').innerHTML=musicalStatsHtml(false); return; }
-  if(mainCategory==='drama'){ document.getElementById('stats').innerHTML=dramaStatsHtml(false); return; }
-  document.getElementById('stats').innerHTML=`
+  const statsEl=document.getElementById('stats');
+  // 電視劇多了一格「待補充」，變成 5 欄；#stats 本身的 .stats class 預設是 4 欄的 grid，
+  // 這裡用 inline style 依目前分頁覆蓋欄數。「全部」分頁的兩組統計各自包了自己的
+  // grid-column:1/-1 wrapper（見 .stats-wrap-all），不受這裡覆蓋的欄數影響，所以清空即可。
+  if(mainCategory==='musical'){ statsEl.style.gridTemplateColumns=''; statsEl.innerHTML=musicalStatsHtml(false); return; }
+  if(mainCategory==='drama'){ statsEl.style.gridTemplateColumns='repeat(5,1fr)'; statsEl.innerHTML=dramaStatsHtml(false); return; }
+  statsEl.style.gridTemplateColumns='';
+  statsEl.innerHTML=`
     <div class="stats-wrap-all">
       <div class="stat-section-label"><span class="stat-section-icon drama"><i class="ti ti-device-tv"></i></span>電視劇</div>
       ${dramaStatsHtml(true)}
@@ -2973,20 +2996,32 @@ function renderStats(){
 }
 
 // compact=false 時不另外包 wrapper——#stats 這個容器本身就有 .stats 這個 grid class 了，
-// 直接輸出 4 個 .stat 磚就好，不然會變成 .stats 裡面又疊一層 .stats，多一層沒有用的巢狀 grid。
+// 直接輸出 5 個 .stat 磚就好（renderStats() 會把 #stats 的欄數覆蓋成 5 欄），不然會變成
+// .stats 裡面又疊一層 .stats，多一層沒有用的巢狀 grid。
 // compact=true（「全部」分頁合併顯示時）才需要自己包一層 .stats-compact，因為 #stats 底下
-// 這時候要放兩組（電視劇＋音樂劇），每組要各自有自己的 4 欄 grid，不能共用最外層那個 grid。
+// 這時候要放兩組（電視劇＋音樂劇），每組要各自有自己的 grid，不能共用最外層那個 grid。
 function dramaStatsHtml(compact){
   const dramaList=db.filter(d=>(d.category||'drama')==='drama');
   const t=dramaList.length,done=dramaList.filter(d=>d.status==='done').length,on=dramaList.filter(d=>d.status==='ongoing').length,dropped=dramaList.filter(d=>d.status==='dropped').length;
-  const cur=aFilter.type==='status'?aFilter.val:'';
+  const incomplete=dramaList.filter(isDramaIncomplete).length;
+  const cur=aFilter.type==='status'?aFilter.val:(aFilter.type==='incomplete'?'__incomplete__':'');
   const itemCls=compact?'stat-compact':'stat';
   const inner=`
     <div class="${itemCls}${cur===''?' stat-active':''}" onclick="filterByStatus('')" style="cursor:pointer"><div class="stat-n">${t}</div><div class="stat-l">全部</div></div>
     <div class="${itemCls}${cur==='done'?' stat-active':''}" onclick="filterByStatus('done')" style="cursor:pointer"><div class="stat-n" style="color:#0F6E56">${done}</div><div class="stat-l">看完</div></div>
     <div class="${itemCls}${cur==='ongoing'?' stat-active':''}" onclick="filterByStatus('ongoing')" style="cursor:pointer"><div class="stat-n" style="color:#185FA5">${on}</div><div class="stat-l">觀看中</div></div>
-    <div class="${itemCls}${cur==='dropped'?' stat-active':''}" onclick="filterByStatus('dropped')" style="cursor:pointer"><div class="stat-n" style="color:#B91C1C">${dropped}</div><div class="stat-l">棄劇</div></div>`;
-  return compact ? `<div class="stats-compact">${inner}</div>` : inner;
+    <div class="${itemCls}${cur==='dropped'?' stat-active':''}" onclick="filterByStatus('dropped')" style="cursor:pointer"><div class="stat-n" style="color:#B91C1C">${dropped}</div><div class="stat-l">棄劇</div></div>
+    <div class="${itemCls}${cur==='__incomplete__'?' stat-active':''}" onclick="filterByIncomplete()" style="cursor:pointer" title="海報／原文劇名／類型／平台／演員／導演／編劇，任一項缺了都算待補充"><div class="stat-n" style="color:#D97706">${incomplete}</div><div class="stat-l">待補充</div></div>`;
+  return compact ? `<div class="stats-compact" style="grid-template-columns:repeat(5,1fr)">${inner}</div>` : inner;
+}
+
+function filterByIncomplete(){
+  // 這排統計一律代表電視劇，就算目前停留在音樂劇分頁點下去，也要直接切回影劇分頁再套用篩選。
+  setMainCategory('drama',true);
+  aFilter={type:'incomplete',val:''};
+  document.getElementById('ftype').value='';
+  document.getElementById('fval').style.display='none';
+  render();
 }
 
 function filterByStatus(val){
