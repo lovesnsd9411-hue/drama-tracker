@@ -564,6 +564,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
           <button class="more-menu-item" onclick="exportData();closeMoreMenu()"><i class="ti ti-download"></i> 匯出</button>
           <button class="more-menu-item" onclick="document.getElementById('imp').click();closeMoreMenu()"><i class="ti ti-upload"></i> 匯入</button>
           <button class="more-menu-item" onclick="fixRatedStatus();closeMoreMenu()"><i class="ti ti-wand"></i> 修正狀態</button>
+          <button class="more-menu-item" onclick="filterByIncomplete();closeMoreMenu()"><i class="ti ti-alert-circle"></i> 檢查未完成資料</button>
           <button class="more-menu-item" onclick="openShareModal();closeMoreMenu()"><i class="ti ti-share"></i> 分享清單</button>
           <button class="more-menu-item" onclick="promptExchangeRate();closeMoreMenu()"><i class="ti ti-currency-won"></i> 匯率設定</button>
           <button class="more-menu-item" id="logout-menu-item" onclick="logout();closeMoreMenu()" style="display:none;color:#B91C1C"><i class="ti ti-logout"></i> 登出</button>
@@ -2979,14 +2980,9 @@ document.addEventListener('click', function(e){
 // 分頁時各自顯示單獨一排（原本的大格子樣式）；停留在「全部」分頁時兩排一起疊出來，
 // 改用比較矮、緊湊的樣式＋圖示標籤區分，讓使用者一眼看出「這是全部總覽」不是單一分頁。
 function renderStats(){
-  const statsEl=document.getElementById('stats');
-  // 電視劇多了一格「待補充」，變成 5 欄；#stats 本身的 .stats class 預設是 4 欄的 grid，
-  // 這裡用 inline style 依目前分頁覆蓋欄數。「全部」分頁的兩組統計各自包了自己的
-  // grid-column:1/-1 wrapper（見 .stats-wrap-all），不受這裡覆蓋的欄數影響，所以清空即可。
-  if(mainCategory==='musical'){ statsEl.style.gridTemplateColumns=''; statsEl.innerHTML=musicalStatsHtml(false); return; }
-  if(mainCategory==='drama'){ statsEl.style.gridTemplateColumns='repeat(5,1fr)'; statsEl.innerHTML=dramaStatsHtml(false); return; }
-  statsEl.style.gridTemplateColumns='';
-  statsEl.innerHTML=`
+  if(mainCategory==='musical'){ document.getElementById('stats').innerHTML=musicalStatsHtml(false); return; }
+  if(mainCategory==='drama'){ document.getElementById('stats').innerHTML=dramaStatsHtml(false); return; }
+  document.getElementById('stats').innerHTML=`
     <div class="stats-wrap-all">
       <div class="stat-section-label"><span class="stat-section-icon drama"><i class="ti ti-device-tv"></i></span>電視劇</div>
       ${dramaStatsHtml(true)}
@@ -2996,27 +2992,25 @@ function renderStats(){
 }
 
 // compact=false 時不另外包 wrapper——#stats 這個容器本身就有 .stats 這個 grid class 了，
-// 直接輸出 5 個 .stat 磚就好（renderStats() 會把 #stats 的欄數覆蓋成 5 欄），不然會變成
-// .stats 裡面又疊一層 .stats，多一層沒有用的巢狀 grid。
+// 直接輸出 4 個 .stat 磚就好，不然會變成 .stats 裡面又疊一層 .stats，多一層沒有用的巢狀 grid。
 // compact=true（「全部」分頁合併顯示時）才需要自己包一層 .stats-compact，因為 #stats 底下
-// 這時候要放兩組（電視劇＋音樂劇），每組要各自有自己的 grid，不能共用最外層那個 grid。
+// 這時候要放兩組（電視劇＋音樂劇），每組要各自有自己的 4 欄 grid，不能共用最外層那個 grid。
 function dramaStatsHtml(compact){
   const dramaList=db.filter(d=>(d.category||'drama')==='drama');
   const t=dramaList.length,done=dramaList.filter(d=>d.status==='done').length,on=dramaList.filter(d=>d.status==='ongoing').length,dropped=dramaList.filter(d=>d.status==='dropped').length;
-  const incomplete=dramaList.filter(isDramaIncomplete).length;
-  const cur=aFilter.type==='status'?aFilter.val:(aFilter.type==='incomplete'?'__incomplete__':'');
+  const cur=aFilter.type==='status'?aFilter.val:'';
   const itemCls=compact?'stat-compact':'stat';
   const inner=`
     <div class="${itemCls}${cur===''?' stat-active':''}" onclick="filterByStatus('')" style="cursor:pointer"><div class="stat-n">${t}</div><div class="stat-l">全部</div></div>
     <div class="${itemCls}${cur==='done'?' stat-active':''}" onclick="filterByStatus('done')" style="cursor:pointer"><div class="stat-n" style="color:#0F6E56">${done}</div><div class="stat-l">看完</div></div>
     <div class="${itemCls}${cur==='ongoing'?' stat-active':''}" onclick="filterByStatus('ongoing')" style="cursor:pointer"><div class="stat-n" style="color:#185FA5">${on}</div><div class="stat-l">觀看中</div></div>
-    <div class="${itemCls}${cur==='dropped'?' stat-active':''}" onclick="filterByStatus('dropped')" style="cursor:pointer"><div class="stat-n" style="color:#B91C1C">${dropped}</div><div class="stat-l">棄劇</div></div>
-    <div class="${itemCls}${cur==='__incomplete__'?' stat-active':''}" onclick="filterByIncomplete()" style="cursor:pointer" title="海報／原文劇名／類型／平台／演員／導演／編劇，任一項缺了都算待補充"><div class="stat-n" style="color:#D97706">${incomplete}</div><div class="stat-l">待補充</div></div>`;
-  return compact ? `<div class="stats-compact" style="grid-template-columns:repeat(5,1fr)">${inner}</div>` : inner;
+    <div class="${itemCls}${cur==='dropped'?' stat-active':''}" onclick="filterByStatus('dropped')" style="cursor:pointer"><div class="stat-n" style="color:#B91C1C">${dropped}</div><div class="stat-l">棄劇</div></div>`;
+  return compact ? `<div class="stats-compact">${inner}</div>` : inner;
 }
 
+// 「⋮ 更多功能」選單裡的「檢查未完成資料」：只適用電視劇，就算目前停留在音樂劇分頁點下去，
+// 也要直接切回影劇分頁再套用篩選。
 function filterByIncomplete(){
-  // 這排統計一律代表電視劇，就算目前停留在音樂劇分頁點下去，也要直接切回影劇分頁再套用篩選。
   setMainCategory('drama',true);
   aFilter={type:'incomplete',val:''};
   document.getElementById('ftype').value='';
