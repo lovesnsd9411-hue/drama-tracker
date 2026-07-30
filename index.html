@@ -560,6 +560,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
     </div>
     <div class="actions" id="admin-actions">
       <input type="file" id="imp" accept=".json" style="display:none" onchange="importData(event)">
+      <button class="icon-btn" id="lang-toggle-btn" onclick="toggleLang()" title="切換語言 / 언어 전환">中/한</button>
       <button class="icon-btn" onclick="openActorsModal()"><i class="ti ti-users"></i> 演員資料庫</button>
       <button class="btn-primary" onclick="openAdd()">+ 新增</button>
       <div class="more-menu-wrap" id="more-menu-wrap">
@@ -887,6 +888,265 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
 </div>
 
 <script>
+// ════════════════════════════════════════════════════════════════
+// 介面語言切換（繁中／한국어）：不是每個字串都個別包一層函式呼叫去改，而是用一份
+// 「完整字串 → 翻譯」對照表，配合 MutationObserver 監看整個畫面，只要有文字節點的
+// 內容剛好完全等於表裡的某個中文字串，就整段換成韓文；資料本身（劇名、演員名字、
+// 筆記內容…）不會被誤動，因為那些內容基本上不會剛好完全等於表裡任何一個 key。
+// 動態內容（例如「共 7 次」這種帶數字的樣板文字）用正規表達式對照表處理，數字/日期
+// 這些會變動的部分維持原樣，只翻譯前後的中文字。
+// 這份表目前涵蓋主要的介面文字（導覽列、表單、彈窗、統計、行事曆…），如果切成韓文
+// 後發現還有漏翻的地方，之後只要把那個字串加進表裡就好，不用改架構。
+const LANG_KEY='drama-tracker-lang';
+let currentLang=localStorage.getItem(LANG_KEY)||'zh';
+
+const I18N_EXACT={
+  // ── 頂部導覽 / 統計 / 篩選排序 ──
+  '登入':'로그인','登出':'로그아웃','+ 新增':'+ 추가','演員資料庫':'배우 데이터베이스',
+  '更多功能':'더보기','備份與還原':'백업 및 복원','匯出':'내보내기','匯入':'가져오기',
+  '修正狀態':'상태 수정','檢查未完成資料':'미완성 데이터 확인','分享清單':'목록 공유',
+  '匯率設定':'환율 설정','⚠️ 離線模式':'⚠️ 오프라인 모드','觀劇手記':'관극수첩',
+  '全部':'전체','影劇':'드라마','電視劇':'드라마','音樂劇':'뮤지컬','話劇':'연극',
+  '看完':'완결','觀看中':'관람 중','棄劇':'드롭','演出中':'공연 중','預計演出':'공연 예정',
+  '演出完畢':'공연 종료','海報牆':'포스터 보기','表格':'표 보기','月曆':'달력',
+  '格狀':'격자형','列表':'목록','搜尋':'검색','清除搜尋':'검색어 지우기',
+  '搜尋劇名、原文名、演員…':'작품명, 원어 제목, 배우 검색…',
+  '篩選 / 排序':'필터 / 정렬','觀看狀態':'관람 상태','看完年度':'완결 연도',
+  '類型':'장르','平台':'플랫폼','評分':'평점','現況':'현황','年度':'연도',
+  '設為最愛':'즐겨찾기 추가','取消最愛':'즐겨찾기 해제','最愛':'즐겨찾기',
+  '編輯':'수정','刪除':'삭제','關閉':'닫기','取消':'취소','儲存':'저장','確定':'확인',
+  '本年度花費':'올해 지출','歷史累計':'누적 기록',
+  '累計花費（台幣）':'누적 지출（대만 달러）','累計觀看次數':'누적 관람 횟수',
+  '點看這年看完的電視劇':'이 해에 완결한 드라마 보기',
+  '點看這年觀看的音樂劇':'이 해에 관람한 뮤지컬 보기',
+  '😶 找不到符合的劇目':'😶 조건에 맞는 작품이 없습니다',
+  '尚無觀看紀錄':'아직 관람 기록이 없습니다',
+  // ── 類型（genre）──
+  '生活':'일상','奇幻':'판타지','校園':'학원','懸疑':'미스터리','愛情':'로맨스',
+  '治癒':'힐링','動作':'액션','喜劇':'코미디','古裝':'사극','職場':'오피스',
+  '醫療':'의료','法政':'법정','狗血':'막장','青春':'청춘','驚悚':'스릴러','年代劇':'시대극',
+  '愛情 🔍':'로맨스 🔍','喜劇 🔍':'코미디 🔍','懸疑 🔍':'미스터리 🔍','古裝 🔍':'사극 🔍',
+  '年代劇 🔍':'시대극 🔍','青春 🔍':'청춘 🔍','驚悚 🔍':'스릴러 🔍','治癒 🔍':'힐링 🔍',
+  '法政 🔍':'법정 🔍','生活 🔍':'일상 🔍','職場 🔍':'오피스 🔍','校園 🔍':'학원 🔍',
+  '醫療 🔍':'의료 🔍','狗血 🔍':'막장 🔍','奇幻 🔍':'판타지 🔍','動作 🔍':'액션 🔍',
+  '未知':'알 수 없음',
+  // ── 新增／編輯劇目表單 ──
+  '新增劇目':'작품 추가','編輯劇目':'작품 수정','類別':'카테고리',
+  '劇名':'제목','劇名 ＊':'제목 ＊','劇名（原文）＊':'제목（원어）＊','原文名稱':'원어 이름',
+  '狀態':'상태','類型（可多選）':'장르（다중 선택 가능）',
+  '主角':'주연','主角（逗號分隔）':'주연（쉼표로 구분）',
+  '客串／特別演出':'특별출연','客串／특별출연':'특별출연','客串／特別演出（可選）':'특별출연（선택）',
+  '客串':'특별출연','候選卡司':'후보 캐스트',
+  '導演':'감독','導演（逗號分隔）':'감독（쉼표로 구분）',
+  '編劇':'작가','編劇（逗號分隔）':'작가（쉼표로 구분）',
+  '筆記 / 心得':'메모 / 감상','海報':'포스터','集數':'회차 수','首播日期':'첫 방영일',
+  '나무위키 連結（留空會自動產生搜尋連結，可貼正確網址覆蓋）':'나무위키 링크（비워두면 자동 검색 링크 생성, 정확한 주소를 붙여넣으면 대체）',
+  '나무위키 (搜尋)':'나무위키 (검색)',
+  '-- 請選擇平台 --':'-- 플랫폼을 선택하세요 --',
+  '搜尋海報（自動填入劇名）':'포스터 검색（작품명 자동 입력）',
+  '搜不到海報？直接貼圖片網址，或把複製好的圖片直接貼進來（Ctrl/Cmd+V）':'포스터를 찾을 수 없나요? 이미지 URL을 붙여넣거나, 복사한 이미지를 그대로 붙여넣으세요（Ctrl/Cmd+V）',
+  '或直接上傳圖片檔（存到 Supabase Storage，不怕原網站的圖片失效）':'또는 이미지 파일 직접 업로드（Supabase Storage에 저장, 원본 사이트 이미지가 사라질 걱정 없음）',
+  '或直接上傳照片檔（存到 Supabase Storage，不怕原網站的圖片失效）':'또는 사진 파일 직접 업로드（Supabase Storage에 저장, 원본 사이트 이미지가 사라질 걱정 없음）',
+  '清除海報':'포스터 지우기','搜尋中…':'검색 중…','搜尋失敗，請檢查網路':'검색 실패, 네트워크를 확인해주세요',
+  '演出期間（可選）':'공연 기간（선택）','季度名稱':'시즌 이름','新增季度':'시즌 추가',
+  '季度設定（每一季各自的專屬卡司）':'시즌 설정（시즌별 전용 캐스트）',
+  '本季專屬演員（可輸入「角色 | 演員A, 演員B」，或直接輸入演員姓名）':'이번 시즌 전용 배우（"배역 | 배우A, 배우B" 형식으로 입력, 또는 이름만 입력）',
+  '正산판（結算圖，顯示在總覽分頁，可留空）':'정산판（결산 이미지, 개요 탭에 표시됨, 비워둬도 됨）',
+  '정산판（結算圖，顯示在總覽分頁，可留空）':'정산판（결산 이미지, 개요 탭에 표시됨, 비워둬도 됨）',
+  // ── 詳細頁 / 音樂劇總覽 ──
+  '總覽':'개요','各角色觀看次數':'배역별 관람 횟수','補上角色':'배역 채우기',
+  '新增此劇場次':'이 작품 회차 추가','全季加總觀看次數':'이번 시즌 총 관람 횟수',
+  '全季加總花費':'이번 시즌 총 지출',
+  '依照季度候選名單，幫還沒標角色的歷史場次補上角色':'시즌 후보 명단을 기준으로 배역이 비어 있는 지난 기록에 배역을 채워줍니다',
+  '點擊演員可查看詳細演出紀錄，括號內為該演員的「總觀看場次」':'배우를 클릭하면 상세 관람 기록을 볼 수 있습니다. 괄호 안 숫자는 그 배우의 "총 관람 횟수"입니다.',
+  // ── 演員資料庫 ──
+  '姓名':'이름','影劇演員':'드라마 배우','音樂劇演員':'뮤지컬 배우',
+  '演員類型（可從清單選，也可以自己輸入）':'배우 유형（목록에서 선택하거나 직접 입력）',
+  '編輯演員':'배우 수정','作品列表':'작품 목록','作品總數':'총 작품 수',
+  '依姓名 A→Z':'이름순 A→Z','依總觀看次數':'총 관람 횟수순',
+  '搜尋演員姓名…':'배우 이름 검색…',
+  '照片網址（可留空，或直接貼上複製好的圖片 Ctrl/Cmd+V）':'사진 URL（비워둬도 되고, 복사한 이미지를 Ctrl/Cmd+V로 붙여넣어도 됨）',
+  '演員資料清理':'배우 데이터 정리','🧹 演員資料清理預覽':'🧹 배우 데이터 정리 미리보기',
+  '這只是預覽，尚未寫入任何資料。確認名單無誤後再按下方「確認套用」。':'미리보기입니다. 아직 저장되지 않았습니다. 목록을 확인한 후 아래 "적용 확인"을 눌러주세요.',
+  '確認套用':'적용 확인','預覽：':'미리보기:',
+  // ── 分享 ──
+  '分享連結':'공유 링크','分享唯讀連結':'읽기 전용 링크 공유','分享範圍':'공유 범위',
+  '產生連結':'링크 생성','連結有效期限':'링크 유효 기간','永久有效':'영구 유효',
+  '1 天後失效':'1일 후 만료','7 天後失效':'7일 후 만료','30 天後失效':'30일 후 만료',
+  '分享全部（音樂劇的金額會自動遮蔽）':'전체 공유（뮤지컬 금액은 자동으로 가려짐）',
+  '只分享電視劇（音樂劇完全隱藏）':'드라마만 공유（뮤지컬은 완전히 숨김）',
+  '產生一個任何人都能打開的唯讀連結，對方只能瀏覽，不能新增、編輯或刪除。':'누구나 열어볼 수 있는 읽기 전용 링크를 생성합니다. 상대방은 보기만 가능하고 추가·수정·삭제는 할 수 없습니다.',
+  '讓這個連結立刻失效':'이 링크를 즉시 만료시키기','複製':'복사','✓ 已複製到剪貼簿':'✓ 클립보드에 복사됨',
+  // ── 登入 / 註冊 ──
+  '帳號':'아이디','密碼':'비밀번호','再輸入一次密碼':'비밀번호 확인',
+  '登入或註冊帳號，開始記錄你的追劇清單':'로그인하거나 계정을 만들어 나만의 감상 기록을 시작하세요',
+  '還沒有帳號？':'계정이 없으신가요?','已經有帳號？':'이미 계정이 있으신가요?',
+  '註冊':'회원가입','註冊新帳號':'새 계정 만들기','返回':'돌아가기',
+  '註冊後會有自己獨立的追劇清單，跟其他人的資料完全分開，不需要提供電子信箱。':'가입하면 나만의 독립된 감상 목록이 만들어지고, 다른 사람의 데이터와 완전히 분리됩니다. 이메일을 제공할 필요가 없습니다.',
+  // ── 備份 ──
+  '立即備份目前的資料':'지금 바로 백업하기',
+  '每次打開 App 都會自動存一份備份（一天最多一次），不用自己記得存檔案在哪裡。下面是最近幾次的備份紀錄，可以下載留一份到自己的裝置，或還原回某一次的狀態。':'앱을 열 때마다 자동으로 백업을 저장합니다（하루 최대 1회）. 파일을 어디에 저장했는지 기억할 필요가 없어요. 아래는 최근 백업 기록입니다. 기기에 다운로드하거나 특정 시점으로 복원할 수 있습니다.',
+  // ── 各種 placeholder ──
+  '你的帳號':'아이디','密碼':'비밀번호','再輸入一次':'다시 입력',
+  '至少 6 個字元':'최소 6자 이상','英數字、底線、句點或連字號，3~20 個字元':'영문, 숫자, 밑줄, 마침표, 하이픈 3~20자',
+  '想記錄什麼都可以…':'자유롭게 기록해보세요…',
+  '留空＝自動搜尋，或貼上正確網址覆蓋':'비워두면 자동 검색, 정확한 주소를 붙여넣으면 그걸로 대체',
+  '角色｜演員，或直接打名字':'배역｜배우, 또는 이름만 입력',
+  '請輸入原文劇名（如：어쩌면 해피엔딩）':'원어 제목을 입력하세요（예: 어쩌면 해피엔딩）',
+  '例：黑暗榮耀':'예: 더 글로리','例：더 글로리':'예: 더 글로리',
+  '例：第一季（初演）':'예: 첫 번째 시즌（초연）','例：音樂劇演員':'예: 뮤지컬 배우',
+  '例：男主角 | 演員A, 演員B':'예: 남자 주인공 | 배우A, 배우B',
+  '例：2026.06.30 ~ 2026.09.13':'예: 2026.06.30 ~ 2026.09.13',
+  '安吉鎬, 朴勳政':'안지호, 박훈정','宋慧喬, 李道賢':'송혜교, 이도현','金恩淑, 朴海英':'김은숙, 박해영',
+  'https://... 或直接貼圖片':'https://... 또는 이미지를 바로 붙여넣기',
+  'https://...（貼圖片網址，或直接貼圖片 Ctrl/Cmd+V）':'https://...（이미지 URL 붙여넣기, 또는 이미지 파일 Ctrl/Cmd+V）',
+  // ── 行事曆 ──
+  '日':'일','一':'월','二':'화','三':'수','四':'목','五':'금','六':'토',
+  // ── 對話框（alert/confirm/prompt）用到的完整句子 ──
+  '請輸入大於 0 的匯率數字':'0보다 큰 환율 숫자를 입력해주세요',
+  '目前是離線模式，無法上傳檔案，請改貼圖片網址':'현재 오프라인 모드라 파일을 업로드할 수 없습니다. 이미지 URL을 붙여넣어주세요',
+  '檔案太大了（上限 5MB），請選小一點的圖片，或改貼圖片網址':'파일이 너무 큽니다（최대 5MB）. 더 작은 이미지를 선택하거나 이미지 URL을 붙여넣어주세요',
+  '新增演員失敗，請檢查網路連線':'배우 추가에 실패했습니다. 네트워크 연결을 확인해주세요',
+  '建立演員資料失敗，請檢查網路連線':'배우 데이터 생성에 실패했습니다. 네트워크 연결을 확인해주세요',
+  '姓名不能是空的':'이름은 비워둘 수 없습니다',
+  '請選擇觀看日期':'관람 날짜를 선택해주세요',
+  '確定要刪除這場紀錄嗎？':'이 기록을 삭제하시겠습니까?',
+  '請填入劇名（原文）':'제목（원어）을 입력해주세요','請填入劇名':'제목을 입력해주세요',
+  '確定要刪除這部劇嗎？':'이 작품을 삭제하시겠습니까?',
+  '格式不正確，請匯入之前匯出的 JSON 檔':'형식이 올바르지 않습니다. 이전에 내보낸 JSON 파일을 가져와주세요',
+  '訪客／唯讀模式無法備份':'게스트/읽기 전용 모드에서는 백업할 수 없습니다',
+  '目前是離線模式，無法備份':'현재 오프라인 모드라 백업할 수 없습니다',
+  '訪客模式無法使用備份功能':'게스트 모드에서는 백업 기능을 사용할 수 없습니다',
+  '下載失敗':'다운로드 실패','還原完成！':'복원 완료!','還原失敗，備份檔案可能損毀或格式不正確':'복원 실패, 백업 파일이 손상되었거나 형식이 올바르지 않을 수 있습니다',
+  '目前是唯讀模式，無法還原':'현재 읽기 전용 모드라 복원할 수 없습니다',
+  '沒有發現需要修正的資料，全部都正確！':'수정이 필요한 데이터가 없습니다, 모두 정상입니다!',
+  '確定要讓目前的分享連結立刻失效嗎？之前拿到這個連結的人之後就打不開了。':'현재 공유 링크를 즉시 만료시키겠습니까? 이전에 이 링크를 받은 사람은 더 이상 열 수 없습니다.',
+  '已經讓連結失效了':'링크를 만료시켰습니다','操作失敗，請稍後再試':'작업에 실패했습니다. 잠시 후 다시 시도해주세요',
+  '要依照目前的季度候選卡司，幫所有還沒標角色的歷史場次自動補上角色嗎？只會補「目前是空白」的，已經標好角色的不會被改動。':'현재 시즌 후보 캐스트를 기준으로 배역이 비어 있는 지난 기록에 자동으로 배역을 채우시겠습니까? "현재 비어있는" 항목만 채워지며, 이미 배역이 있는 항목은 변경되지 않습니다.',
+  '沒有找到可以補上角色的演員（可能都已經標好角色，或候選名單裡沒有對應的名字）':'배역을 채울 수 있는 배우를 찾지 못했습니다（이미 배역이 있거나, 후보 명단에 해당 이름이 없을 수 있습니다）',
+  '請設定韓元對台幣的匯率（1 KRW = ? TWD）\n例如：1 韓元 ≈ 0.023 台幣，就輸入 0.023':'원화 대 대만 달러 환율을 설정하세요（1 KRW = ? TWD）\n예: 1 원 ≈ 0.023 대만 달러라면 0.023을 입력',
+  '上傳失敗，請確認 Supabase Storage 裡已經建立好「':'업로드 실패, Supabase Storage에 "',
+  '」這個 bucket（見說明），或改貼圖片網址':'" 버킷이 만들어져 있는지 확인해주세요（설명 참고）, 또는 이미지 URL을 붙여넣어주세요',
+  '備份失敗，請確認網路連線，或確認 Supabase 後台已經照說明建立好「':'백업 실패, 네트워크 연결을 확인하거나 Supabase 콘솔에 설명대로 "',
+  '」這個 bucket。':'" 버킷이 만들어져 있는지 확인해주세요.',
+};
+const I18N_PATTERNS=[
+  [/^(\d{4})\s*年\s*(\d{1,2})\s*月$/,m=>`${m[1]}년 ${m[2]}월`],
+  [/^(\d{4})\s*年$/,m=>`${m[1]}년`],
+  [/^共\s*(\d+)\s*次$/,m=>`총 ${m[1]}회`],
+  [/^(\d+)\s*次$/,m=>`${m[1]}회`],
+  [/^次$/,()=>'회'],
+  [/^共\s*(\d+)\s*集$/,m=>`총 ${m[1]}화`],
+  [/^共\s*(\d+)\s*張$/,m=>`총 ${m[1]}장`],
+  [/^共\s*(\d+)\s*筆$/,m=>`총 ${m[1]}건`],
+  [/^位演員$/,()=>'명'],
+  [/^全部\s*\((\d+)\)$/,m=>`전체 (${m[1]})`],
+  [/^已觀看\s*\((\d+)\)$/,m=>`관람 완료 (${m[1]})`],
+  [/^查看完整場次紀錄（共\s*(\d+)\s*筆）$/,m=>`전체 회차 기록 보기（총 ${m[1]}건）`],
+  [/^⭐\s*([\d.]+)\s*·\s*共\s*(\d+)\s*集$/,m=>`⭐ ${m[1]} · 총 ${m[2]}화`],
+  [/^評分：⭐\s*([\d.]+)$/,m=>`평점: ⭐ ${m[1]}`],
+  [/^(\d+)場\s*·\s*(.+)$/,m=>`${m[1]}회차 · ${m[2]}`],
+  [/^共\s*(\d+)\s*部(?:\s*\/\s*全部\s*(\d+)\s*部)?$/,m=>m[2]?`${m[1]}편 표시 중 / 전체 ${m[2]}편`:`${m[1]}편`],
+  [/^(.+)（共\s*(\d+)\s*場(?:\s*·\s*共花費\s*(.+))?）$/,m=>m[3]?`${m[1]}（총 ${m[2]}회차 · 총 지출 ${m[3]}）`:`${m[1]}（총 ${m[2]}회차）`],
+  // ── 對話框（alert/confirm/prompt）裡帶動態內容的句子 ──
+  [/^匯入\s*(\d+)\s*筆資料？（會覆蓋現有資料）$/,m=>`${m[1]}건의 데이터를 가져올까요?（기존 데이터를 덮어씁니다）`],
+  [/^確定要用「(.+)」這份備份取代目前所有資料嗎？\n這個動作無法復原，現在畫面上的資料會被蓋掉。$/,m=>`"${m[1]}" 백업으로 현재 모든 데이터를 덮어쓰시겠습니까?\n이 작업은 되돌릴 수 없으며, 현재 화면의 데이터가 사라집니다.`],
+  [/^已修正\s*(\d+)\s*部劇的觀看狀態為「看完」$/,m=>`${m[1]}편의 작품 상태를 "완결"로 수정했습니다`],
+  [/^演員資料清理完成！已套用\s*(\d+)\s*筆，跳過\s*(\d+)\s*筆。$/,m=>`배우 데이터 정리 완료! ${m[1]}건 적용, ${m[2]}건 건너뜀.`],
+  [/^已幫\s*(\d+)\s*個演員標籤補上角色$/,m=>`배우 태그 ${m[1]}개에 배역을 채웠습니다`],
+  [/^\n\n這些人在候選名單裡也找不到角色，可能是候選名單本身還沒幫他們設定角色：(.+)$/s,m=>`\n\n다음 사람들은 후보 명단에서도 배역을 찾을 수 없습니다. 후보 명단 자체에 아직 배역이 설정되지 않았을 수 있습니다: ${m[1]}`],
+  [/^已經有另一位演員叫做「(.+)」了，請換一個名字；如果本來就是同一個人，可以改用「演員資料庫」的清理工具合併。$/,m=>`이미 "${m[1]}"라는 다른 배우가 있습니다. 다른 이름으로 바꿔주세요; 만약 같은 사람이라면 "배우 데이터베이스"의 정리 도구로 합칠 수 있습니다.`],
+  [/^即將刪除「(.+)」，並將其場次記錄轉移到「(.+)」，確定嗎？$/,m=>`"${m[1]}"을(를) 삭제하고, 그 회차 기록을 "${m[2]}"(으)로 옮기시겠습니까?`],
+  [/^即將直接刪除「(.+)」這個演員節點（無法辨識出有效姓名，此操作無法復原），確定嗎？$/,m=>`"${m[1]}" 배우 노드를 바로 삭제하시겠습니까?（유효한 이름을 인식할 수 없어 이 작업은 되돌릴 수 없습니다）`],
+  [/^清單裡已經有「(.+?)」了（原文：(.+?)），要繼續新增嗎？\n（按取消可以改去編輯原本那部劇）$/,m=>`목록에 이미 "${m[1]}"이(가) 있습니다（원어: ${m[2]}）, 계속 추가하시겠습니까?\n（취소를 누르면 기존 작품을 수정할 수 있습니다）`],
+  [/^清單裡已經有「(.+?)」了，要繼續新增嗎？\n（按取消可以改去編輯原本那部劇）$/,m=>`목록에 이미 "${m[1]}"이(가) 있습니다, 계속 추가하시겠습니까?\n（취소를 누르면 기존 작품을 수정할 수 있습니다）`],
+];
+function translateText(raw){
+  if(currentLang!=='ko') return raw;
+  const trimmed=raw.trim();
+  if(!trimmed) return raw;
+  if(Object.prototype.hasOwnProperty.call(I18N_EXACT,trimmed)) return raw.replace(trimmed,I18N_EXACT[trimmed]);
+  for(const [re,fn] of I18N_PATTERNS){
+    const m=trimmed.match(re);
+    if(m) return raw.replace(trimmed,fn(m));
+  }
+  return raw;
+}
+// t() 給對話框（alert/confirm/prompt）用——這幾種原生對話框不在 DOM 裡，MutationObserver
+// 看不到，只能在呼叫的當下自己翻譯一次；跟畫面上文字節點共用同一份對照表。
+function t(zhText){ return translateText(zhText); }
+function applyI18nAttr(el,attr){
+  const dataKey='data-i18n-orig-'+attr;
+  if(!el.hasAttribute(dataKey)){
+    if(!el.hasAttribute(attr)) return;
+    el.setAttribute(dataKey,el.getAttribute(attr));
+  }
+  const original=el.getAttribute(dataKey);
+  const translated=translateText(original);
+  if(el.getAttribute(attr)!==translated) el.setAttribute(attr,translated);
+}
+function applyI18nToRoot(root){
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{
+    acceptNode(node){
+      const p=node.parentElement;
+      if(p&&(p.closest('script')||p.closest('style'))) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes=[];
+  let n;
+  while(n=walker.nextNode()) nodes.push(n);
+  nodes.forEach(node=>{
+    if(!node.nodeValue||!node.nodeValue.trim()) return;
+    const translated=translateText(node.nodeValue);
+    if(translated!==node.nodeValue) node.nodeValue=translated;
+  });
+  (root.querySelectorAll?root:document).querySelectorAll&&root.querySelectorAll('[placeholder]').forEach(el=>applyI18nAttr(el,'placeholder'));
+  root.querySelectorAll('[title]').forEach(el=>applyI18nAttr(el,'title'));
+}
+let i18nObserver=null;
+function ensureI18nObserver(){
+  if(i18nObserver) return;
+  i18nObserver=new MutationObserver(muts=>{
+    if(currentLang!=='ko') return;
+    for(const m of muts){
+      if(m.type==='childList'){
+        m.addedNodes.forEach(node=>{
+          if(node.nodeType===3){
+            const translated=translateText(node.nodeValue);
+            if(translated!==node.nodeValue) node.nodeValue=translated;
+          }else if(node.nodeType===1){
+            applyI18nToRoot(node);
+          }
+        });
+      }else if(m.type==='characterData'){
+        const node=m.target;
+        const translated=translateText(node.nodeValue);
+        if(translated!==node.nodeValue) node.nodeValue=translated;
+      }else if(m.type==='attributes'){
+        applyI18nAttr(m.target,m.attributeName);
+      }
+    }
+  });
+  i18nObserver.observe(document.body,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['placeholder','title']});
+}
+function setLang(lang){
+  currentLang=lang;
+  localStorage.setItem(LANG_KEY,lang);
+  const btn=document.getElementById('lang-toggle-btn');
+  if(btn) btn.textContent=lang==='ko'?'한/中':'中/한';
+  document.documentElement.lang=lang==='ko'?'ko':'zh-TW';
+  if(lang==='ko'){
+    ensureI18nObserver();
+    applyI18nToRoot(document.body);
+  }else{
+    // 切回中文：重新整理頁面最單純可靠——動態內容本來就會用中文重新產生，
+    // 靜態外殼（導覽列、彈窗骨架）也不用自己想辦法還原成原文，一次到位。
+    location.reload();
+  }
+}
+function toggleLang(){ setLang(currentLang==='ko'?'zh':'ko'); }
+
  // 你可以在這裡隨意新增或刪除，不用管 HTML
  // 類型已改為 checkbox 多選（見 HTML 中的 f-genre-wrap），如需增減類型請直接編輯該區塊的 <label class="genre-cb"> 項目
 const MY_PLATFORMS = ["Netflix", "Disney+", "現場觀劇", "Friday", "Apple TV+", "YouTube", "未知"];
@@ -935,13 +1195,13 @@ function setExchangeRate(rate){
 
 // 讓使用者輸入/查看目前的匯率設定，套用後重新整理畫面（含正在打開的演員頁）
 function promptExchangeRate(){
-  const input=prompt('請設定韓元對台幣的匯率（1 KRW = ? TWD）\n例如：1 韓元 ≈ 0.023 台幣，就輸入 0.023',krwToTwdRate);
+  const input=prompt(t('請設定韓元對台幣的匯率（1 KRW = ? TWD）\n例如：1 韓元 ≈ 0.023 台幣，就輸入 0.023'),krwToTwdRate);
   if(input===null) return; // 使用者取消
   if(setExchangeRate(input)){
     render();
     if(location.hash.startsWith('#actor/')) handleRoute();
   }else{
-    alert('請輸入大於 0 的匯率數字');
+    alert(t('請輸入大於 0 的匯率數字'));
   }
 }
 
@@ -1014,8 +1274,8 @@ let saveDebounce=null;
 // 失敗（離線模式、檔案太大、bucket 還沒建立…）回傳 null 並跳出提示，呼叫端可以請使用者改貼網址。
 async function uploadImageFile(file){
   if(!file) return null;
-  if(!sb||!currentUserId){ alert('目前是離線模式，無法上傳檔案，請改貼圖片網址'); return null; }
-  if(file.size>5*1024*1024){ alert('檔案太大了（上限 5MB），請選小一點的圖片，或改貼圖片網址'); return null; }
+  if(!sb||!currentUserId){ alert(t('目前是離線模式，無法上傳檔案，請改貼圖片網址')); return null; }
+  if(file.size>5*1024*1024){ alert(t('檔案太大了（上限 5MB），請選小一點的圖片，或改貼圖片網址')); return null; }
   const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
   // 上傳路徑要加上自己的 uid 資料夾前綴，才符合 photos bucket「只能寫自己資料夾」的權限規則。
   const path=`${currentUserId}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
@@ -1026,7 +1286,7 @@ async function uploadImageFile(file){
     return data.publicUrl;
   }catch(e){
     console.error('Upload failed',e);
-    alert('上傳失敗，請確認 Supabase Storage 裡已經建立好「'+STORAGE_BUCKET+'」這個 bucket（見說明），或改貼圖片網址');
+    alert(t('上傳失敗，請確認 Supabase Storage 裡已經建立好「')+STORAGE_BUCKET+t('」這個 bucket（見說明），或改貼圖片網址'));
     return null;
   }
 }
@@ -1212,7 +1472,7 @@ async function addMusicalActor(name){
 
   } catch (e) {
     console.error('Failed to add musical actor', e);
-    alert('新增演員失敗，請檢查網路連線');
+    alert(t('新增演員失敗，請檢查網路連線'));
     return null;
   }
 }
@@ -1257,7 +1517,7 @@ async function createActorRecord(name,profile_image,actor_type,namu){
     return data;
   }catch(e){
     console.error('Failed to create actor record',e);
-    alert('建立演員資料失敗，請檢查網路連線');
+    alert(t('建立演員資料失敗，請檢查網路連線'));
     return null;
   }
 }
@@ -1361,7 +1621,7 @@ async function submitActorEdit(){
   const isVirtual=actorEditingIsVirtual;
 
   const trimmedName=fieldVal('actor-edit-name').trim();
-  if(!trimmedName){ alert('姓名不能是空的'); return; }
+  if(!trimmedName){ alert(t('姓名不能是空的')); return; }
   const newProfileImage=fieldVal('actor-edit-image').trim();
   const newActorType=fieldVal('actor-edit-type').trim();
   const newNamu=fieldVal('actor-edit-namu').trim();
@@ -1373,7 +1633,7 @@ async function submitActorEdit(){
       // 避免改名之後跟另一位已存在的演員撞名，變成誤把兩個人合併成同一個
       const conflict=musicalActors.find(a=>String(a.id)!==String(id) && a.name===trimmedName);
       if(conflict){
-        alert(`已經有另一位演員叫做「${trimmedName}」了，請換一個名字；如果本來就是同一個人，可以改用「演員資料庫」的清理工具合併。`);
+        alert(t(`已經有另一位演員叫做「${trimmedName}」了，請換一個名字；如果本來就是同一個人，可以改用「演員資料庫」的清理工具合併。`));
         return;
       }
       renameActorEverywhere(actor.name,trimmedName);
@@ -1384,7 +1644,7 @@ async function submitActorEdit(){
     // 最後建立一筆正式的 musical_actors 紀錄（把照片／類型／나무위키連結也一起存進去）。
     const conflict=musicalActors.find(a=>a.name===trimmedName);
     if(conflict){
-      alert(`已經有另一位演員叫做「${trimmedName}」了，請換一個名字；如果本來就是同一個人，可以改用「演員資料庫」的清理工具合併。`);
+      alert(t(`已經有另一位演員叫做「${trimmedName}」了，請換一個名字；如果本來就是同一個人，可以改用「演員資料庫」的清理工具合併。`));
       return;
     }
     if(trimmedName!==actorEditingOriginalName) renameActorEverywhere(actorEditingOriginalName,trimmedName);
@@ -3191,7 +3451,7 @@ function getMusicalRunStatus(d){
 function reassignCastRoles(dramaId){
   const d=db.find(x=>x.id===dramaId);
   if(!d) return;
-  if(!confirm('要依照目前的季度候選卡司，幫所有還沒標角色的歷史場次自動補上角色嗎？只會補「目前是空白」的，已經標好角色的不會被改動。')) return;
+  if(!confirm(t('要依照目前的季度候選卡司，幫所有還沒標角色的歷史場次自動補上角色嗎？只會補「目前是空白」的，已經標好角色的不會被改動。'))) return;
 
   const seasons=getMusicalSeasons(d);
   // 名字／角色都先 trim 再比對——候選名單如果是分好幾次陸續輸入的，很容易不小心多打或少打一個空白，
@@ -3233,9 +3493,9 @@ function reassignCastRoles(dramaId){
   const blankList=[...stillBlankNames];
   const blankNote=blankList.length?`\n\n這些人在候選名單裡也找不到角色，可能是候選名單本身還沒幫他們設定角色：${blankList.join('、')}`:'';
 
-  if(updatedCount===0){ alert('沒有找到可以補上角色的演員（可能都已經標好角色，或候選名單裡沒有對應的名字）'+blankNote); return; }
+  if(updatedCount===0){ alert(t('沒有找到可以補上角色的演員（可能都已經標好角色，或候選名單裡沒有對應的名字）')+t(blankNote)); return; }
   save();
-  alert(`已幫 ${updatedCount} 個演員標籤補上角色`+blankNote);
+  alert(t(`已幫 ${updatedCount} 個演員標籤補上角色`)+t(blankNote));
   openDetail(dramaId);
 }
 
@@ -4078,7 +4338,7 @@ async function saveShow(dramaId, editShowId) {
   if (!d) return;
 
   const date = fieldVal('show-date');
-  if(!date){alert('請選擇觀看日期');return}
+  if(!date){alert(t('請選擇觀看日期'));return}
 
   const methodBtn = document.querySelector('#show-method-toggle .method-btn.on');
   const method = methodBtn ? methodBtn.dataset.v : '現場';
@@ -4151,7 +4411,7 @@ async function saveShow(dramaId, editShowId) {
 
 function deleteShow(dramaId,showId){
   if(isReadOnly)return;
-  if(!confirm('確定要刪除這場紀錄嗎？'))return;
+  if(!confirm(t('確定要刪除這場紀錄嗎？')))return;
   const d=db.find(x=>x.id===dramaId);if(!d)return;
   d.viewing_history=(d.viewing_history||[]).filter(h=>h.id!==showId);
   save();
@@ -4432,12 +4692,12 @@ function saveForm(){
   let name,orig;
   if(category==='musical'){
     const musicalName=fieldVal('f-musical-name').trim();
-    if(!musicalName){alert('請填入劇名（原文）');return}
+    if(!musicalName){alert(t('請填入劇名（原文）'));return}
     name=musicalName;
     orig=musicalName;
   }else{
     name=fieldVal('f-name').trim();
-    if(!name){alert('請填入劇名');return}
+    if(!name){alert(t('請填入劇名'));return}
     orig=fieldVal('f-orig').trim();
   }
 
@@ -4445,7 +4705,7 @@ function saveForm(){
   if(!editId){
     const dup=findDuplicate(name,orig);
     if(dup){
-      const ok=confirm(`清單裡已經有「${dup.name}」了${dup.orig?'（原文：'+dup.orig+'）':''}，要繼續新增嗎？\n（按取消可以改去編輯原本那部劇）`);
+      const ok=confirm(t(`清單裡已經有「${dup.name}」了${dup.orig?'（原文：'+dup.orig+'）':''}，要繼續新增嗎？\n（按取消可以改去編輯原本那部劇）`));
       if(!ok)return;
     }
   }
@@ -4510,7 +4770,7 @@ function saveForm(){
   else db.unshift({id:uid(),addedAt:Date.now(),...data});
   save();closeModal('form-modal');render();
 }
-function del(id){if(isReadOnly)return;if(!confirm('確定要刪除這部劇嗎？'))return;db=db.filter(x=>x.id!==id);save();render()}
+function del(id){if(isReadOnly)return;if(!confirm(t('確定要刪除這部劇嗎？')))return;db=db.filter(x=>x.id!==id);save();render()}
 function toggleFavorite(id,event){
   if(isReadOnly)return;
   if(event)event.stopPropagation();
@@ -4519,7 +4779,7 @@ function toggleFavorite(id,event){
   save();render();
 }
 function exportData(){const b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`追劇清單_${new Date().toISOString().slice(0,10)}.json`;a.click()}
-function importData(e){if(isReadOnly)return;const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;if(confirm(`匯入 ${d.length} 筆資料？（會覆蓋現有資料）`)){db=d;save();render()}}catch{alert('格式不正確，請匯入之前匯出的 JSON 檔')}};r.readAsText(f);e.target.value=''}
+function importData(e){if(isReadOnly)return;const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!Array.isArray(d))throw 0;if(confirm(t(`匯入 ${d.length} 筆資料？（會覆蓋現有資料）`))){db=d;save();render()}}catch{alert(t('格式不正確，請匯入之前匯出的 JSON 檔'))}};r.readAsText(f);e.target.value=''}
 
 // ══════════════════════════════════════════════════════════════
 // 自動備份：跟「匯出」不一樣，不用自己下載檔案保管——資料直接存進
@@ -4571,8 +4831,8 @@ async function maybeAutoBackup(){
 }
 
 async function backupNow(event){
-  if(isGuestMode||isReadOnly){alert('訪客／唯讀模式無法備份');return;}
-  if(!sb){alert('目前是離線模式，無法備份');return;}
+  if(isGuestMode||isReadOnly){alert(t('訪客／唯讀模式無法備份'));return;}
+  if(!sb){alert(t('目前是離線模式，無法備份'));return;}
   const btn=event&&event.target?event.target.closest('button'):null;
   if(btn){btn.disabled=true;btn.textContent='備份中…';}
   const ok=await performBackup();
@@ -4581,12 +4841,12 @@ async function backupNow(event){
     localStorage.setItem(BACKUP_AUTO_THROTTLE_KEY,String(Date.now()));
     renderBackupList();
   }else{
-    alert('備份失敗，請確認網路連線，或確認 Supabase 後台已經照說明建立好「'+BACKUP_BUCKET+'」這個 bucket。');
+    alert(t('備份失敗，請確認網路連線，或確認 Supabase 後台已經照說明建立好「')+BACKUP_BUCKET+t('」這個 bucket。'));
   }
 }
 
 function openBackupModal(){
-  if(isGuestMode){alert('訪客模式無法使用備份功能');return;}
+  if(isGuestMode){alert(t('訪客模式無法使用備份功能'));return;}
   openModal('backup-modal');
   renderBackupList();
 }
@@ -4634,14 +4894,14 @@ async function downloadBackup(name){
     a.click();
   }catch(e){
     console.error('Download backup failed',e);
-    alert('下載失敗');
+    alert(t('下載失敗'));
   }
 }
 
 async function restoreBackup(name){
-  if(isReadOnly){alert('目前是唯讀模式，無法還原');return;}
+  if(isReadOnly){alert(t('目前是唯讀模式，無法還原'));return;}
   if(!currentUserId) return;
-  if(!confirm(`確定要用「${formatBackupName(name)}」這份備份取代目前所有資料嗎？\n這個動作無法復原，現在畫面上的資料會被蓋掉。`)) return;
+  if(!confirm(t(`確定要用「${formatBackupName(name)}」這份備份取代目前所有資料嗎？\n這個動作無法復原，現在畫面上的資料會被蓋掉。`))) return;
   try{
     const {data,error}=await sb.storage.from(BACKUP_BUCKET).download(`${currentUserId}/${name}`);
     if(error) throw error;
@@ -4651,10 +4911,10 @@ async function restoreBackup(name){
     db=parsed;
     save();render();
     closeModal('backup-modal');
-    alert('還原完成！');
+    alert(t('還原完成！'));
   }catch(e){
     console.error('Restore backup failed',e);
-    alert('還原失敗，備份檔案可能損毀或格式不正確');
+    alert(t('還原失敗，備份檔案可能損毀或格式不正確'));
   }
 }
 function fixRatedStatus(){
@@ -4668,9 +4928,9 @@ function fixRatedStatus(){
   });
   if(count>0){
     save();render();
-    alert(`已修正 ${count} 部劇的觀看狀態為「看完」`);
+    alert(t(`已修正 ${count} 部劇的觀看狀態為「看完」`));
   }else{
-    alert('沒有發現需要修正的資料，全部都正確！');
+    alert(t('沒有發現需要修正的資料，全部都正確！'));
   }
 }
 
@@ -4736,15 +4996,15 @@ async function generateShareLink(){
 // 讓目前的分享連結立刻失效：把 token 清空，之前發出去的連結馬上查不到資料。
 async function revokeShareLink(){
   if(!sb||sbRowId===null) return;
-  if(!confirm('確定要讓目前的分享連結立刻失效嗎？之前拿到這個連結的人之後就打不開了。')) return;
+  if(!confirm(t('確定要讓目前的分享連結立刻失效嗎？之前拿到這個連結的人之後就打不開了。'))) return;
   try{
     const {error}=await sb.from('dramas').update({share_token:null,share_expires_at:null}).eq('id',sbRowId);
     if(error) throw error;
     document.getElementById('share-link-field').style.display='none';
-    alert('已經讓連結失效了');
+    alert(t('已經讓連結失效了'));
   }catch(e){
     console.error('Revoke share link failed',e);
-    alert('操作失敗，請稍後再試');
+    alert(t('操作失敗，請稍後再試'));
   }
 }
 
@@ -5020,6 +5280,16 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function jsStr(s){
   return esc(String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
 }
+
+// 語言設定要在任何畫面渲染之前就準備好：先把監看器掛上去，之後不管是這裡的初始渲染，
+// 還是任何時間點觸發的 render()／openDetail()……等等，新產生的中文內容都會被自動攔下來翻譯。
+if(currentLang==='ko'){
+  document.documentElement.lang='ko';
+  ensureI18nObserver();
+  applyI18nToRoot(document.body);
+}
+const langBtn=document.getElementById('lang-toggle-btn');
+if(langBtn) langBtn.textContent=currentLang==='ko'?'한/中':'中/한';
 
 const shareMode=detectShareMode();
 
@@ -5643,7 +5913,7 @@ async function deleteActorNode(id,name){
   const confirmMsg = isRecoverable
     ? `即將刪除「${name}」，並將其場次記錄轉移到「${cleanNames.join('、')}」，確定嗎？`
     : `即將直接刪除「${name}」這個演員節點（無法辨識出有效姓名，此操作無法復原），確定嗎？`;
-  if(!confirm(confirmMsg)) return;
+  if(!confirm(t(confirmMsg))) return;
 
   if(isRecoverable){
     db.forEach(item=>{
@@ -5902,7 +6172,7 @@ async function confirmActorsCleanup(){
   closeActorsCleanupModal();
   renderActorsGrid();
   if(btn){ btn.disabled=false; btn.textContent='確認套用'; }
-  alert(`演員資料清理完成！已套用 ${selectedEntries.length} 筆，跳過 ${plan.messyEntries.length-selectedEntries.length} 筆。`);
+  alert(t(`演員資料清理完成！已套用 ${selectedEntries.length} 筆，跳過 ${plan.messyEntries.length-selectedEntries.length} 筆。`));
 }
 
 // 刪除單一 musical_actors 節點（用於清掉格式錯誤的舊資料）。
