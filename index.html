@@ -4836,6 +4836,18 @@ function openEdit(id){
   }
   openModal('form-modal');
 }
+// 填了評分＋看完年度，代表這次存檔本身就是「看完了」這個動作——自動幫忙補一筆觀看紀錄，
+// 省得使用者自己再多點一次「新增紀錄」。日期用「現在存檔的當下」，不是硬套看完年度裡隨便
+// 挑一天（看完年度只有到年，沒有月/日，瞎掰一個日期反而更不準）。只論第一次：這部劇只要
+// 已經有任何一筆觀看紀錄（不管是這樣自動補的、還是使用者自己手動加的），之後不管重存幾次
+// 表單都不會再自動加第二筆——多刷要記，還是得自己手動用「新增紀錄」加。
+function maybeAutoAddFirstWatchLog(d){
+  if((d.category||'drama')!=='drama') return;
+  if(d.status!=='done' || !(d.rating>0) || !d.yearDone) return;
+  if(d.watchLog && d.watchLog.length) return;
+  if(!d.watchLog) d.watchLog=[];
+  d.watchLog.push({id:uid(), date:new Date().toISOString().slice(0,10), note:''});
+}
 function saveForm(){
   if(isReadOnly)return;
   const category=fieldVal('f-category','drama')||'drama';
@@ -4917,8 +4929,14 @@ function saveForm(){
     const cameoActors=getCastChipsData('cameo');
     data={name,orig,category,status,rating,genre:genreInput,genres,platform:fieldVal('f-platform').trim(),airDate:fieldVal('f-air'),yearDone:fieldVal('f-year'),episode,actors,cameoActors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:fieldVal('f-note').trim(),poster,namu:fieldVal('f-namu').trim()};
   }
-  if(editId){const i=db.findIndex(x=>x.id===editId);if(i>-1)db[i]={...db[i],...data}}
-  else db.unshift({id:uid(),addedAt:Date.now(),...data});
+  if(editId){
+    const i=db.findIndex(x=>x.id===editId);
+    if(i>-1){ db[i]={...db[i],...data}; maybeAutoAddFirstWatchLog(db[i]); }
+  }else{
+    const newDrama={id:uid(),addedAt:Date.now(),...data};
+    db.unshift(newDrama);
+    maybeAutoAddFirstWatchLog(newDrama);
+  }
   save();closeModal('form-modal');render();
 }
 function del(id){if(isReadOnly)return;if(!confirm(t('確定要刪除這部劇嗎？')))return;db=db.filter(x=>x.id!==id);save();render()}
