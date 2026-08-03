@@ -748,7 +748,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <label for="f-episode">集數</label>
       <input type="number" id="f-episode" min="0">
     </div>
-    <div class="field" id="drama-only-air"><label>首播日期</label><input type="date" id="f-air"></div>
+    <div class="field" id="drama-only-air"><label>首播日期</label><input type="date" id="f-air" onpaste="handleDatePaste(event)"></div>
     <div class="field" id="drama-only-actors"><label>主角（逗號分隔）</label><input type="text" id="f-actors" placeholder="宋慧喬, 李道賢"></div>
     <div class="field" id="drama-only-cameo">
       <label>客串／特別演出（可選）</label>
@@ -2424,6 +2424,35 @@ function fillYearSel(id,cur){
   s.innerHTML='<option value="">—</option>';
   for(let y=NY;y>=2000;y--){const o=document.createElement('option');o.value=y;o.textContent=y+'年';s.appendChild(o)}
   if(cur)s.value=cur;
+}
+
+// 首播日期／觀看日期／觀看紀錄日期這幾個 <input type="date"> 常常會直接貼韓文年月日格式的
+// 日期進來（例如售票網站、節目表複製出來的「2026년 3월 15일」）——瀏覽器原生的日期選擇器
+// 打字/貼上都只吃它自己的格式，貼這種字串進去只會被忽略。攔截貼上事件，自己解析常見的
+// 韓文／點號／斜線日期格式，解析成功就直接把值設進去；解析不出來就不做事，讓瀏覽器照舊
+// 處理，使用者還是可以照原本的方式點開日期選擇器手動選——兩種輸入方式並存，不衝突。
+function toIsoDate(y,mo,d){
+  return `${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+function parseKoreanDate(raw){
+  if(!raw) return '';
+  const s=raw.trim();
+  let m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m) return toIsoDate(m[1],m[2],m[3]);
+  m=s.match(/(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  if(m) return toIsoDate(m[1],m[2],m[3]);
+  m=s.match(/(\d{4})[.\/](\d{1,2})[.\/](\d{1,2})/);
+  if(m) return toIsoDate(m[1],m[2],m[3]);
+  return '';
+}
+function handleDatePaste(e){
+  const text=(e.clipboardData||window.clipboardData).getData('text');
+  const iso=parseKoreanDate(text);
+  if(!iso) return; // 解析不出來就不擋，交給瀏覽器原生行為處理
+  e.preventDefault();
+  e.target.value=iso;
+  e.target.dispatchEvent(new Event('input',{bubbles:true}));
+  e.target.dispatchEvent(new Event('change',{bubbles:true}));
 }
 
 // ── Genre multi-select helpers ──
@@ -4267,7 +4296,7 @@ async function openAddShowForm(dramaId, editShowId){
         </div>
       </div>
       <div class="row2">
-        <div class="field"><label>觀看日期</label><input type="date" id="show-date" oninput="onShowDateChange()"></div>
+        <div class="field"><label>觀看日期</label><input type="date" id="show-date" oninput="onShowDateChange()" onpaste="handleDatePaste(event)"></div>
         <div class="field" id="show-time-field"><label>場次</label>
           <select id="show-time">
             <option value="">未指定</option>
@@ -4566,7 +4595,7 @@ function watchLogHtml(d){
           <button class="icon-btn" onclick="event.stopPropagation();toggleWatchLogAddForm('${jsStr(d.id)}')" style="margin-bottom:.6rem"><i class="ti ti-plus"></i> 新增紀錄</button>
           <div class="split-panel" id="watch-log-add-panel" style="display:none">
             <div class="split-row">
-              <input type="date" id="watch-log-date-input">
+              <input type="date" id="watch-log-date-input" onpaste="handleDatePaste(event)">
               <input type="text" id="watch-log-note-input" placeholder="備註（可留空）" style="flex:1;min-width:120px;background:#fff;border:.5px solid #E0E0EE;border-radius:8px;padding:6px 8px;font-size:13px;color:#1A1A2E">
             </div>
             <div class="split-actions">
