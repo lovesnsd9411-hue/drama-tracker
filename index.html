@@ -593,6 +593,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
           <button class="more-menu-item" onclick="fixRatedStatus();closeMoreMenu()"><i class="ti ti-wand"></i> 修正狀態</button>
           <button class="more-menu-item" onclick="filterByIncomplete();closeMoreMenu()"><i class="ti ti-alert-circle"></i> 檢查電視劇未完成資料</button>
           <button class="more-menu-item" onclick="filterByIncompleteMusical();closeMoreMenu()"><i class="ti ti-alert-circle"></i> 檢查音樂劇未完成資料</button>
+          <button class="more-menu-item" onclick="openOverdueModal();closeMoreMenu()"><i class="ti ti-alert-triangle"></i> 逾期未觀看總覽</button>
           <button class="more-menu-item" onclick="openShareModal();closeMoreMenu()"><i class="ti ti-share"></i> 分享清單</button>
           <button class="more-menu-item" onclick="promptExchangeRate();closeMoreMenu()"><i class="ti ti-currency-won"></i> 匯率設定</button>
           <button class="more-menu-item" id="logout-menu-item" onclick="logout();closeMoreMenu()" style="display:none;color:#B91C1C"><i class="ti ti-logout"></i> 登出</button>
@@ -909,6 +910,19 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
   </div>
 </div>
 
+<!-- 逾期未觀看總覽：把所有音樂劇裡「未觀看但日期已經過了」的場次集中列在這裡，
+     不用一部一部點進劇目詳細頁才看得到，可以直接在這裡標記已觀看／나눔／不用管這筆。 -->
+<div class="modal-bg" id="overdue-modal">
+  <div class="modal" style="width:min(480px,95vw)">
+    <div class="modal-title">逾期未觀看總覽</div>
+    <p style="font-size:13px;color:#888;margin-bottom:1rem;line-height:1.6">列出所有音樂劇裡「未觀看」但日期已經過了的場次，不用一部一部點進去才看得到，可以直接在這裡處理。</p>
+    <div id="overdue-list"></div>
+    <div class="mfooter">
+      <button class="icon-btn" onclick="closeModal('overdue-modal')">關閉</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ════════════════════════════════════════════════════════════════
 // 介面語言切換（繁中／한국어）：不是每個字串都個別包一層函式呼叫去改，而是用一份
@@ -928,6 +942,10 @@ const I18N_EXACT={
   '更多功能':'더보기','備份與還原':'백업 및 복원','匯出':'내보내기','匯入':'가져오기',
   '修正狀態':'상태 수정','分享清單':'목록 공유',
   '檢查電視劇未完成資料':'드라마 미완성 데이터 확인','檢查音樂劇未完成資料':'뮤지컬 미완성 데이터 확인',
+  '逾期未觀看總覽':'기한 지난 미관람 개요',
+  '列出所有音樂劇裡「未觀看」但日期已經過了的場次，不用一部一部點進去才看得到，可以直接在這裡處理。':'모든 뮤지컬 중 "미관람"인데 날짜가 이미 지난 회차를 모아 보여줍니다. 하나씩 눌러 들어갈 필요 없이 여기서 바로 처리할 수 있습니다.',
+  '目前沒有逾期未觀看的場次':'현재 기한이 지난 미관람 회차가 없습니다',
+  '✓ 標記已觀看':'✓ 관람 완료로 표시','不用管這筆':'이 건은 무시',
   '匯率設定':'환율 설정','⚠️ 離線模式':'⚠️ 오프라인 모드','觀劇手記':'관극수첩',
   '全部':'전체','影劇':'드라마','電視劇':'드라마','音樂劇':'뮤지컬','話劇':'연극',
   '看完':'완결','觀看中':'관람 중','棄劇':'드롭','演出中':'공연 중','預計演出':'공연 예정',
@@ -2805,6 +2823,48 @@ function isOverdueTicket(h){
   return dateStr<today;
 }
 
+// 逾期提醒原本只有點進某一部音樂劇的詳細頁「總覽」分頁才看得到——掃過全部音樂劇，把逾期
+// 場次集中成一份清單，不用一部一部點進去才發現。日期最舊的排最前面，越拖越久的優先處理。
+function getAllOverdueRecords(){
+  const result=[];
+  db.forEach(d=>{
+    if((d.category||'drama')!=='musical') return;
+    (d.viewing_history||[]).forEach(h=>{
+      if(isOverdueTicket(h)) result.push({drama:d,record:h});
+    });
+  });
+  result.sort((a,b)=>(a.record.date||'').localeCompare(b.record.date||''));
+  return result;
+}
+function openOverdueModal(){
+  renderOverdueOverview();
+  openModal('overdue-modal');
+}
+function renderOverdueOverview(){
+  const el=document.getElementById('overdue-list');
+  if(!el) return;
+  const items=getAllOverdueRecords();
+  if(!items.length){
+    el.innerHTML='<div style="font-size:13px;color:#aaa;padding:1.5rem 0;text-align:center">目前沒有逾期未觀看的場次</div>';
+    return;
+  }
+  el.innerHTML=items.map(({drama:d,record:h})=>`
+    <div class="show-card-overdue" style="border-radius:12px;padding:.75rem .9rem;font-size:13px;margin-bottom:8px">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <div style="width:40px;height:56px;border-radius:6px;flex-shrink:0;overflow:hidden;cursor:pointer;background:#2D2B55;position:relative" onclick="closeModal('overdue-modal');openDetail('${jsStr(d.id)}')">${calendarPosterFillHtml(d)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;color:#1A1A2E;cursor:pointer" onclick="closeModal('overdue-modal');openDetail('${jsStr(d.id)}')">${esc(d.name)}</div>
+          <div style="font-weight:600;color:#92400E;margin-top:2px">${esc(h.date||'')}${h.season?' · '+esc(h.season)+'場':''}</div>
+        </div>
+      </div>
+      <div class="overdue-actions">
+        <button class="oa-watched" onclick="markShowWatchedQuick('${jsStr(d.id)}','${jsStr(h.id)}')">✓ 標記已觀看</button>
+        <button class="oa-refund" onclick="markShowRefundedQuick('${jsStr(d.id)}','${jsStr(h.id)}')">나눔</button>
+        <button class="oa-ignore" onclick="dismissOverdueTicket('${jsStr(d.id)}','${jsStr(h.id)}')">不用管這筆</button>
+      </div>
+    </div>`).join('');
+}
+
 function getFiltered(){
   const q=(document.getElementById('search').value||'').toLowerCase();
   let list=[...db];
@@ -4551,6 +4611,14 @@ function deleteShow(dramaId,showId){
 
 // 未觀看過期提醒的三個快速動作：標記已觀看／나눔／不用管這筆（永久忽略）。
 function refreshAfterOverdueAction(dramaId){
+  // 這幾個快速動作（標記已觀看／나눔／不用管這筆）現在有兩個入口共用：音樂劇詳細頁本身，
+  // 跟「逾期未觀看總覽」這個跨劇目的彈窗。逾期總覽開著的時候，重新渲染那份清單就好
+  // （處理完的那筆會直接從清單消失），不用管音樂劇詳細頁那一整套分頁狀態的邏輯。
+  const overdueModal=document.getElementById('overdue-modal');
+  if(overdueModal && overdueModal.classList.contains('open')){
+    renderOverdueOverview();
+    return;
+  }
   const stayOnTab=currentSeasonFilter;
   // renderMusicalTabContent 每次都會把「查看完整場次紀錄」重建成預設收起的樣子——
   // 如果使用者是先點「去看看」展開才按下這些快速動作，動作完不記得展開狀態的話，
