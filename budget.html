@@ -130,6 +130,16 @@
     <div class="hint" style="margin-top:10px;">扣薪比照台灣勞基法：事假、颱風假（依你們公司規定）不給薪；生理假、病假半薪；特休/公假全薪；曠職扣雙倍。生理假/病假一年內的天數上限這裡沒有幫你算，記得自己留意。</div>
   </div>
 
+  <div class="section-title">本月各帳戶花費</div>
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><div class="label">現金</div><div class="value" id="methodCash">--</div></div>
+      <div class="stat"><div class="label">台新</div><div class="value" id="methodTaishin">--</div></div>
+      <div class="stat"><div class="label">國泰</div><div class="value" id="methodCathay">--</div></div>
+      <div class="stat"><div class="label">聯邦</div><div class="value" id="methodUnion">--</div></div>
+    </div>
+  </div>
+
   <div class="section-title">記一筆</div>
   <div class="card">
     <form class="add" id="addForm">
@@ -139,6 +149,14 @@
     <div class="row2">
       <input type="text" placeholder="備註（選填）" id="noteInput">
       <input type="date" id="dateInput">
+    </div>
+    <div class="row2">
+      <select id="methodInput" style="flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:#FBFBFD;">
+        <option value="現金">現金</option>
+        <option value="台新">台新信用卡</option>
+        <option value="國泰">國泰信用卡</option>
+        <option value="聯邦">聯邦信用卡</option>
+      </select>
     </div>
   </div>
 
@@ -228,6 +246,17 @@ function money(n){
   return (r<0?'-':'') + '$' + Math.abs(r).toLocaleString();
 }
 
+const METHODS = ['現金','台新','國泰','聯邦'];
+const METHOD_LABELS = { '現金':'現金', '台新':'台新信用卡', '國泰':'國泰信用卡', '聯邦':'聯邦信用卡' };
+const METHOD_STAT_IDS = { '現金':'methodCash', '台新':'methodTaishin', '國泰':'methodCathay', '聯邦':'methodUnion' };
+
+function renderMethodBreakdown(cycleExpenses){
+  for(const m of METHODS){
+    const sum = cycleExpenses.filter(e=>(e.method||'現金')===m).reduce((s,e)=>s+e.amount,0);
+    document.getElementById(METHOD_STAT_IDS[m]).textContent = money(sum);
+  }
+}
+
 const LEAVE_DEDUCT_RATIO = { '事假':1, '生理假':0.5, '病假':0.5, '特休':0, '颱風假':1, '曠職':2 };
 const LEAVE_LABELS = { '事假':'事假（不給薪）', '生理假':'生理假（半薪）', '病假':'病假（半薪）', '特休':'特休 / 公假（全薪）', '颱風假':'颱風假（不給薪）', '曠職':'曠職（扣雙倍）' };
 
@@ -313,6 +342,7 @@ function render(){
     document.getElementById('avgPerDay').textContent = '--';
     document.getElementById('progressBar').style.width = '0%';
     renderExpenseList([]);
+    renderMethodBreakdown([]);
     return;
   }
 
@@ -353,6 +383,7 @@ function render(){
   bar.className = 'progress-inner' + (spentTotal>budget ? ' over':'');
 
   renderExpenseList(cycleExpenses);
+  renderMethodBreakdown(cycleExpenses);
 }
 
 function renderExpenseList(list){
@@ -373,7 +404,7 @@ function renderExpenseList(list){
     note.textContent = e.note && e.note.trim() ? e.note : '（無備註）';
     const date = document.createElement('div');
     date.className='date';
-    date.textContent = e.date;
+    date.textContent = `${e.date} · ${METHOD_LABELS[e.method]||'現金'}`;
     info.appendChild(note);
     info.appendChild(date);
 
@@ -406,7 +437,8 @@ document.getElementById('addForm').addEventListener('submit', function(ev){
   if(!amount || amount<=0) return;
   const note = document.getElementById('noteInput').value;
   const date = document.getElementById('dateInput').value || todayISO();
-  state.expenses.push({ id: Date.now()+Math.random().toString(36).slice(2), amount, note, date, ts: Date.now() });
+  const method = document.getElementById('methodInput').value;
+  state.expenses.push({ id: Date.now()+Math.random().toString(36).slice(2), amount, note, date, method, ts: Date.now() });
   saveState();
   document.getElementById('amountInput').value = '';
   document.getElementById('noteInput').value = '';
