@@ -97,6 +97,39 @@
     <div class="progress-outer"><div class="progress-inner" id="progressBar" style="width:0%"></div></div>
   </div>
 
+  <div class="section-title">本月薪資試算</div>
+  <div class="card">
+    <div class="stats" style="margin-bottom:10px;">
+      <div class="stat">
+        <div class="label">應領月薪</div>
+        <div class="value" id="salaryBase">--</div>
+      </div>
+      <div class="stat">
+        <div class="label">預估實領</div>
+        <div class="value" id="salaryEstimate">--</div>
+      </div>
+    </div>
+    <form class="add" id="leaveForm">
+      <select id="leaveType" style="flex:1.4;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 10px;font-size:0.95rem;background:#FBFBFD;">
+        <option value="事假">事假（不給薪）</option>
+        <option value="生理假">生理假（半薪）</option>
+        <option value="病假">病假（半薪）</option>
+        <option value="特休">特休 / 公假（全薪）</option>
+        <option value="颱風假">颱風假（不給薪）</option>
+        <option value="曠職">曠職（扣雙倍）</option>
+      </select>
+      <input type="number" inputmode="decimal" step="0.5" min="0.5" placeholder="天數" id="leaveDays" style="flex:0.6;">
+      <button type="submit">新增</button>
+    </form>
+    <div class="row2">
+      <input type="date" id="leaveDate" style="flex:1;">
+    </div>
+    <ul class="expense-list" id="leaveList"></ul>
+    <div class="empty" id="leaveEmptyMsg" style="display:none;">這個週期還沒有請假紀錄</div>
+    <button type="button" class="secondary" id="applySalaryToBudget" style="width:100%;margin-top:14px;border:none;background:var(--line);color:var(--text);border-radius:12px;padding:12px;font-size:0.9rem;cursor:pointer;">把預估實領薪資套用到本月預算</button>
+    <div class="hint" style="margin-top:10px;">扣薪比照台灣勞基法：事假、颱風假（依你們公司規定）不給薪；生理假、病假半薪；特休/公假全薪；曠職扣雙倍。生理假/病假一年內的天數上限這裡沒有幫你算，記得自己留意。</div>
+  </div>
+
   <div class="section-title">記一筆</div>
   <div class="card">
     <form class="add" id="addForm">
@@ -128,6 +161,15 @@
       <input type="number" min="1" max="28" id="settingCycleDay" placeholder="例如 5">
       <div class="hint">例如發薪日是 5 號，這裡就填 5，代表每個月 5 號～下個月 4 號算一輪預算。</div>
     </div>
+    <div class="field">
+      <label>基本薪資</label>
+      <input type="number" inputmode="decimal" min="0" id="settingBaseSalary" placeholder="例如 30600">
+    </div>
+    <div class="field">
+      <label>伙食費</label>
+      <input type="number" inputmode="decimal" min="0" id="settingMealAllowance" placeholder="例如 2400">
+      <div class="hint">這兩個加起來是你的應領月薪，用來試算請假扣薪、估算實領薪資。</div>
+    </div>
     <div class="actions">
       <button class="secondary" id="closeSettings">取消</button>
       <button class="primary" id="saveSettings">儲存</button>
@@ -139,11 +181,12 @@
 const STORAGE_KEY = 'dailyBudgetTracker_v1';
 
 function loadState(){
+  const defaults = { monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [] };
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    if(raw) return JSON.parse(raw);
+    if(raw) return Object.assign(defaults, JSON.parse(raw));
   }catch(e){}
-  return { monthlyBudget: null, cycleStartDay: 1, expenses: [] };
+  return defaults;
 }
 function saveState(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -185,9 +228,80 @@ function money(n){
   return (r<0?'-':'') + '$' + Math.abs(r).toLocaleString();
 }
 
+const LEAVE_DEDUCT_RATIO = { '事假':1, '生理假':0.5, '病假':0.5, '特休':0, '颱風假':1, '曠職':2 };
+const LEAVE_LABELS = { '事假':'事假（不給薪）', '生理假':'生理假（半薪）', '病假':'病假（半薪）', '特休':'特休 / 公假（全薪）', '颱風假':'颱風假（不給薪）', '曠職':'曠職（扣雙倍）' };
+
+function computeSalary(cycleStart, cycleEnd){
+  const totalSalary = (state.baseSalary||0) + (state.mealAllowance||0);
+  const dailyPay = totalSalary / 30;
+  const cycleLeaves = state.leaves.filter(l=>{
+    const d = parseISO(l.date);
+    return d >= cycleStart && d < cycleEnd;
+  }).sort((a,b)=> b.date.localeCompare(a.date) || b.ts - a.ts);
+  const deduction = cycleLeaves.reduce((s,l)=> s + l.days * (LEAVE_DEDUCT_RATIO[l.type]||0) * dailyPay, 0);
+  const estimate = totalSalary - deduction;
+  return { totalSalary, dailyPay, cycleLeaves, deduction, estimate };
+}
+
+function renderSalary(cycleStart, cycleEnd){
+  const { totalSalary, dailyPay, cycleLeaves, estimate } = computeSalary(cycleStart, cycleEnd);
+  document.getElementById('salaryBase').textContent = totalSalary>0 ? money(totalSalary) : '--';
+  document.getElementById('salaryEstimate').textContent = totalSalary>0 ? money(estimate) : '--';
+  renderLeaveList(cycleLeaves, dailyPay);
+}
+
+function renderLeaveList(list, dailyPay){
+  const ul = document.getElementById('leaveList');
+  const empty = document.getElementById('leaveEmptyMsg');
+  ul.innerHTML = '';
+  if(list.length===0){
+    empty.style.display='block';
+    return;
+  }
+  empty.style.display='none';
+  for(const l of list){
+    const li = document.createElement('li');
+    const info = document.createElement('div');
+    info.className='info';
+    const note = document.createElement('div');
+    note.className='note';
+    note.textContent = `${LEAVE_LABELS[l.type]||l.type} ${l.days} 天`;
+    const date = document.createElement('div');
+    date.className='date';
+    date.textContent = l.date;
+    info.appendChild(note);
+    info.appendChild(date);
+
+    const right = document.createElement('div');
+    right.style.display='flex';
+    right.style.alignItems='center';
+    const amt = document.createElement('span');
+    amt.className='amt';
+    const deductAmt = l.days * (LEAVE_DEDUCT_RATIO[l.type]||0) * dailyPay;
+    amt.textContent = deductAmt>0 ? ('-'+money(deductAmt)) : '全薪';
+    const del = document.createElement('button');
+    del.className='del';
+    del.textContent = '✕';
+    del.onclick = ()=>{
+      state.leaves = state.leaves.filter(x=>x.id!==l.id);
+      saveState();
+      render();
+    };
+    right.appendChild(amt);
+    right.appendChild(del);
+
+    li.appendChild(info);
+    li.appendChild(right);
+    ul.appendChild(li);
+  }
+}
+
 function render(){
+  const { cycleStart, cycleEnd, totalDays, daysRemaining } = getCycle();
+  const todayStr = todayISO();
+  renderSalary(cycleStart, cycleEnd);
+
   const hasBudget = state.monthlyBudget && state.monthlyBudget > 0;
-  document.getElementById('dateInput').value = todayISO();
 
   if(!hasBudget){
     document.getElementById('todayAmount').textContent = '請先設定預算';
@@ -201,9 +315,6 @@ function render(){
     renderExpenseList([]);
     return;
   }
-
-  const { cycleStart, cycleEnd, totalDays, daysRemaining } = getCycle();
-  const todayStr = todayISO();
 
   const cycleExpenses = state.expenses.filter(e=>{
     const d = parseISO(e.date);
@@ -303,23 +414,52 @@ document.getElementById('addForm').addEventListener('submit', function(ev){
   render();
 });
 
+document.getElementById('leaveForm').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  const type = document.getElementById('leaveType').value;
+  const days = parseFloat(document.getElementById('leaveDays').value);
+  if(!days || days<=0) return;
+  const date = document.getElementById('leaveDate').value || todayISO();
+  state.leaves.push({ id: Date.now()+Math.random().toString(36).slice(2), type, days, date, ts: Date.now() });
+  saveState();
+  document.getElementById('leaveDays').value = '';
+  render();
+});
+
+document.getElementById('applySalaryToBudget').onclick = ()=>{
+  const { cycleStart, cycleEnd } = getCycle();
+  const { totalSalary, estimate } = computeSalary(cycleStart, cycleEnd);
+  if(totalSalary<=0) return;
+  state.monthlyBudget = Math.round(estimate);
+  saveState();
+  render();
+};
+
 const settingsModal = document.getElementById('settingsModal');
 document.getElementById('openSettings').onclick = ()=>{
   document.getElementById('settingBudget').value = state.monthlyBudget || '';
   document.getElementById('settingCycleDay').value = state.cycleStartDay || 1;
+  document.getElementById('settingBaseSalary').value = state.baseSalary != null ? state.baseSalary : '';
+  document.getElementById('settingMealAllowance').value = state.mealAllowance != null ? state.mealAllowance : '';
   settingsModal.classList.add('show');
 };
 document.getElementById('closeSettings').onclick = ()=> settingsModal.classList.remove('show');
 document.getElementById('saveSettings').onclick = ()=>{
   const b = parseFloat(document.getElementById('settingBudget').value);
   const c = parseInt(document.getElementById('settingCycleDay').value);
+  const base = parseFloat(document.getElementById('settingBaseSalary').value);
+  const meal = parseFloat(document.getElementById('settingMealAllowance').value);
   if(b && b>0) state.monthlyBudget = b;
   if(c && c>=1 && c<=28) state.cycleStartDay = c;
+  if(!isNaN(base) && base>=0) state.baseSalary = base;
+  if(!isNaN(meal) && meal>=0) state.mealAllowance = meal;
   saveState();
   settingsModal.classList.remove('show');
   render();
 };
 
+document.getElementById('dateInput').value = todayISO();
+document.getElementById('leaveDate').value = todayISO();
 render();
 if(!state.monthlyBudget){
   document.getElementById('openSettings').click();
