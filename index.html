@@ -635,6 +635,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <option value="status">觀看狀態</option>
       <option value="year">看完年度</option>
       <option value="genre">類型</option>
+      <option value="country">國家</option>
       <option value="platform">平台</option>
       <option value="rating">評分</option>
       <option value="sort">排序方式</option>
@@ -716,9 +717,8 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <div class="field"><label>看完年度</label><select id="f-year"><option value="">—</option></select></div>
     </div>
 
-   <div class="row2" id="drama-only-genre-platform">
-  <div class="field">
-    <label>類型（可多選）</label>
+   <div class="field" id="drama-only-genre">
+  <label>類型（可多選）</label>
     <div class="genre-checkbox-wrap" id="f-genre-wrap">
       <label class="genre-cb"><input type="checkbox" value="生活"> 生活</label>
       <label class="genre-cb"><input type="checkbox" value="奇幻"> 奇幻</label>
@@ -737,6 +737,21 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <label class="genre-cb"><input type="checkbox" value="驚悚"> 驚悚</label>
       <label class="genre-cb"><input type="checkbox" value="年代劇"> 年代劇</label>
     </div>
+  </div>
+  <div class="row2" id="drama-only-country-platform">
+  <div class="field">
+    <label>國家</label>
+    <select id="f-country">
+      <option value="">-- 請選擇國家 --</option>
+      <option value="韓國">韓國</option>
+      <option value="日本">日本</option>
+      <option value="美國">美國</option>
+      <option value="英國">英國</option>
+      <option value="中國">中國</option>
+      <option value="台灣">台灣</option>
+      <option value="泰國">泰國</option>
+      <option value="其他">其他</option>
+    </select>
   </div>
   <div class="field">
     <label>平台</label>
@@ -976,7 +991,9 @@ const I18N_EXACT={
   '格狀':'격자형','列表':'목록','搜尋':'검색','清除搜尋':'검색어 지우기',
   '搜尋劇名、原文名、演員…':'작품명, 원어 제목, 배우 검색…',
   '篩選 / 排序':'필터 / 정렬','觀看狀態':'관람 상태','看完年度':'완결 연도',
-  '類型':'장르','平台':'플랫폼','評分':'평점','現況':'현황','年度':'연도',
+  '類型':'장르','國家':'국가','平台':'플랫폼','評分':'평점','現況':'현황','年度':'연도',
+  '-- 請選擇國家 --':'-- 국가를 선택하세요 --',
+  '韓國':'한국','日本':'일본','美國':'미국','英國':'영국','中國':'중국','台灣':'대만','泰國':'태국','其他':'기타',
   '設為最愛':'즐겨찾기 추가','取消最愛':'즐겨찾기 해제','最愛':'즐겨찾기',
   '編輯':'수정','刪除':'삭제','關閉':'닫기','取消':'취소','儲存':'저장','確定':'확인',
   '本年度花費':'올해 지출','歷史累計':'누적 기록',
@@ -2349,6 +2366,7 @@ function isDramaIncomplete(d){
   if(!d.poster) return true;
   if(!d.orig) return true;
   if(!((d.genres&&d.genres.length) || d.genre)) return true;
+  if(!d.country) return true;
   if(!d.platform) return true;
   if(!d.airDate) return true;
   if(d.episode==null) return true;
@@ -2444,7 +2462,7 @@ async function setFormCategory(cat){
   const isMusical=cat==='musical';
 
   // drama-only field groups
-  ['drama-only-names','drama-only-row3','drama-only-genre-platform','drama-only-episode','drama-only-air','drama-only-actors','drama-only-cameo','drama-only-crew'].forEach(id=>{
+  ['drama-only-names','drama-only-row3','drama-only-genre','drama-only-country-platform','drama-only-episode','drama-only-air','drama-only-actors','drama-only-cameo','drama-only-crew'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display=isMusical?'none':'';
   });
@@ -2740,6 +2758,7 @@ function onTypeChange(){
   if(t==='status') vs.innerHTML='<option value="done">看完</option><option value="ongoing">觀看中</option><option value="dropped">棄劇</option>';
   else if(t==='year') vs.innerHTML=uniq('yearDone').sort((a,b)=>b-a).map(y=>`<option value="${y}">${y}年看完</option>`).join('');
   else if(t==='genre') vs.innerHTML=uniqGenres().map(g=>`<option value="${g}">${g}</option>`).join('');
+  else if(t==='country') vs.innerHTML=uniq('country').map(c=>`<option value="${c}">${c}</option>`).join('');
   else if(t==='platform') vs.innerHTML=uniq('platform').map(p=>`<option value="${p}">${p}</option>`).join('');
   else if(t==='rating') vs.innerHTML=RATINGS.map(r=>`<option value="${r}">${rLabel(r)}</option>`).join('');
   else if(t==='sort') vs.innerHTML='<option value="rating-year">評分高→低，同分年代新→舊</option><option value="year-rating">年代新→舊，同年評分高→低</option><option value="date-desc">最新新增</option><option value="rating-desc">評分高→低</option><option value="rating-asc">評分低→高</option><option value="name">劇名 A→Z</option><option value="year-desc">看完年度新→舊</option>';
@@ -2792,7 +2811,7 @@ function setPerson(name,role){pFilter={name,role};closeModal('detail-modal');ren
 function renderChips(){
   let h='';
   if(aFilter.type){
-    const tl={status:'狀態',year:'年度',genre:'類型',platform:'平台',rating:'評分',viewYear:'年度',musicalRunStatus:'現況',incomplete:'資料',incompleteMusical:'資料'}[aFilter.type]||'';
+    const tl={status:'狀態',year:'年度',genre:'類型',country:'國家',platform:'平台',rating:'評分',viewYear:'年度',musicalRunStatus:'現況',incomplete:'資料',incompleteMusical:'資料'}[aFilter.type]||'';
     const vl=aFilter.type==='status'?(aFilter.val==='done'?'看完':aFilter.val==='dropped'?'棄劇':'觀看中'):aFilter.type==='year'?aFilter.val+'年看完':aFilter.type==='viewYear'?aFilter.val+'年觀看':aFilter.type==='rating'?rLabel(parseFloat(aFilter.val)):aFilter.type==='musicalRunStatus'?({ongoing:'演出中',upcoming:'預計演出',finished:'演出完畢'}[aFilter.val]||aFilter.val):(aFilter.type==='incomplete'||aFilter.type==='incompleteMusical')?'待補充':aFilter.val;
     h+=`<span class="chip chip-filter">${tl}：${vl}<button onclick="clearFilter()"><i class="ti ti-x"></i></button></span>`;
   }
@@ -2907,6 +2926,7 @@ function getFiltered(){
     const gs=d.genres&&d.genres.length?d.genres:(d.genre?d.genre.split(',').map(g=>g.trim()):[]);
     return gs.includes(aFilter.val);
   });
+  else if(aFilter.type==='country') list=list.filter(d=>d.country===aFilter.val);
   else if(aFilter.type==='platform') list=list.filter(d=>d.platform===aFilter.val);
   else if(aFilter.type==='rating') list=list.filter(d=>parseFloat(d.rating||0)===parseFloat(aFilter.val));
   // 音樂劇／話劇沒有像電視劇一樣的「看完年度」欄位，是不是屬於某一年要看那年有沒有實際觀看場次紀錄，
@@ -4836,6 +4856,7 @@ function openDetail(id){
     </div>
     ${genreList.length?`<div style="margin-bottom:.85rem">${genreList.map(g=>`<span class="ppill" onclick="filterByGenre('${esc(g)}')">${esc(g)} 🔍</span>`).join('')}</div>`:''}
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem 1rem;font-size:13px;margin-bottom:1rem">
+      ${d.country?`<div class="meta-row"><span class="meta-label">國家</span><span style="font-weight:500">${esc(d.country)}</span></div>`:''}
       ${d.platform?`<div class="meta-row"><span class="meta-label">平台</span><span style="font-weight:500">${esc(d.platform)}</span></div>`:''}
       ${d.airDate?`<div class="meta-row"><span class="meta-label">首播日期</span><span style="font-weight:500">${d.airDate}</span></div>`:''}
       ${d.yearDone?`<div class="meta-row"><span class="meta-label">看完年度</span><span style="font-weight:500">${d.yearDone}年</span></div>`:''}
@@ -4904,6 +4925,7 @@ function openAdd(){
 
     // 選單重置
     setGenreCheckboxValues('');
+    setFieldVal('f-country','');
     setFieldVal('f-platform','');
 
     openModal('form-modal');
@@ -4933,6 +4955,7 @@ function openEdit(id){
   // 類型（checkbox 多選）
   setGenreCheckboxValues(d.genres && d.genres.length ? d.genres : (d.genre || ''));
 
+  setFieldVal('f-country',d.country||'');
   setFieldVal('f-platform',d.platform||'');
   setSelectedStageType(d.stageType||'musical');
   setFieldVal('f-namu',d.namu||'');
@@ -5078,7 +5101,7 @@ function saveForm(){
     const episodeRaw=fieldVal('f-episode').trim();
     const episode=episodeRaw ? parseInt(episodeRaw,10) : null;
     const cameoActors=getCastChipsData('cameo');
-    data={name,orig,category,status,rating,genre:genreInput,genres,platform:fieldVal('f-platform').trim(),airDate:fieldVal('f-air'),yearDone:fieldVal('f-year'),episode,actors,cameoActors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:fieldVal('f-note').trim(),poster,namu:fieldVal('f-namu').trim()};
+    data={name,orig,category,status,rating,genre:genreInput,genres,country:fieldVal('f-country').trim(),platform:fieldVal('f-platform').trim(),airDate:fieldVal('f-air'),yearDone:fieldVal('f-year'),episode,actors,cameoActors,directors,director:directors[0]||'',writers,writer:writers[0]||'',note:fieldVal('f-note').trim(),poster,namu:fieldVal('f-namu').trim()};
   }
   if(editId){
     const i=db.findIndex(x=>x.id===editId);
