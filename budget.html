@@ -6,7 +6,7 @@
 <title>今天還能花多少</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Varela+Round&family=Noto+Sans+TC:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#FBF6EF;
@@ -19,8 +19,10 @@
     --accent:#CE7B52;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Serif TC",-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei",serif;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Varela Round","Noto Sans TC",-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei",sans-serif;font-weight:600;}
+  input,select,button,textarea{font-family:inherit;}
   .wrap{max-width:480px;margin:0 auto;padding:20px 16px 100px;}
+  .col-header,.col-today,.col-add,.col-history,.col-salary{display:contents;}
   h1{font-size:1.05rem;font-weight:600;margin:4px 0 18px;display:flex;align-items:center;justify-content:space-between}
   h1 .gear{font-size:1.3rem;cursor:pointer;color:var(--sub);user-select:none;padding:4px}
   .card{background:var(--card);border-radius:26px;padding:22px;margin-bottom:14px;box-shadow:0 4px 14px rgba(180,140,90,0.10);}
@@ -65,12 +67,35 @@
   .modal .actions{display:flex;gap:10px;margin-top:6px;}
   .modal button.primary{flex:1;border:none;background:var(--accent);color:#fff;border-radius:12px;padding:13px;font-size:1rem;font-weight:600;cursor:pointer;}
   .modal button.secondary{border:none;background:var(--line);color:var(--text);border-radius:12px;padding:13px 18px;font-size:1rem;cursor:pointer;}
+
+  @media (min-width: 900px){
+    body{padding:0 24px;}
+    .wrap{
+      max-width:1080px;
+      display:grid;
+      grid-template-columns:1.15fr 0.85fr;
+      column-gap:20px;
+      align-items:start;
+      padding:32px 0 100px;
+    }
+    .col-header,.col-today,.col-add,.col-history,.col-salary{display:block;min-width:0;}
+    .col-header{grid-column:1 / -1;}
+    .col-today{grid-column:1;grid-row:2;}
+    .col-add{grid-column:1;grid-row:3;}
+    .col-history{grid-column:2;grid-row:2 / 4;}
+    .col-salary{grid-column:1 / -1;grid-row:4;}
+    .col-header h1{font-size:1.3rem;margin:12px 0 22px;}
+    .col-history .card{max-height:calc(100vh - 140px);overflow-y:auto;}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <div class="col-header">
   <h1>今天還能花多少 <span class="gear" id="openSettings">⚙️</span></h1>
+  </div>
 
+  <div class="col-today">
   <div class="card hero">
     <div class="label">今天還可以花</div>
     <div class="amount" id="todayAmount">--</div>
@@ -99,7 +124,49 @@
   <div class="card">
     <div class="progress-outer"><div class="progress-inner" id="progressBar" style="width:0%"></div></div>
   </div>
+  </div>
 
+  <div class="col-add">
+  <div class="section-title">本月各帳戶花費</div>
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><div class="label">現金</div><div class="value" id="methodCash">--</div></div>
+      <div class="stat"><div class="label">台新</div><div class="value" id="methodTaishin">--</div></div>
+      <div class="stat"><div class="label">國泰</div><div class="value" id="methodCathay">--</div></div>
+      <div class="stat"><div class="label">聯邦</div><div class="value" id="methodUnion">--</div></div>
+    </div>
+  </div>
+
+  <div class="section-title">記一筆</div>
+  <div class="card">
+    <form class="add" id="addForm">
+      <input type="number" inputmode="decimal" step="1" min="0" placeholder="金額" id="amountInput" required>
+      <button type="submit">新增</button>
+    </form>
+    <div class="row2">
+      <input type="text" placeholder="備註（選填）" id="noteInput">
+      <input type="date" id="dateInput">
+    </div>
+    <div class="row2">
+      <select id="methodInput" style="flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);">
+        <option value="現金">現金</option>
+        <option value="台新">台新信用卡</option>
+        <option value="國泰">國泰信用卡</option>
+        <option value="聯邦">聯邦信用卡</option>
+      </select>
+    </div>
+  </div>
+  </div>
+
+  <div class="col-history">
+  <div class="section-title">本月支出紀錄</div>
+  <div class="card">
+    <ul class="expense-list" id="expenseList"></ul>
+    <div class="empty" id="emptyMsg" style="display:none;">這個月還沒有任何紀錄</div>
+  </div>
+  </div>
+
+  <div class="col-salary">
   <div class="section-title">本月薪資試算</div>
   <div class="card">
     <div class="stats" style="margin-bottom:10px;">
@@ -132,41 +199,6 @@
     <button type="button" class="secondary" id="applySalaryToBudget" style="width:100%;margin-top:14px;border:none;background:var(--line);color:var(--text);border-radius:12px;padding:12px;font-size:0.9rem;cursor:pointer;">把預估實領薪資套用到本月預算</button>
     <div class="hint" style="margin-top:10px;">扣薪比照台灣勞基法：事假、颱風假（依你們公司規定）不給薪；生理假、病假半薪；特休/公假全薪；曠職扣雙倍。生理假/病假一年內的天數上限這裡沒有幫你算，記得自己留意。</div>
   </div>
-
-  <div class="section-title">本月各帳戶花費</div>
-  <div class="card">
-    <div class="stats">
-      <div class="stat"><div class="label">現金</div><div class="value" id="methodCash">--</div></div>
-      <div class="stat"><div class="label">台新</div><div class="value" id="methodTaishin">--</div></div>
-      <div class="stat"><div class="label">國泰</div><div class="value" id="methodCathay">--</div></div>
-      <div class="stat"><div class="label">聯邦</div><div class="value" id="methodUnion">--</div></div>
-    </div>
-  </div>
-
-  <div class="section-title">記一筆</div>
-  <div class="card">
-    <form class="add" id="addForm">
-      <input type="number" inputmode="decimal" step="1" min="0" placeholder="金額" id="amountInput" required>
-      <button type="submit">新增</button>
-    </form>
-    <div class="row2">
-      <input type="text" placeholder="備註（選填）" id="noteInput">
-      <input type="date" id="dateInput">
-    </div>
-    <div class="row2">
-      <select id="methodInput" style="flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);">
-        <option value="現金">現金</option>
-        <option value="台新">台新信用卡</option>
-        <option value="國泰">國泰信用卡</option>
-        <option value="聯邦">聯邦信用卡</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="section-title">本月支出紀錄</div>
-  <div class="card">
-    <ul class="expense-list" id="expenseList"></ul>
-    <div class="empty" id="emptyMsg" style="display:none;">這個月還沒有任何紀錄</div>
   </div>
 </div>
 
