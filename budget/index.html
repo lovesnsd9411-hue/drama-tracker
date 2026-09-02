@@ -41,9 +41,9 @@
   .hero .amount.over{color:var(--red);}
   .hero .note{margin-top:8px;color:var(--sub);font-size:0.8rem;}
   .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .stat{background:var(--card);border-radius:18px;padding:14px;box-shadow:0 4px 14px rgba(180,140,90,0.10);min-width:0;}
+  .stat{background:var(--card);border-radius:18px;padding:14px;box-shadow:0 4px 14px rgba(180,140,90,0.10);min-width:0;container-type:inline-size;}
   .stat .label{color:var(--sub);font-size:0.75rem;margin-bottom:4px;}
-  .stat .value{font-size:1.15rem;font-weight:600;overflow-wrap:anywhere;}
+  .stat .value{font-size:clamp(0.85rem,9cqw,1.15rem);font-weight:600;white-space:nowrap;overflow:hidden;}
   .progress-outer{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:10px;}
   .progress-inner{height:100%;background:var(--accent);border-radius:99px;transition:width .3s;}
   .progress-inner.over{background:var(--red);}
@@ -57,7 +57,8 @@
   .row2 input, .row2 select{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);}
   .expense-list .info{cursor:pointer;}
   .advance-check{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:0.8rem;color:var(--sub);line-height:1.4;cursor:pointer;}
-  .advance-check input{margin-top:2px;flex:none;width:16px;height:16px;accent-color:var(--accent);}
+  .advance-check input[type="checkbox"]{margin-top:2px;flex:none;width:16px;height:16px;accent-color:var(--accent);}
+  .advance-check span{flex:1;min-width:0;}
   .advance-tag{display:inline-block;font-size:0.68rem;color:var(--accent);border:1px solid var(--accent);border-radius:99px;padding:1px 7px;margin-left:6px;vertical-align:middle;}
   .legend-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:0.85rem;}
   .legend-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;flex:none;}
@@ -185,7 +186,7 @@
     </div>
     <label class="advance-check">
       <input type="checkbox" id="isAdvanceInput">
-      代墊/借還款（先幫忙付或跟人借的錢，不算進你的可用金額；之後對方還你，去下面「代墊/借還款」點一下「已收回」就好）
+      <span>代墊/借還款（先幫忙付或跟人借的錢，不算進你的可用金額；之後對方還你，去下面「代墊/借還款」點一下「已收回」就好）</span>
     </label>
   </div>
   </div>
@@ -273,7 +274,7 @@
       <input type="number" inputmode="decimal" min="0" id="settingBudget" placeholder="例如 20000">
       <label class="advance-check" style="margin-top:10px;">
         <input type="checkbox" id="settingAutoBudget">
-        每輪開始時自動用「預估實領薪資」更新這個金額（會依照下面薪資試算的請假紀錄變動，不用每個月手動改）
+        <span>每輪開始時自動用「預估實領薪資」更新這個金額（會依照下面薪資試算的請假紀錄變動，不用每個月手動改）</span>
       </label>
     </div>
     <div class="field">
@@ -361,15 +362,15 @@
     </div>
     <label class="advance-check">
       <input type="checkbox" id="editIsAdvance">
-      代墊/借還款
+      <span>代墊/借還款</span>
     </label>
     <label class="advance-check" id="editSettledRow" style="display:none;">
       <input type="checkbox" id="editSettled">
-      已收回（結清，不再列入代墊淨額）
+      <span>已收回（結清，不再列入代墊淨額）</span>
     </label>
     <label class="advance-check">
       <input type="checkbox" id="editBillingShift">
-      實際入帳比預期晚（例如遇到國定假日延後過帳），多算一個月的帳單
+      <span>實際入帳比預期晚（例如遇到國定假日延後過帳），多算一個月的帳單</span>
     </label>
     <div class="actions">
       <button class="secondary" id="closeEditExpense">取消</button>
@@ -445,7 +446,7 @@
       <div class="hint">有截止日的話，每期要存多少會自動幫你算（目標金額 ÷ 剩餘月數）；沒填的話用下面固定金額。</div>
       <label class="advance-check" id="goalRecurringRow" style="margin-top:10px;display:none;">
         <input type="checkbox" id="goalRecurring">
-        每年重複（例如保費，繳完後自動把截止日往後推一年、重新開始存）
+        <span>每年重複（例如保費，繳完後自動把截止日往後推一年、重新開始存）</span>
       </label>
     </div>
     <div class="field" id="goalMonthlyRow">
