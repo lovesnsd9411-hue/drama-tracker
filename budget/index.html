@@ -66,6 +66,14 @@
   .trend-row:last-child{border-bottom:none;}
   .trend-delta.up{color:var(--red);}
   .trend-delta.down{color:var(--green);}
+  .goal-row{padding:10px 0;border-bottom:1px solid var(--line);}
+  .goal-row:last-child{border-bottom:none;}
+  .goal-row-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .goal-row-name{font-weight:600;}
+  .goal-row-sub{font-size:0.75rem;color:var(--sub);margin-top:2px;}
+  .goal-bar-outer{height:6px;background:var(--line);border-radius:99px;overflow:hidden;}
+  .goal-bar-inner{height:100%;background:var(--accent);border-radius:99px;}
+  .goal-del{color:var(--sub);background:none;border:none;font-size:1rem;cursor:pointer;padding:2px 6px;}
   .side-by-side{display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:14px;align-items:start;}
   .expense-list{list-style:none;margin:0;padding:0;}
   .expense-list li{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid var(--line);}
@@ -247,6 +255,13 @@
     <button type="button" class="secondary" id="applySalaryToBudget" style="width:100%;margin-top:14px;border:none;background:var(--line);color:var(--text);border-radius:12px;padding:12px;font-size:0.9rem;cursor:pointer;">把預估實領薪資套用到本月預算</button>
     <div class="hint" style="margin-top:10px;">扣薪比照台灣勞基法：事假、颱風假（依你們公司規定）不給薪；生理假、病假半薪；特休/公假全薪；曠職扣雙倍。生理假/病假一年內的天數上限這裡沒有幫你算，記得自己留意。</div>
   </div>
+
+  <div class="section-title">存錢目標</div>
+  <div class="card">
+    <ul id="goalsSummaryList" style="list-style:none;margin:0;padding:0;"></ul>
+    <div class="empty" id="goalsSummaryEmpty" style="display:none;">還沒有存錢目標，例如保費、學貸準備金</div>
+    <button type="button" id="openGoalsBtn" class="secondary" style="width:100%;margin-top:12px;border:none;background:var(--line);color:var(--text);border-radius:12px;padding:12px;font-size:0.9rem;cursor:pointer;">管理存錢目標</button>
+  </div>
   </div>
 </div>
 
@@ -409,12 +424,44 @@
   </div>
 </div>
 
+<div class="modal-bg" id="goalsModal" style="align-items:center;">
+  <div class="modal" style="max-height:85vh;overflow-y:auto;border-radius:20px;">
+    <h2>存錢目標</h2>
+    <ul id="goalsModalList" style="list-style:none;margin:0 0 14px;padding:0;"></ul>
+    <div class="empty" id="goalsModalEmpty" style="display:none;">還沒有存錢目標</div>
+
+    <div class="section-title" style="margin-top:0;">新增目標</div>
+    <div class="field">
+      <label>名稱</label>
+      <input type="text" id="goalName" placeholder="例如：保險費、學貸準備金">
+    </div>
+    <div class="field">
+      <label>目標金額</label>
+      <input type="number" inputmode="decimal" min="0" id="goalTarget" placeholder="例如 19722">
+    </div>
+    <div class="field">
+      <label>截止日（選填）</label>
+      <input type="date" id="goalDeadline">
+      <div class="hint">有截止日的話，每期要存多少會自動幫你算（目標金額 ÷ 剩餘月數）；沒填的話用下面固定金額。</div>
+    </div>
+    <div class="field" id="goalMonthlyRow">
+      <label>沒有截止日時，每期固定存多少</label>
+      <input type="number" inputmode="decimal" min="0" id="goalMonthly" placeholder="例如 2000">
+    </div>
+    <button type="button" id="addGoalBtn" class="secondary" style="width:100%;border:none;background:var(--accent);color:#fff;border-radius:12px;padding:12px;font-size:0.95rem;cursor:pointer;font-weight:600;">新增目標</button>
+
+    <div class="actions">
+      <button class="secondary" id="closeGoals">關閉</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 const STORAGE_KEY = 'dailyBudgetTracker_v1';
 
 function loadState(){
-  const defaults = { monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [], budgetCycleStart: null, autoBudget: true, methodClosingDays: { '台新': null, '國泰': null, '聯邦': null }, budgetHistory: {} };
+  const defaults = { monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [], budgetCycleStart: null, autoBudget: true, methodClosingDays: { '台新': null, '國泰': null, '聯邦': null }, budgetHistory: {}, savingsGoals: [] };
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw) return Object.assign(defaults, JSON.parse(raw));
@@ -548,10 +595,17 @@ function checkCycleRollover(cycleStart, cycleEnd){
   const thisCycle = cycleStartISO(cycleStart);
   if(state.budgetCycleStart === thisCycle) return;
   const isFirstRun = state.budgetCycleStart === null;
-  if(!isFirstRun && state.autoBudget !== false){
-    const { totalSalary, estimate } = computeSalary(cycleStart, cycleEnd);
-    if(totalSalary > 0){
-      state.monthlyBudget = Math.round(estimate);
+  if(!isFirstRun){
+    if(state.autoBudget !== false){
+      const { totalSalary, estimate } = computeSalary(cycleStart, cycleEnd);
+      if(totalSalary > 0){
+        state.monthlyBudget = Math.round(estimate);
+      }
+    }
+    const oldCycleStart = parseISO(state.budgetCycleStart);
+    for(const g of (state.savingsGoals||[])){
+      const contrib = computeGoalContribution(g, oldCycleStart);
+      g.saved = (g.saved||0) + contrib;
     }
   }
   state.budgetCycleStart = thisCycle;
@@ -563,6 +617,23 @@ function recordBudgetHistory(cycleISO){
   if(!state.monthlyBudget) return;
   if(!state.budgetHistory) state.budgetHistory = {};
   state.budgetHistory[cycleISO] = state.monthlyBudget;
+}
+
+function computeGoalContribution(goal, cycleStart){
+  const remaining = Math.max((goal.targetAmount||0) - (goal.saved||0), 0);
+  if(remaining <= 0) return 0;
+  if(goal.deadline){
+    const deadline = parseISO(goal.deadline);
+    let months = (deadline.getFullYear()-cycleStart.getFullYear())*12 + (deadline.getMonth()-cycleStart.getMonth());
+    if(deadline.getDate() < cycleStart.getDate()) months -= 1;
+    months = Math.max(months, 1);
+    return remaining / months;
+  }
+  return Math.min(goal.monthlyAmount||0, remaining);
+}
+
+function totalGoalContribution(cycleStart){
+  return (state.savingsGoals||[]).reduce((s,g)=> s + computeGoalContribution(g, cycleStart), 0);
 }
 
 function renderSalary(cycleStart, cycleEnd){
@@ -723,7 +794,9 @@ function render(){
   const spentBeforeToday = spentTotal - spentToday;
 
   const budget = state.monthlyBudget;
-  const remainingAtStartOfToday = budget - spentBeforeToday;
+  const goalContribution = totalGoalContribution(cycleStart);
+  const spendableBudget = budget - goalContribution;
+  const remainingAtStartOfToday = spendableBudget - spentBeforeToday;
   const daysRemainingClamped = Math.max(daysRemaining, 1);
   const suggestedToday = remainingAtStartOfToday / daysRemainingClamped;
   const leftToSpendToday = suggestedToday - spentToday;
@@ -733,24 +806,26 @@ function render(){
   amountEl.className = 'amount ' + (leftToSpendToday >= 0 ? 'ok' : 'over');
 
   const noteEl = document.getElementById('todayNote');
+  const goalNote = goalContribution > 0 ? `（已扣掉存錢目標本期要存的 ${money(goalContribution)}）` : '';
   if(leftToSpendToday >= 0){
-    noteEl.textContent = `今天已花 ${money(spentToday)}，剩下 ${daysRemaining} 天`;
+    noteEl.textContent = `今天已花 ${money(spentToday)}，剩下 ${daysRemaining} 天${goalNote}`;
   } else {
-    noteEl.textContent = `已經超出今天的額度，之後幾天要少花一點囉（剩 ${daysRemaining} 天）`;
+    noteEl.textContent = `已經超出今天的額度，之後幾天要少花一點囉（剩 ${daysRemaining} 天）${goalNote}`;
   }
 
   document.getElementById('spentTotal').textContent = money(spentTotal);
   document.getElementById('budgetTotal').textContent = money(budget);
   document.getElementById('daysLeft').textContent = daysRemaining + ' 天';
-  document.getElementById('avgPerDay').textContent = money((budget-spentTotal)/daysRemainingClamped) + ' /天';
+  document.getElementById('avgPerDay').textContent = money((spendableBudget-spentTotal)/daysRemainingClamped) + ' /天';
 
-  const pct = Math.min(100, Math.max(0, (spentTotal/budget)*100));
+  const pct = Math.min(100, Math.max(0, (spentTotal/spendableBudget)*100));
   const bar = document.getElementById('progressBar');
   bar.style.width = pct + '%';
-  bar.className = 'progress-inner' + (spentTotal>budget ? ' over':'');
+  bar.className = 'progress-inner' + (spentTotal>spendableBudget ? ' over':'');
 
   renderExpenseList(cycleExpenses);
   renderMethodBreakdown(cycleExpenses);
+  renderGoalsSummary(cycleStart);
 }
 
 function renderExpenseList(list){
@@ -1201,6 +1276,118 @@ document.getElementById('reviewNext').onclick = ()=>{
   renderReview();
 };
 document.getElementById('closeReview').onclick = ()=> reviewModal.classList.remove('show');
+
+function goalProgressRow(g, cycleStart, withDelete){
+  const li = document.createElement('li');
+  li.className = 'goal-row';
+  const top = document.createElement('div');
+  top.className = 'goal-row-top';
+  const nameEl = document.createElement('div');
+  nameEl.className = 'goal-row-name';
+  nameEl.textContent = g.name;
+  top.appendChild(nameEl);
+  if(withDelete){
+    const del = document.createElement('button');
+    del.className = 'goal-del';
+    del.textContent = '✕';
+    del.onclick = ()=>{
+      state.savingsGoals = state.savingsGoals.filter(x=>x.id!==g.id);
+      saveState();
+      renderGoalsModal();
+      render();
+    };
+    top.appendChild(del);
+  } else {
+    const amt = document.createElement('div');
+    amt.textContent = money(g.saved||0) + ' / ' + money(g.targetAmount||0);
+    top.appendChild(amt);
+  }
+  li.appendChild(top);
+
+  const barOuter = document.createElement('div');
+  barOuter.className = 'goal-bar-outer';
+  const barInner = document.createElement('div');
+  barInner.className = 'goal-bar-inner';
+  const pct = g.targetAmount>0 ? Math.min(100, Math.max(0, (g.saved||0)/g.targetAmount*100)) : 0;
+  barInner.style.width = pct + '%';
+  barOuter.appendChild(barInner);
+  li.appendChild(barOuter);
+
+  const sub = document.createElement('div');
+  sub.className = 'goal-row-sub';
+  const contrib = computeGoalContribution(g, cycleStart);
+  const parts = [];
+  if(withDelete) parts.push(`${money(g.saved||0)} / ${money(g.targetAmount||0)}`);
+  if(g.deadline) parts.push(`截止 ${g.deadline}`);
+  parts.push(contrib>0 ? `這期要存 ${money(contrib)}` : '已存夠這期的份了');
+  sub.textContent = parts.join(' · ');
+  li.appendChild(sub);
+  return li;
+}
+
+function renderGoalsSummary(cycleStart){
+  const listEl = document.getElementById('goalsSummaryList');
+  const emptyEl = document.getElementById('goalsSummaryEmpty');
+  listEl.innerHTML = '';
+  const goals = state.savingsGoals || [];
+  if(goals.length===0){
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  for(const g of goals){
+    listEl.appendChild(goalProgressRow(g, cycleStart, false));
+  }
+}
+
+function renderGoalsModal(){
+  const listEl = document.getElementById('goalsModalList');
+  const emptyEl = document.getElementById('goalsModalEmpty');
+  listEl.innerHTML = '';
+  const goals = state.savingsGoals || [];
+  const { cycleStart } = getCycle();
+  if(goals.length===0){
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  for(const g of goals){
+    listEl.appendChild(goalProgressRow(g, cycleStart, true));
+  }
+}
+
+const goalsModal = document.getElementById('goalsModal');
+document.getElementById('openGoalsBtn').onclick = ()=>{
+  renderGoalsModal();
+  goalsModal.classList.add('show');
+};
+document.getElementById('closeGoals').onclick = ()=> goalsModal.classList.remove('show');
+document.getElementById('goalDeadline').addEventListener('input', function(){
+  document.getElementById('goalMonthlyRow').style.display = this.value ? 'none' : 'block';
+});
+document.getElementById('addGoalBtn').onclick = ()=>{
+  const name = document.getElementById('goalName').value.trim();
+  const target = parseFloat(document.getElementById('goalTarget').value);
+  const deadline = document.getElementById('goalDeadline').value || null;
+  const monthly = parseFloat(document.getElementById('goalMonthly').value);
+  if(!name || !target || target<=0) return;
+  if(!deadline && (!monthly || monthly<=0)) return;
+  state.savingsGoals = state.savingsGoals || [];
+  state.savingsGoals.push({
+    id: Date.now()+Math.random().toString(36).slice(2),
+    name, targetAmount: target, deadline,
+    monthlyAmount: deadline ? null : monthly,
+    saved: 0,
+  });
+  saveState();
+  document.getElementById('goalName').value = '';
+  document.getElementById('goalTarget').value = '';
+  document.getElementById('goalDeadline').value = '';
+  document.getElementById('goalMonthly').value = '';
+  document.getElementById('goalMonthlyRow').style.display = 'block';
+  renderGoalsModal();
+  render();
+};
 
 (async function init(){
   const code = getSyncCode();
