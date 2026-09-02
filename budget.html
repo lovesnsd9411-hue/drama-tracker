@@ -4,31 +4,34 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>今天還能花多少</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#F5F6FA;
+    --bg:#FBF6EF;
     --card:#FFFFFF;
-    --text:#1A1A2E;
-    --sub:#8A8AA3;
-    --line:#ECECF3;
-    --green:#2E9E6C;
-    --red:#E0524D;
-    --accent:#4C5FD5;
+    --text:#3A2E22;
+    --sub:#AC9C89;
+    --line:#F1E7D8;
+    --green:#7A9A68;
+    --red:#CE7B52;
+    --accent:#CE7B52;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Noto Serif TC",-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei",serif;}
   .wrap{max-width:480px;margin:0 auto;padding:20px 16px 100px;}
   h1{font-size:1.05rem;font-weight:600;margin:4px 0 18px;display:flex;align-items:center;justify-content:space-between}
   h1 .gear{font-size:1.3rem;cursor:pointer;color:var(--sub);user-select:none;padding:4px}
-  .card{background:var(--card);border-radius:18px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px rgba(20,20,50,0.06);}
-  .hero{text-align:center;padding:28px 20px;}
+  .card{background:var(--card);border-radius:26px;padding:22px;margin-bottom:14px;box-shadow:0 4px 14px rgba(180,140,90,0.10);}
+  .hero{text-align:center;padding:30px 20px;}
   .hero .label{color:var(--sub);font-size:0.85rem;margin-bottom:6px;}
-  .hero .amount{font-size:2.6rem;font-weight:700;line-height:1.1;}
+  .hero .amount{font-size:2.8rem;font-weight:700;line-height:1.1;}
   .hero .amount.ok{color:var(--green);}
   .hero .amount.over{color:var(--red);}
   .hero .note{margin-top:8px;color:var(--sub);font-size:0.8rem;}
   .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .stat{background:var(--card);border-radius:14px;padding:14px;box-shadow:0 1px 3px rgba(20,20,50,0.06);}
+  .stat{background:var(--card);border-radius:18px;padding:14px;box-shadow:0 4px 14px rgba(180,140,90,0.10);}
   .stat .label{color:var(--sub);font-size:0.75rem;margin-bottom:4px;}
   .stat .value{font-size:1.15rem;font-weight:600;}
   .progress-outer{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:10px;}
@@ -36,8 +39,8 @@
   .progress-inner.over{background:var(--red);}
   .section-title{font-size:0.85rem;color:var(--sub);margin:22px 4px 8px;font-weight:600;}
   form.add{display:flex;gap:8px;}
-  form.add input[type=number]{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:#FBFBFD;}
-  form.add input[type=text]{flex:1.2;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:#FBFBFD;}
+  form.add input[type=number]{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);}
+  form.add input[type=text]{flex:1.2;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);}
   form.add button{border:none;background:var(--accent);color:#fff;border-radius:12px;padding:0 18px;font-size:1rem;font-weight:600;cursor:pointer;}
   form.add button:active{opacity:0.85}
   .row2{display:flex;gap:8px;margin-top:8px;}
@@ -57,7 +60,7 @@
   .modal h2{margin:0 0 16px;font-size:1.05rem;}
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:0.85rem;color:var(--sub);margin-bottom:6px;}
-  .field input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:#FBFBFD;}
+  .field input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);}
   .field .hint{font-size:0.75rem;color:var(--sub);margin-top:6px;}
   .modal .actions{display:flex;gap:10px;margin-top:6px;}
   .modal button.primary{flex:1;border:none;background:var(--accent);color:#fff;border-radius:12px;padding:13px;font-size:1rem;font-weight:600;cursor:pointer;}
@@ -110,7 +113,7 @@
       </div>
     </div>
     <form class="add" id="leaveForm">
-      <select id="leaveType" style="flex:1.4;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 10px;font-size:0.95rem;background:#FBFBFD;">
+      <select id="leaveType" style="flex:1.4;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 10px;font-size:0.95rem;background:var(--bg);color:var(--text);">
         <option value="事假">事假（不給薪）</option>
         <option value="生理假">生理假（半薪）</option>
         <option value="病假">病假（半薪）</option>
@@ -130,6 +133,16 @@
     <div class="hint" style="margin-top:10px;">扣薪比照台灣勞基法：事假、颱風假（依你們公司規定）不給薪；生理假、病假半薪；特休/公假全薪；曠職扣雙倍。生理假/病假一年內的天數上限這裡沒有幫你算，記得自己留意。</div>
   </div>
 
+  <div class="section-title">本月各帳戶花費</div>
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><div class="label">現金</div><div class="value" id="methodCash">--</div></div>
+      <div class="stat"><div class="label">台新</div><div class="value" id="methodTaishin">--</div></div>
+      <div class="stat"><div class="label">國泰</div><div class="value" id="methodCathay">--</div></div>
+      <div class="stat"><div class="label">聯邦</div><div class="value" id="methodUnion">--</div></div>
+    </div>
+  </div>
+
   <div class="section-title">記一筆</div>
   <div class="card">
     <form class="add" id="addForm">
@@ -139,6 +152,14 @@
     <div class="row2">
       <input type="text" placeholder="備註（選填）" id="noteInput">
       <input type="date" id="dateInput">
+    </div>
+    <div class="row2">
+      <select id="methodInput" style="flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);">
+        <option value="現金">現金</option>
+        <option value="台新">台新信用卡</option>
+        <option value="國泰">國泰信用卡</option>
+        <option value="聯邦">聯邦信用卡</option>
+      </select>
     </div>
   </div>
 
@@ -228,6 +249,17 @@ function money(n){
   return (r<0?'-':'') + '$' + Math.abs(r).toLocaleString();
 }
 
+const METHODS = ['現金','台新','國泰','聯邦'];
+const METHOD_LABELS = { '現金':'現金', '台新':'台新信用卡', '國泰':'國泰信用卡', '聯邦':'聯邦信用卡' };
+const METHOD_STAT_IDS = { '現金':'methodCash', '台新':'methodTaishin', '國泰':'methodCathay', '聯邦':'methodUnion' };
+
+function renderMethodBreakdown(cycleExpenses){
+  for(const m of METHODS){
+    const sum = cycleExpenses.filter(e=>(e.method||'現金')===m).reduce((s,e)=>s+e.amount,0);
+    document.getElementById(METHOD_STAT_IDS[m]).textContent = money(sum);
+  }
+}
+
 const LEAVE_DEDUCT_RATIO = { '事假':1, '生理假':0.5, '病假':0.5, '特休':0, '颱風假':1, '曠職':2 };
 const LEAVE_LABELS = { '事假':'事假（不給薪）', '生理假':'生理假（半薪）', '病假':'病假（半薪）', '特休':'特休 / 公假（全薪）', '颱風假':'颱風假（不給薪）', '曠職':'曠職（扣雙倍）' };
 
@@ -313,6 +345,7 @@ function render(){
     document.getElementById('avgPerDay').textContent = '--';
     document.getElementById('progressBar').style.width = '0%';
     renderExpenseList([]);
+    renderMethodBreakdown([]);
     return;
   }
 
@@ -353,6 +386,7 @@ function render(){
   bar.className = 'progress-inner' + (spentTotal>budget ? ' over':'');
 
   renderExpenseList(cycleExpenses);
+  renderMethodBreakdown(cycleExpenses);
 }
 
 function renderExpenseList(list){
@@ -373,7 +407,7 @@ function renderExpenseList(list){
     note.textContent = e.note && e.note.trim() ? e.note : '（無備註）';
     const date = document.createElement('div');
     date.className='date';
-    date.textContent = e.date;
+    date.textContent = `${e.date} · ${METHOD_LABELS[e.method]||'現金'}`;
     info.appendChild(note);
     info.appendChild(date);
 
@@ -406,7 +440,8 @@ document.getElementById('addForm').addEventListener('submit', function(ev){
   if(!amount || amount<=0) return;
   const note = document.getElementById('noteInput').value;
   const date = document.getElementById('dateInput').value || todayISO();
-  state.expenses.push({ id: Date.now()+Math.random().toString(36).slice(2), amount, note, date, ts: Date.now() });
+  const method = document.getElementById('methodInput').value;
+  state.expenses.push({ id: Date.now()+Math.random().toString(36).slice(2), amount, note, date, method, ts: Date.now() });
   saveState();
   document.getElementById('amountInput').value = '';
   document.getElementById('noteInput').value = '';
