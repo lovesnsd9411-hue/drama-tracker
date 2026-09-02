@@ -22,5 +22,16 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "快速記一筆",
+      "short_name": "記一筆",
+      "description": "直接跳到記帳頁面並對準金額欄位",
+      "url": "./index.html?quick=1",
+      "icons": [
+        { "src": "icon-180.png", "sizes": "180x180", "type": "image/png" }
+      ]
+    }
   ]
 }

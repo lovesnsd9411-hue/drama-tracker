@@ -825,6 +825,10 @@ document.getElementById('saveSettings').onclick = ()=>{
   render();
   if(!state.monthlyBudget){
     document.getElementById('openSettings').click();
+  } else if(new URLSearchParams(location.search).get('quick') === '1'){
+    const amountEl = document.getElementById('amountInput');
+    amountEl.scrollIntoView({ block: 'center' });
+    amountEl.focus();
   }
 })();
 
