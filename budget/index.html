@@ -106,7 +106,7 @@
 <body>
 <div class="wrap">
   <div class="col-header">
-  <h1>今天還能花多少 <span class="gear" id="openSettings">⚙️</span></h1>
+  <h1>今天還能花多少 <span><span class="gear" id="openReview" style="margin-right:4px;">📊</span><span class="gear" id="openSettings">⚙️</span></span></h1>
   </div>
 
   <div class="col-today">
@@ -331,12 +331,40 @@
   </div>
 </div>
 
+<div class="modal-bg" id="reviewModal">
+  <div class="modal" style="max-height:85vh;overflow-y:auto;">
+    <h2>月度檢討</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <button type="button" id="reviewPrev" style="border:none;background:var(--line);color:var(--text);border-radius:12px;padding:10px 16px;font-size:1rem;cursor:pointer;">‹</button>
+      <div id="reviewLabel" style="font-weight:700;font-size:1.05rem;"></div>
+      <button type="button" id="reviewNext" style="border:none;background:var(--line);color:var(--text);border-radius:12px;padding:10px 16px;font-size:1rem;cursor:pointer;">›</button>
+    </div>
+    <div class="stats" style="margin-bottom:10px;">
+      <div class="stat"><div class="label">該期預算</div><div class="value" id="reviewBudget">--</div></div>
+      <div class="stat"><div class="label">該期已花</div><div class="value" id="reviewSpent">--</div></div>
+      <div class="stat"><div class="label">結餘/超支</div><div class="value" id="reviewDiff">--</div></div>
+      <div class="stat"><div class="label">交易筆數</div><div class="value" id="reviewCount">--</div></div>
+    </div>
+    <div class="stats" style="margin-bottom:14px;">
+      <div class="stat"><div class="label">現金</div><div class="value" id="reviewCash">--</div></div>
+      <div class="stat"><div class="label">台新</div><div class="value" id="reviewTaishin">--</div></div>
+      <div class="stat"><div class="label">國泰</div><div class="value" id="reviewCathay">--</div></div>
+      <div class="stat"><div class="label">聯邦</div><div class="value" id="reviewUnion">--</div></div>
+    </div>
+    <ul class="expense-list" id="reviewList"></ul>
+    <div class="empty" id="reviewEmpty" style="display:none;">這個週期沒有紀錄</div>
+    <div class="actions">
+      <button class="secondary" id="closeReview">關閉</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 const STORAGE_KEY = 'dailyBudgetTracker_v1';
 
 function loadState(){
-  const defaults = { monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [], budgetCycleStart: null, autoBudget: true, methodClosingDays: { '台新': null, '國泰': null, '聯邦': null } };
+  const defaults = { monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [], budgetCycleStart: null, autoBudget: true, methodClosingDays: { '台新': null, '國泰': null, '聯邦': null }, budgetHistory: {} };
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw) return Object.assign(defaults, JSON.parse(raw));
@@ -466,7 +494,14 @@ function checkCycleRollover(cycleStart, cycleEnd){
     }
   }
   state.budgetCycleStart = thisCycle;
+  recordBudgetHistory(thisCycle);
   saveState();
+}
+
+function recordBudgetHistory(cycleISO){
+  if(!state.monthlyBudget) return;
+  if(!state.budgetHistory) state.budgetHistory = {};
+  state.budgetHistory[cycleISO] = state.monthlyBudget;
 }
 
 function renderSalary(cycleStart, cycleEnd){
@@ -790,6 +825,7 @@ document.getElementById('applySalaryToBudget').onclick = ()=>{
   const { totalSalary, estimate } = computeSalary(cycleStart, cycleEnd);
   if(totalSalary<=0) return;
   state.monthlyBudget = Math.round(estimate);
+  recordBudgetHistory(cycleStartISO(cycleStart));
   saveState();
   render();
 };
@@ -863,6 +899,7 @@ document.getElementById('saveSettings').onclick = ()=>{
   if(!isNaN(base) && base>=0) state.baseSalary = base;
   if(!isNaN(meal) && meal>=0) state.mealAllowance = meal;
   state.autoBudget = document.getElementById('settingAutoBudget').checked;
+  if(b && b>0) recordBudgetHistory(cycleStartISO(getCycle().cycleStart));
   const parseClosing = (id)=>{
     const v = parseInt(document.getElementById(id).value);
     return (v>=1 && v<=31) ? v : null;
@@ -876,6 +913,102 @@ document.getElementById('saveSettings').onclick = ()=>{
   settingsModal.classList.remove('show');
   render();
 };
+
+const REVIEW_METHOD_IDS = { '現金':'reviewCash', '台新':'reviewTaishin', '國泰':'reviewCathay', '聯邦':'reviewUnion' };
+const reviewModal = document.getElementById('reviewModal');
+let reviewCycleStart = null;
+
+function renderReview(){
+  const startDay = Math.min(Math.max(parseInt(state.cycleStartDay)||1,1),28);
+  const cycleStart = new Date(reviewCycleStart.getFullYear(), reviewCycleStart.getMonth(), startDay);
+  const cycleEnd = new Date(cycleStart.getFullYear(), cycleStart.getMonth()+1, startDay);
+  const lastDay = new Date(cycleEnd.getTime() - 86400000);
+  document.getElementById('reviewLabel').textContent =
+    `${cycleStart.getFullYear()}/${cycleStart.getMonth()+1}/${cycleStart.getDate()} ~ ${lastDay.getMonth()+1}/${lastDay.getDate()}`;
+
+  const list = state.expenses.filter(e=>{
+    const d = getEffectiveDate(e);
+    return d >= cycleStart && d < cycleEnd;
+  }).sort((a,b)=> b.date.localeCompare(a.date) || b.ts - a.ts);
+  const budgetable = list.filter(e=>!e.isAdvance);
+  const spent = budgetable.reduce((s,e)=>s+e.amount,0);
+
+  const cycleISO = cycleStartISO(cycleStart);
+  const budget = state.budgetHistory ? state.budgetHistory[cycleISO] : null;
+
+  document.getElementById('reviewBudget').textContent = budget!=null ? money(budget) : '沒有紀錄';
+  document.getElementById('reviewSpent').textContent = money(spent);
+  const diffEl = document.getElementById('reviewDiff');
+  if(budget!=null){
+    const diff = budget - spent;
+    diffEl.textContent = money(diff);
+    diffEl.style.color = diff>=0 ? 'var(--green)' : 'var(--red)';
+  } else {
+    diffEl.textContent = '--';
+    diffEl.style.color = 'var(--text)';
+  }
+  document.getElementById('reviewCount').textContent = list.length + ' 筆';
+
+  for(const m of METHODS){
+    const sum = list.filter(e=>(e.method||'現金')===m).reduce((s,e)=>s+e.amount,0);
+    document.getElementById(REVIEW_METHOD_IDS[m]).textContent = money(sum);
+  }
+
+  const ul = document.getElementById('reviewList');
+  const emptyEl = document.getElementById('reviewEmpty');
+  ul.innerHTML = '';
+  if(list.length===0){
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  for(const e of list){
+    const li = document.createElement('li');
+    const info = document.createElement('div');
+    info.className='info';
+    const note = document.createElement('div');
+    note.className='note';
+    note.textContent = e.note && e.note.trim() ? e.note : '（無備註）';
+    if(e.isAdvance){
+      const tag = document.createElement('span');
+      tag.className='advance-tag';
+      tag.textContent='代墊';
+      note.appendChild(tag);
+    }
+    const date = document.createElement('div');
+    date.className='date';
+    date.textContent = `${e.date} · ${METHOD_LABELS[e.method]||'現金'}`;
+    info.appendChild(note);
+    info.appendChild(date);
+    info.style.cursor='pointer';
+    info.onclick = ()=>{ reviewModal.classList.remove('show'); openEditExpense(e.id); };
+
+    const amt = document.createElement('span');
+    amt.className='amt';
+    amt.style.marginRight='0';
+    amt.textContent = money(e.amount);
+
+    li.appendChild(info);
+    li.appendChild(amt);
+    ul.appendChild(li);
+  }
+}
+
+document.getElementById('openReview').onclick = ()=>{
+  const { cycleStart } = getCycle();
+  reviewCycleStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth()-1, cycleStart.getDate());
+  renderReview();
+  reviewModal.classList.add('show');
+};
+document.getElementById('reviewPrev').onclick = ()=>{
+  reviewCycleStart = new Date(reviewCycleStart.getFullYear(), reviewCycleStart.getMonth()-1, reviewCycleStart.getDate());
+  renderReview();
+};
+document.getElementById('reviewNext').onclick = ()=>{
+  reviewCycleStart = new Date(reviewCycleStart.getFullYear(), reviewCycleStart.getMonth()+1, reviewCycleStart.getDate());
+  renderReview();
+};
+document.getElementById('closeReview').onclick = ()=> reviewModal.classList.remove('show');
 
 (async function init(){
   const code = getSyncCode();
