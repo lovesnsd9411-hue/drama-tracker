@@ -223,6 +223,21 @@
       <input type="number" inputmode="decimal" min="0" id="settingMealAllowance" placeholder="例如 2400">
       <div class="hint">這兩個加起來是你的應領月薪，用來試算請假扣薪、估算實領薪資。</div>
     </div>
+    <div class="field">
+      <label>跨裝置同步</label>
+      <div id="syncStatus" class="hint" style="margin-bottom:8px;">尚未啟用同步</div>
+      <div class="row2" id="syncCodeRow" style="display:none;">
+        <input type="text" id="syncCodeDisplay" readonly style="flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:0.9rem;background:var(--bg);color:var(--text);">
+        <button type="button" id="copySyncCode" style="border:none;background:var(--line);color:var(--text);border-radius:12px;padding:0 16px;cursor:pointer;">複製</button>
+      </div>
+      <button type="button" id="enableSyncBtn" style="width:100%;border:none;background:var(--line);color:var(--text);border-radius:12px;padding:12px;font-size:0.9rem;cursor:pointer;margin-top:6px;">啟用同步（產生同步碼）</button>
+      <div class="hint" style="margin-top:10px;">在另一台裝置貼上這台的同步碼，兩邊資料就會連在一起：</div>
+      <div class="row2">
+        <input type="text" id="syncCodeInput" placeholder="貼上同步碼" style="flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:0.9rem;background:var(--bg);color:var(--text);">
+        <button type="button" id="linkSyncBtn" style="border:none;background:var(--line);color:var(--text);border-radius:12px;padding:0 16px;cursor:pointer;">連接</button>
+      </div>
+      <div class="hint" style="margin-top:6px;">連接後會用同步碼裡的資料覆蓋這台裝置目前看到的內容，請確認是要接上「已經有資料」的那組碼。</div>
+    </div>
     <div class="actions">
       <button class="secondary" id="closeSettings">取消</button>
       <button class="primary" id="saveSettings">儲存</button>
@@ -230,6 +245,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 const STORAGE_KEY = 'dailyBudgetTracker_v1';
 
@@ -243,6 +259,37 @@ function loadState(){
 }
 function saveState(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  pushToCloud();
+}
+
+const SYNC_CODE_KEY = 'dailyBudgetTracker_syncCode';
+const SUPABASE_URL = 'https://edqzgytotxfkkbbvojcm.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVkcXpneXRvdHhma2tiYnZvamNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwODEwMzYsImV4cCI6MjA5NzY1NzAzNn0.nPbuccnMRedaf9H4WH6WCtgg3muaaNKNcXZwMVK8z5Q';
+let sb = null;
+try{ sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); }catch(e){}
+
+function getSyncCode(){
+  return localStorage.getItem(SYNC_CODE_KEY) || '';
+}
+function setSyncCodeLocal(code){
+  localStorage.setItem(SYNC_CODE_KEY, code);
+}
+function genSyncCode(){
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g,'');
+  return Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+}
+async function pushToCloud(){
+  const code = getSyncCode();
+  if(!code || !sb) return;
+  try{ await sb.rpc('budget_sync_set', { p_code: code, p_data: state }); }catch(e){}
+}
+async function pullFromCloud(code){
+  if(!code || !sb) return null;
+  try{
+    const { data, error } = await sb.rpc('budget_sync_get', { p_code: code });
+    if(error) return null;
+    return data;
+  }catch(e){ return null; }
 }
 
 let state = loadState();
@@ -502,12 +549,57 @@ document.getElementById('applySalaryToBudget').onclick = ()=>{
   render();
 };
 
+function renderSyncUI(){
+  const code = getSyncCode();
+  const statusEl = document.getElementById('syncStatus');
+  const rowEl = document.getElementById('syncCodeRow');
+  const displayEl = document.getElementById('syncCodeDisplay');
+  const enableBtn = document.getElementById('enableSyncBtn');
+  if(code){
+    statusEl.textContent = '已啟用同步，這台裝置的同步碼：';
+    rowEl.style.display = 'flex';
+    displayEl.value = code;
+    enableBtn.style.display = 'none';
+  } else {
+    statusEl.textContent = '尚未啟用同步';
+    rowEl.style.display = 'none';
+    enableBtn.style.display = 'block';
+  }
+}
+
+document.getElementById('enableSyncBtn').onclick = async ()=>{
+  const code = genSyncCode();
+  setSyncCodeLocal(code);
+  renderSyncUI();
+  await pushToCloud();
+};
+document.getElementById('copySyncCode').onclick = ()=>{
+  const code = getSyncCode();
+  if(!code) return;
+  if(navigator.clipboard) navigator.clipboard.writeText(code).catch(()=>{});
+};
+document.getElementById('linkSyncBtn').onclick = async ()=>{
+  const input = document.getElementById('syncCodeInput');
+  const code = input.value.trim();
+  if(!code) return;
+  const remote = await pullFromCloud(code);
+  if(remote){
+    state = Object.assign({ monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [] }, remote);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+  setSyncCodeLocal(code);
+  input.value = '';
+  renderSyncUI();
+  render();
+};
+
 const settingsModal = document.getElementById('settingsModal');
 document.getElementById('openSettings').onclick = ()=>{
   document.getElementById('settingBudget').value = state.monthlyBudget || '';
   document.getElementById('settingCycleDay').value = state.cycleStartDay || 1;
   document.getElementById('settingBaseSalary').value = state.baseSalary != null ? state.baseSalary : '';
   document.getElementById('settingMealAllowance').value = state.mealAllowance != null ? state.mealAllowance : '';
+  renderSyncUI();
   settingsModal.classList.add('show');
 };
 document.getElementById('closeSettings').onclick = ()=> settingsModal.classList.remove('show');
@@ -525,12 +617,22 @@ document.getElementById('saveSettings').onclick = ()=>{
   render();
 };
 
-document.getElementById('dateInput').value = todayISO();
-document.getElementById('leaveDate').value = todayISO();
-render();
-if(!state.monthlyBudget){
-  document.getElementById('openSettings').click();
-}
+(async function init(){
+  const code = getSyncCode();
+  if(code){
+    const remote = await pullFromCloud(code);
+    if(remote){
+      state = Object.assign({ monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [] }, remote);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+  }
+  document.getElementById('dateInput').value = todayISO();
+  document.getElementById('leaveDate').value = todayISO();
+  render();
+  if(!state.monthlyBudget){
+    document.getElementById('openSettings').click();
+  }
+})();
 </script>
 </body>
 </html>
