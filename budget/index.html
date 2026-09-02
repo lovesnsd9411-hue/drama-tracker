@@ -260,6 +260,17 @@
       <div class="hint">這兩個加起來是你的應領月薪，用來試算請假扣薪、估算實領薪資。</div>
     </div>
     <div class="field">
+      <label>信用卡結帳日</label>
+      <div class="hint" style="margin-bottom:8px;">例如台新每月 22 號結帳，這裡就填 22：22 號以後刷的卡就會算進下個月的預算，而不是刷卡當天那個月。留空代表不轉移，照刷卡日期算。</div>
+      <div class="row2">
+        <input type="number" min="1" max="31" id="settingClosingTaishin" placeholder="台新 (例如 22)">
+        <input type="number" min="1" max="31" id="settingClosingCathay" placeholder="國泰">
+      </div>
+      <div class="row2">
+        <input type="number" min="1" max="31" id="settingClosingUnion" placeholder="聯邦">
+      </div>
+    </div>
+    <div class="field">
       <label>跨裝置同步</label>
       <div id="syncStatus" class="hint" style="margin-bottom:8px;">尚未啟用同步</div>
       <div class="row2" id="syncCodeRow" style="display:none;">
@@ -325,7 +336,7 @@
 const STORAGE_KEY = 'dailyBudgetTracker_v1';
 
 function loadState(){
-  const defaults = { monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [], budgetCycleStart: null, autoBudget: true };
+  const defaults = { monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [], budgetCycleStart: null, autoBudget: true, methodClosingDays: { '台新': null, '國泰': null, '聯邦': null } };
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw) return Object.assign(defaults, JSON.parse(raw));
@@ -396,6 +407,16 @@ function getCycle(){
   const daysElapsed = daysBetween(cycleStart, now) + 1;
   const daysRemaining = totalDays - daysElapsed + 1;
   return { cycleStart, cycleEnd, totalDays, daysElapsed, daysRemaining, now };
+}
+
+function getEffectiveDate(e){
+  const closingDay = state.methodClosingDays && state.methodClosingDays[e.method];
+  const d = parseISO(e.date);
+  if(!closingDay) return d;
+  let y = d.getFullYear(), m = d.getMonth();
+  if(d.getDate() > closingDay) m += 1;
+  const startDay = Math.min(Math.max(parseInt(state.cycleStartDay)||1,1),28);
+  return new Date(y, m, startDay);
 }
 
 function money(n){
@@ -596,7 +617,7 @@ function render(){
   }
 
   const cycleExpenses = state.expenses.filter(e=>{
-    const d = parseISO(e.date);
+    const d = getEffectiveDate(e);
     return d >= cycleStart && d < cycleEnd;
   }).sort((a,b)=> b.date.localeCompare(a.date) || b.ts - a.ts);
   const budgetableExpenses = cycleExpenses.filter(e=>!e.isAdvance);
@@ -660,7 +681,13 @@ function renderExpenseList(list){
     }
     const date = document.createElement('div');
     date.className='date';
-    date.textContent = `${e.date} · ${METHOD_LABELS[e.method]||'現金'}`;
+    let dateText = `${e.date} · ${METHOD_LABELS[e.method]||'現金'}`;
+    const effDate = getEffectiveDate(e);
+    const txnDate = parseISO(e.date);
+    if(effDate.getMonth() !== txnDate.getMonth() || effDate.getFullYear() !== txnDate.getFullYear()){
+      dateText += ` · 算在${effDate.getMonth()+1}月帳單`;
+    }
+    date.textContent = dateText;
     info.appendChild(note);
     info.appendChild(date);
     info.onclick = ()=> openEditExpense(e.id);
@@ -818,6 +845,10 @@ document.getElementById('openSettings').onclick = ()=>{
   document.getElementById('settingBaseSalary').value = state.baseSalary != null ? state.baseSalary : '';
   document.getElementById('settingMealAllowance').value = state.mealAllowance != null ? state.mealAllowance : '';
   document.getElementById('settingAutoBudget').checked = state.autoBudget !== false;
+  const cd = state.methodClosingDays || {};
+  document.getElementById('settingClosingTaishin').value = cd['台新'] || '';
+  document.getElementById('settingClosingCathay').value = cd['國泰'] || '';
+  document.getElementById('settingClosingUnion').value = cd['聯邦'] || '';
   renderSyncUI();
   settingsModal.classList.add('show');
 };
@@ -832,6 +863,15 @@ document.getElementById('saveSettings').onclick = ()=>{
   if(!isNaN(base) && base>=0) state.baseSalary = base;
   if(!isNaN(meal) && meal>=0) state.mealAllowance = meal;
   state.autoBudget = document.getElementById('settingAutoBudget').checked;
+  const parseClosing = (id)=>{
+    const v = parseInt(document.getElementById(id).value);
+    return (v>=1 && v<=31) ? v : null;
+  };
+  state.methodClosingDays = {
+    '台新': parseClosing('settingClosingTaishin'),
+    '國泰': parseClosing('settingClosingCathay'),
+    '聯邦': parseClosing('settingClosingUnion'),
+  };
   saveState();
   settingsModal.classList.remove('show');
   render();
