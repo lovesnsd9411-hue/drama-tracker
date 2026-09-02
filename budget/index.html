@@ -41,9 +41,9 @@
   .hero .amount.over{color:var(--red);}
   .hero .note{margin-top:8px;color:var(--sub);font-size:0.8rem;}
   .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-  .stat{background:var(--card);border-radius:18px;padding:14px;box-shadow:0 4px 14px rgba(180,140,90,0.10);}
+  .stat{background:var(--card);border-radius:18px;padding:14px;box-shadow:0 4px 14px rgba(180,140,90,0.10);min-width:0;}
   .stat .label{color:var(--sub);font-size:0.75rem;margin-bottom:4px;}
-  .stat .value{font-size:1.15rem;font-weight:600;}
+  .stat .value{font-size:1.15rem;font-weight:600;overflow-wrap:anywhere;}
   .progress-outer{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:10px;}
   .progress-inner{height:100%;background:var(--accent);border-radius:99px;transition:width .3s;}
   .progress-inner.over{background:var(--red);}
