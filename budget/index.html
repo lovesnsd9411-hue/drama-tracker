@@ -443,12 +443,17 @@
       <label>截止日（選填）</label>
       <input type="date" id="goalDeadline">
       <div class="hint">有截止日的話，每期要存多少會自動幫你算（目標金額 ÷ 剩餘月數）；沒填的話用下面固定金額。</div>
+      <label class="advance-check" id="goalRecurringRow" style="margin-top:10px;display:none;">
+        <input type="checkbox" id="goalRecurring">
+        每年重複（例如保費，繳完後自動把截止日往後推一年、重新開始存）
+      </label>
     </div>
     <div class="field" id="goalMonthlyRow">
       <label>沒有截止日時，每期固定存多少</label>
       <input type="number" inputmode="decimal" min="0" id="goalMonthly" placeholder="例如 2000">
     </div>
     <button type="button" id="addGoalBtn" class="secondary" style="width:100%;border:none;background:var(--accent);color:#fff;border-radius:12px;padding:12px;font-size:0.95rem;cursor:pointer;font-weight:600;">新增目標</button>
+    <button type="button" id="cancelEditGoalBtn" style="width:100%;border:none;background:var(--line);color:var(--text);border-radius:12px;padding:12px;font-size:0.9rem;cursor:pointer;margin-top:8px;display:none;">取消編輯</button>
 
     <div class="actions">
       <button class="secondary" id="closeGoals">關閉</button>
@@ -636,6 +641,23 @@ function totalGoalContribution(cycleStart){
   return (state.savingsGoals||[]).reduce((s,g)=> s + computeGoalContribution(g, cycleStart), 0);
 }
 
+function checkGoalRenewals(){
+  const today = parseISO(todayISO());
+  let changed = false;
+  for(const g of (state.savingsGoals||[])){
+    if(g.recurring && g.deadline){
+      let deadline = parseISO(g.deadline);
+      while(deadline < today){
+        deadline = new Date(deadline.getFullYear()+1, deadline.getMonth(), deadline.getDate());
+        g.saved = 0;
+        changed = true;
+      }
+      g.deadline = cycleStartISO(deadline);
+    }
+  }
+  if(changed) saveState();
+}
+
 function renderSalary(cycleStart, cycleEnd){
   const { totalSalary, dailyPay, cycleLeaves, estimate } = computeSalary(cycleStart, cycleEnd);
   document.getElementById('salaryBase').textContent = totalSalary>0 ? money(totalSalary) : '--';
@@ -763,6 +785,7 @@ function renderAdvanceBalance(){
 function render(){
   const { cycleStart, cycleEnd, daysRemaining } = getCycle();
   const todayStr = todayISO();
+  checkGoalRenewals();
   checkCycleRollover(cycleStart, cycleEnd);
   renderSalary(cycleStart, cycleEnd);
   renderAdvanceBalance();
@@ -1287,12 +1310,15 @@ function goalProgressRow(g, cycleStart, withDelete){
   nameEl.textContent = g.name;
   top.appendChild(nameEl);
   if(withDelete){
+    nameEl.style.cursor = 'pointer';
+    nameEl.onclick = ()=> startEditGoal(g);
     const del = document.createElement('button');
     del.className = 'goal-del';
     del.textContent = '✕';
     del.onclick = ()=>{
       state.savingsGoals = state.savingsGoals.filter(x=>x.id!==g.id);
       saveState();
+      if(editingGoalId===g.id) resetGoalForm();
       renderGoalsModal();
       render();
     };
@@ -1318,10 +1344,35 @@ function goalProgressRow(g, cycleStart, withDelete){
   const contrib = computeGoalContribution(g, cycleStart);
   const parts = [];
   if(withDelete) parts.push(`${money(g.saved||0)} / ${money(g.targetAmount||0)}`);
-  if(g.deadline) parts.push(`截止 ${g.deadline}`);
+  if(g.deadline) parts.push(`截止 ${g.deadline}${g.recurring ? '（每年重複）' : ''}`);
   parts.push(contrib>0 ? `這期要存 ${money(contrib)}` : '已存夠這期的份了');
   sub.textContent = parts.join(' · ');
   li.appendChild(sub);
+
+  if(withDelete){
+    const depositRow = document.createElement('div');
+    depositRow.className = 'row2';
+    depositRow.style.marginTop = '8px';
+    const depositInput = document.createElement('input');
+    depositInput.type = 'number';
+    depositInput.inputMode = 'decimal';
+    depositInput.placeholder = '存入金額（例如拿到一筆獎金）';
+    const depositBtn = document.createElement('button');
+    depositBtn.type = 'button';
+    depositBtn.textContent = '存入';
+    depositBtn.style.cssText = 'border:none;background:var(--line);color:var(--text);border-radius:12px;padding:0 16px;cursor:pointer;';
+    depositBtn.onclick = ()=>{
+      const amt = parseFloat(depositInput.value);
+      if(!amt || amt<=0) return;
+      g.saved = (g.saved||0) + amt;
+      saveState();
+      renderGoalsModal();
+      render();
+    };
+    depositRow.appendChild(depositInput);
+    depositRow.appendChild(depositBtn);
+    li.appendChild(depositRow);
+  }
   return li;
 }
 
@@ -1357,34 +1408,74 @@ function renderGoalsModal(){
 }
 
 const goalsModal = document.getElementById('goalsModal');
+let editingGoalId = null;
+
+function resetGoalForm(){
+  editingGoalId = null;
+  document.getElementById('goalName').value = '';
+  document.getElementById('goalTarget').value = '';
+  document.getElementById('goalDeadline').value = '';
+  document.getElementById('goalMonthly').value = '';
+  document.getElementById('goalRecurring').checked = false;
+  document.getElementById('goalMonthlyRow').style.display = 'block';
+  document.getElementById('goalRecurringRow').style.display = 'none';
+  document.getElementById('addGoalBtn').textContent = '新增目標';
+  document.getElementById('cancelEditGoalBtn').style.display = 'none';
+}
+
+function startEditGoal(g){
+  editingGoalId = g.id;
+  document.getElementById('goalName').value = g.name;
+  document.getElementById('goalTarget').value = g.targetAmount;
+  document.getElementById('goalDeadline').value = g.deadline || '';
+  document.getElementById('goalMonthly').value = g.monthlyAmount || '';
+  document.getElementById('goalRecurring').checked = !!g.recurring;
+  document.getElementById('goalMonthlyRow').style.display = g.deadline ? 'none' : 'block';
+  document.getElementById('goalRecurringRow').style.display = g.deadline ? 'flex' : 'none';
+  document.getElementById('addGoalBtn').textContent = '更新目標';
+  document.getElementById('cancelEditGoalBtn').style.display = 'block';
+}
+
 document.getElementById('openGoalsBtn').onclick = ()=>{
+  resetGoalForm();
   renderGoalsModal();
   goalsModal.classList.add('show');
 };
 document.getElementById('closeGoals').onclick = ()=> goalsModal.classList.remove('show');
+document.getElementById('cancelEditGoalBtn').onclick = resetGoalForm;
 document.getElementById('goalDeadline').addEventListener('input', function(){
   document.getElementById('goalMonthlyRow').style.display = this.value ? 'none' : 'block';
+  document.getElementById('goalRecurringRow').style.display = this.value ? 'flex' : 'none';
 });
 document.getElementById('addGoalBtn').onclick = ()=>{
   const name = document.getElementById('goalName').value.trim();
   const target = parseFloat(document.getElementById('goalTarget').value);
   const deadline = document.getElementById('goalDeadline').value || null;
   const monthly = parseFloat(document.getElementById('goalMonthly').value);
+  const recurring = deadline ? document.getElementById('goalRecurring').checked : false;
   if(!name || !target || target<=0) return;
   if(!deadline && (!monthly || monthly<=0)) return;
   state.savingsGoals = state.savingsGoals || [];
-  state.savingsGoals.push({
-    id: Date.now()+Math.random().toString(36).slice(2),
-    name, targetAmount: target, deadline,
-    monthlyAmount: deadline ? null : monthly,
-    saved: 0,
-  });
+  if(editingGoalId){
+    const g = state.savingsGoals.find(x=>x.id===editingGoalId);
+    if(g){
+      g.name = name;
+      g.targetAmount = target;
+      g.deadline = deadline;
+      g.monthlyAmount = deadline ? null : monthly;
+      g.recurring = recurring;
+    }
+  } else {
+    state.savingsGoals.push({
+      id: Date.now()+Math.random().toString(36).slice(2),
+      name, targetAmount: target, deadline,
+      monthlyAmount: deadline ? null : monthly,
+      recurring,
+      saved: 0,
+    });
+  }
   saveState();
-  document.getElementById('goalName').value = '';
-  document.getElementById('goalTarget').value = '';
-  document.getElementById('goalDeadline').value = '';
-  document.getElementById('goalMonthly').value = '';
-  document.getElementById('goalMonthlyRow').style.display = 'block';
+  resetGoalForm();
   renderGoalsModal();
   render();
 };
