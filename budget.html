@@ -56,6 +56,9 @@
   .row2{display:flex;gap:8px;margin-top:8px;}
   .row2 input, .row2 select{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);}
   .expense-list .info{cursor:pointer;}
+  .advance-check{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:0.8rem;color:var(--sub);line-height:1.4;cursor:pointer;}
+  .advance-check input{margin-top:2px;flex:none;width:16px;height:16px;accent-color:var(--accent);}
+  .advance-tag{display:inline-block;font-size:0.68rem;color:var(--accent);border:1px solid var(--accent);border-radius:99px;padding:1px 7px;margin-left:6px;vertical-align:middle;}
   .expense-list{list-style:none;margin:0;padding:0;}
   .expense-list li{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid var(--line);}
   .expense-list li:last-child{border-bottom:none;}
@@ -140,7 +143,7 @@
   <div class="section-title">記一筆</div>
   <div class="card">
     <form class="add" id="addForm">
-      <input type="number" inputmode="decimal" step="1" min="0" placeholder="金額" id="amountInput" required>
+      <input type="number" inputmode="decimal" step="1" placeholder="金額" id="amountInput" required>
       <button type="submit">新增</button>
     </form>
     <div class="row2">
@@ -155,6 +158,10 @@
         <option value="聯邦">聯邦信用卡</option>
       </select>
     </div>
+    <label class="advance-check">
+      <input type="checkbox" id="isAdvanceInput">
+      代墊/借還款（先幫忙付或跟人借的錢；之後對方還你，就再記一筆負數金額來抵銷）
+    </label>
   </div>
 
   <div class="section-title">本月各帳戶花費</div>
@@ -164,6 +171,15 @@
       <div class="stat"><div class="label">台新</div><div class="value" id="methodTaishin">--</div></div>
       <div class="stat"><div class="label">國泰</div><div class="value" id="methodCathay">--</div></div>
       <div class="stat"><div class="label">聯邦</div><div class="value" id="methodUnion">--</div></div>
+    </div>
+  </div>
+
+  <div id="advanceCard" style="display:none;">
+    <div class="section-title">代墊/借還款</div>
+    <div class="card">
+      <div class="label" style="color:var(--sub);font-size:0.85rem;margin-bottom:6px;">目前淨額（所有標記為代墊/借還款的紀錄加總，跨週期計算）</div>
+      <div class="value" id="advanceBalance" style="font-size:1.4rem;font-weight:700;"></div>
+      <div class="hint" id="advanceHint" style="margin-top:4px;"></div>
     </div>
   </div>
   </div>
@@ -260,7 +276,7 @@
     <h2>編輯支出</h2>
     <div class="field">
       <label>金額</label>
-      <input type="number" inputmode="decimal" min="0" id="editAmount">
+      <input type="number" inputmode="decimal" id="editAmount">
     </div>
     <div class="field">
       <label>備註</label>
@@ -279,6 +295,10 @@
         <option value="聯邦">聯邦信用卡</option>
       </select>
     </div>
+    <label class="advance-check">
+      <input type="checkbox" id="editIsAdvance">
+      代墊/借還款
+    </label>
     <div class="actions">
       <button class="secondary" id="closeEditExpense">取消</button>
       <button class="primary" id="saveEditExpense">儲存</button>
@@ -448,10 +468,37 @@ function renderLeaveList(list, dailyPay){
   }
 }
 
+function renderAdvanceBalance(){
+  const tagged = state.expenses.filter(e=>e.isAdvance);
+  const card = document.getElementById('advanceCard');
+  if(tagged.length===0){
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  const net = tagged.reduce((s,e)=>s+e.amount,0);
+  const valueEl = document.getElementById('advanceBalance');
+  const hintEl = document.getElementById('advanceHint');
+  if(Math.abs(net) < 1){
+    valueEl.textContent = money(0);
+    valueEl.style.color = 'var(--text)';
+    hintEl.textContent = '已經結清';
+  } else if(net > 0){
+    valueEl.textContent = money(net);
+    valueEl.style.color = 'var(--green)';
+    hintEl.textContent = '別人還欠你這麼多';
+  } else {
+    valueEl.textContent = money(net);
+    valueEl.style.color = 'var(--red)';
+    hintEl.textContent = '你還欠別人這麼多';
+  }
+}
+
 function render(){
   const { cycleStart, cycleEnd, totalDays, daysRemaining } = getCycle();
   const todayStr = todayISO();
   renderSalary(cycleStart, cycleEnd);
+  renderAdvanceBalance();
 
   const hasBudget = state.monthlyBudget && state.monthlyBudget > 0;
 
@@ -525,6 +572,12 @@ function renderExpenseList(list){
     const note = document.createElement('div');
     note.className='note';
     note.textContent = e.note && e.note.trim() ? e.note : '（無備註）';
+    if(e.isAdvance){
+      const tag = document.createElement('span');
+      tag.className='advance-tag';
+      tag.textContent='代墊';
+      note.appendChild(tag);
+    }
     const date = document.createElement('div');
     date.className='date';
     date.textContent = `${e.date} · ${METHOD_LABELS[e.method]||'現金'}`;
@@ -567,6 +620,7 @@ function openEditExpense(id){
   document.getElementById('editNote').value = expense.note || '';
   document.getElementById('editDate').value = expense.date;
   document.getElementById('editMethod').value = expense.method || '現金';
+  document.getElementById('editIsAdvance').checked = !!expense.isAdvance;
   editExpenseModal.classList.add('show');
 }
 document.getElementById('closeEditExpense').onclick = ()=>{
@@ -577,11 +631,12 @@ document.getElementById('saveEditExpense').onclick = ()=>{
   const expense = state.expenses.find(x=>x.id===editingExpenseId);
   if(!expense) return;
   const amount = parseFloat(document.getElementById('editAmount').value);
-  if(!amount || amount<=0) return;
+  if(!amount) return;
   expense.amount = amount;
   expense.note = document.getElementById('editNote').value;
   expense.date = document.getElementById('editDate').value || todayISO();
   expense.method = document.getElementById('editMethod').value;
+  expense.isAdvance = document.getElementById('editIsAdvance').checked;
   saveState();
   editingExpenseId = null;
   editExpenseModal.classList.remove('show');
@@ -591,14 +646,16 @@ document.getElementById('saveEditExpense').onclick = ()=>{
 document.getElementById('addForm').addEventListener('submit', function(ev){
   ev.preventDefault();
   const amount = parseFloat(document.getElementById('amountInput').value);
-  if(!amount || amount<=0) return;
+  if(!amount) return;
   const note = document.getElementById('noteInput').value;
   const date = document.getElementById('dateInput').value || todayISO();
   const method = document.getElementById('methodInput').value;
-  state.expenses.push({ id: Date.now()+Math.random().toString(36).slice(2), amount, note, date, method, ts: Date.now() });
+  const isAdvance = document.getElementById('isAdvanceInput').checked;
+  state.expenses.push({ id: Date.now()+Math.random().toString(36).slice(2), amount, note, date, method, isAdvance, ts: Date.now() });
   saveState();
   document.getElementById('amountInput').value = '';
   document.getElementById('noteInput').value = '';
+  document.getElementById('isAdvanceInput').checked = false;
   document.getElementById('amountInput').focus();
   render();
 });
