@@ -46,6 +46,8 @@
   form.add button{border:none;background:var(--accent);color:#fff;border-radius:12px;padding:0 18px;font-size:1rem;font-weight:600;cursor:pointer;}
   form.add button:active{opacity:0.85}
   .row2{display:flex;gap:8px;margin-top:8px;}
+  .row2 input, .row2 select{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);}
+  .expense-list .info{cursor:pointer;}
   .expense-list{list-style:none;margin:0;padding:0;}
   .expense-list li{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid var(--line);}
   .expense-list li:last-child{border-bottom:none;}
@@ -241,6 +243,37 @@
     <div class="actions">
       <button class="secondary" id="closeSettings">取消</button>
       <button class="primary" id="saveSettings">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="editExpenseModal">
+  <div class="modal">
+    <h2>編輯支出</h2>
+    <div class="field">
+      <label>金額</label>
+      <input type="number" inputmode="decimal" min="0" id="editAmount">
+    </div>
+    <div class="field">
+      <label>備註</label>
+      <input type="text" id="editNote">
+    </div>
+    <div class="field">
+      <label>日期</label>
+      <input type="date" id="editDate">
+    </div>
+    <div class="field">
+      <label>付款方式</label>
+      <select id="editMethod">
+        <option value="現金">現金</option>
+        <option value="台新">台新信用卡</option>
+        <option value="國泰">國泰信用卡</option>
+        <option value="聯邦">聯邦信用卡</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="secondary" id="closeEditExpense">取消</button>
+      <button class="primary" id="saveEditExpense">儲存</button>
     </div>
   </div>
 </div>
@@ -489,6 +522,7 @@ function renderExpenseList(list){
     date.textContent = `${e.date} · ${METHOD_LABELS[e.method]||'現金'}`;
     info.appendChild(note);
     info.appendChild(date);
+    info.onclick = ()=> openEditExpense(e.id);
 
     const right = document.createElement('div');
     right.style.display='flex';
@@ -496,6 +530,8 @@ function renderExpenseList(list){
     const amt = document.createElement('span');
     amt.className='amt';
     amt.textContent = money(e.amount);
+    amt.style.cursor='pointer';
+    amt.onclick = ()=> openEditExpense(e.id);
     const del = document.createElement('button');
     del.className='del';
     del.textContent = '✕';
@@ -512,6 +548,37 @@ function renderExpenseList(list){
     ul.appendChild(li);
   }
 }
+
+const editExpenseModal = document.getElementById('editExpenseModal');
+let editingExpenseId = null;
+function openEditExpense(id){
+  const expense = state.expenses.find(x=>x.id===id);
+  if(!expense) return;
+  editingExpenseId = id;
+  document.getElementById('editAmount').value = expense.amount;
+  document.getElementById('editNote').value = expense.note || '';
+  document.getElementById('editDate').value = expense.date;
+  document.getElementById('editMethod').value = expense.method || '現金';
+  editExpenseModal.classList.add('show');
+}
+document.getElementById('closeEditExpense').onclick = ()=>{
+  editingExpenseId = null;
+  editExpenseModal.classList.remove('show');
+};
+document.getElementById('saveEditExpense').onclick = ()=>{
+  const expense = state.expenses.find(x=>x.id===editingExpenseId);
+  if(!expense) return;
+  const amount = parseFloat(document.getElementById('editAmount').value);
+  if(!amount || amount<=0) return;
+  expense.amount = amount;
+  expense.note = document.getElementById('editNote').value;
+  expense.date = document.getElementById('editDate').value || todayISO();
+  expense.method = document.getElementById('editMethod').value;
+  saveState();
+  editingExpenseId = null;
+  editExpenseModal.classList.remove('show');
+  render();
+};
 
 document.getElementById('addForm').addEventListener('submit', function(ev){
   ev.preventDefault();
