@@ -324,6 +324,10 @@
       <input type="checkbox" id="editSettled">
       已收回（結清，不再列入代墊淨額）
     </label>
+    <label class="advance-check">
+      <input type="checkbox" id="editBillingShift">
+      實際入帳比預期晚（例如遇到國定假日延後過帳），多算一個月的帳單
+    </label>
     <div class="actions">
       <button class="secondary" id="closeEditExpense">取消</button>
       <button class="primary" id="saveEditExpense">儲存</button>
@@ -441,8 +445,16 @@ function getEffectiveDate(e){
   const closingDay = state.methodClosingDays && state.methodClosingDays[e.method];
   const d = parseISO(e.date);
   if(!closingDay) return d;
-  let y = d.getFullYear(), m = d.getMonth();
-  if(d.getDate() > closingDay) m += 1;
+  // 銀行週末不處理入帳，週六/週日刷卡通常會延到下週一才過帳，
+  // 這裡用購買日的星期幾去估算實際過帳日，再拿過帳日跟結帳日比較。
+  // 國定假日沒辦法自動判斷（每年不固定），遇到的話用下面的手動調整。
+  const postedDate = new Date(d);
+  const dow = d.getDay();
+  if(dow === 6) postedDate.setDate(postedDate.getDate() + 2);
+  else if(dow === 0) postedDate.setDate(postedDate.getDate() + 1);
+  let y = postedDate.getFullYear(), m = postedDate.getMonth();
+  if(postedDate.getDate() > closingDay) m += 1;
+  m += (e.billingShift || 0);
   const startDay = Math.min(Math.max(parseInt(state.cycleStartDay)||1,1),28);
   return new Date(y, m, startDay);
 }
@@ -765,6 +777,7 @@ function openEditExpense(id){
   document.getElementById('editIsAdvance').checked = !!expense.isAdvance;
   document.getElementById('editSettled').checked = !!expense.settled;
   document.getElementById('editSettledRow').style.display = expense.isAdvance ? 'flex' : 'none';
+  document.getElementById('editBillingShift').checked = (expense.billingShift||0) > 0;
   editExpenseModal.classList.add('show');
 }
 document.getElementById('editIsAdvance').addEventListener('change', function(){
@@ -784,6 +797,7 @@ document.getElementById('saveEditExpense').onclick = ()=>{
   expense.date = document.getElementById('editDate').value || todayISO();
   expense.method = document.getElementById('editMethod').value;
   expense.isAdvance = document.getElementById('editIsAdvance').checked;
+  expense.billingShift = document.getElementById('editBillingShift').checked ? 1 : 0;
   expense.settled = document.getElementById('editSettled').checked;
   saveState();
   editingExpenseId = null;
