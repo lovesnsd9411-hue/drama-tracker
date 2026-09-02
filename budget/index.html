@@ -59,6 +59,13 @@
   .advance-check{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:0.8rem;color:var(--sub);line-height:1.4;cursor:pointer;}
   .advance-check input{margin-top:2px;flex:none;width:16px;height:16px;accent-color:var(--accent);}
   .advance-tag{display:inline-block;font-size:0.68rem;color:var(--accent);border:1px solid var(--accent);border-radius:99px;padding:1px 7px;margin-left:6px;vertical-align:middle;}
+  .legend-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:0.85rem;}
+  .legend-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;flex:none;}
+  .legend-label{display:flex;align-items:center;color:var(--text);}
+  .trend-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:0.85rem;border-bottom:1px solid var(--line);}
+  .trend-row:last-child{border-bottom:none;}
+  .trend-delta.up{color:var(--red);}
+  .trend-delta.down{color:var(--green);}
   .side-by-side{display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:14px;align-items:start;}
   .expense-list{list-style:none;margin:0;padding:0;}
   .expense-list li{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid var(--line);}
@@ -157,6 +164,15 @@
         <option value="台新">台新信用卡</option>
         <option value="國泰">國泰信用卡</option>
         <option value="聯邦">聯邦信用卡</option>
+      </select>
+      <select id="categoryInput" style="flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);">
+        <option value="餐飲">餐飲</option>
+        <option value="交通">交通</option>
+        <option value="娛樂">娛樂</option>
+        <option value="購物">購物</option>
+        <option value="居家">居家</option>
+        <option value="醫療">醫療</option>
+        <option value="其他">其他</option>
       </select>
     </div>
     <label class="advance-check">
@@ -316,6 +332,18 @@
         <option value="聯邦">聯邦信用卡</option>
       </select>
     </div>
+    <div class="field">
+      <label>分類</label>
+      <select id="editCategory">
+        <option value="餐飲">餐飲</option>
+        <option value="交通">交通</option>
+        <option value="娛樂">娛樂</option>
+        <option value="購物">購物</option>
+        <option value="居家">居家</option>
+        <option value="醫療">醫療</option>
+        <option value="其他">其他</option>
+      </select>
+    </div>
     <label class="advance-check">
       <input type="checkbox" id="editIsAdvance">
       代墊/借還款
@@ -355,6 +383,24 @@
       <div class="stat"><div class="label">國泰</div><div class="value" id="reviewCathay">--</div></div>
       <div class="stat"><div class="label">聯邦</div><div class="value" id="reviewUnion">--</div></div>
     </div>
+
+    <div class="section-title" style="margin-top:0;">分類佔比</div>
+    <div class="card" style="margin-bottom:14px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;">
+      <div id="reviewPie" style="width:120px;height:120px;border-radius:50%;flex:none;background:var(--line);"></div>
+      <ul id="reviewCategoryLegend" style="list-style:none;margin:0;padding:0;flex:1;min-width:160px;"></ul>
+      <div class="empty" id="reviewCategoryEmpty" style="display:none;padding:0;">這期還沒有分類資料</div>
+    </div>
+
+    <div class="section-title" style="margin-top:0;">跟上一期比較</div>
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div class="label" style="color:var(--sub);font-size:0.85rem;">總花費</div>
+        <div id="reviewTrendTotal" style="font-weight:700;"></div>
+      </div>
+      <ul id="reviewTrendList" style="list-style:none;margin:0;padding:0;"></ul>
+    </div>
+
+    <div class="section-title" style="margin-top:0;">支出紀錄</div>
     <ul class="expense-list" id="reviewList"></ul>
     <div class="empty" id="reviewEmpty" style="display:none;">這個週期沒有紀錄</div>
     <div class="actions">
@@ -466,6 +512,9 @@ function money(n){
 
 const METHODS = ['現金','台新','國泰','聯邦'];
 const METHOD_LABELS = { '現金':'現金', '台新':'台新信用卡', '國泰':'國泰信用卡', '聯邦':'聯邦信用卡' };
+
+const CATEGORIES = ['餐飲','交通','娛樂','購物','居家','醫療','其他'];
+const CATEGORY_COLORS = { '餐飲':'#CE7B52', '交通':'#7A9A68', '娛樂':'#C9A227', '購物':'#8E7CC3', '居家':'#5B8CAE', '醫療':'#D96C6C', '其他':'#AC9C89' };
 const METHOD_STAT_IDS = { '現金':'methodCash', '台新':'methodTaishin', '國泰':'methodCathay', '聯邦':'methodUnion' };
 
 function renderMethodBreakdown(cycleExpenses){
@@ -728,7 +777,7 @@ function renderExpenseList(list){
     }
     const date = document.createElement('div');
     date.className='date';
-    let dateText = `${e.date} · ${METHOD_LABELS[e.method]||'現金'}`;
+    let dateText = `${e.date} · ${METHOD_LABELS[e.method]||'現金'} · ${e.category||'其他'}`;
     const effDate = getEffectiveDate(e);
     const txnDate = parseISO(e.date);
     if(effDate.getMonth() !== txnDate.getMonth() || effDate.getFullYear() !== txnDate.getFullYear()){
@@ -774,6 +823,7 @@ function openEditExpense(id){
   document.getElementById('editNote').value = expense.note || '';
   document.getElementById('editDate').value = expense.date;
   document.getElementById('editMethod').value = expense.method || '現金';
+  document.getElementById('editCategory').value = expense.category || '其他';
   document.getElementById('editIsAdvance').checked = !!expense.isAdvance;
   document.getElementById('editSettled').checked = !!expense.settled;
   document.getElementById('editSettledRow').style.display = expense.isAdvance ? 'flex' : 'none';
@@ -796,6 +846,7 @@ document.getElementById('saveEditExpense').onclick = ()=>{
   expense.note = document.getElementById('editNote').value;
   expense.date = document.getElementById('editDate').value || todayISO();
   expense.method = document.getElementById('editMethod').value;
+  expense.category = document.getElementById('editCategory').value;
   expense.isAdvance = document.getElementById('editIsAdvance').checked;
   expense.billingShift = document.getElementById('editBillingShift').checked ? 1 : 0;
   expense.settled = document.getElementById('editSettled').checked;
@@ -812,8 +863,9 @@ document.getElementById('addForm').addEventListener('submit', function(ev){
   const note = document.getElementById('noteInput').value;
   const date = document.getElementById('dateInput').value || todayISO();
   const method = document.getElementById('methodInput').value;
+  const category = document.getElementById('categoryInput').value;
   const isAdvance = document.getElementById('isAdvanceInput').checked;
-  state.expenses.push({ id: Date.now()+Math.random().toString(36).slice(2), amount, note, date, method, isAdvance, ts: Date.now() });
+  state.expenses.push({ id: Date.now()+Math.random().toString(36).slice(2), amount, note, date, method, category, isAdvance, ts: Date.now() });
   saveState();
   document.getElementById('amountInput').value = '';
   document.getElementById('noteInput').value = '';
@@ -932,6 +984,129 @@ const REVIEW_METHOD_IDS = { '現金':'reviewCash', '台新':'reviewTaishin', '�
 const reviewModal = document.getElementById('reviewModal');
 let reviewCycleStart = null;
 
+function renderReviewCategoryPie(budgetable){
+  const pieEl = document.getElementById('reviewPie');
+  const legendEl = document.getElementById('reviewCategoryLegend');
+  const emptyEl = document.getElementById('reviewCategoryEmpty');
+  legendEl.innerHTML = '';
+
+  const total = budgetable.reduce((s,e)=>s+Math.max(e.amount,0),0);
+  if(total <= 0){
+    pieEl.style.background = 'var(--line)';
+    emptyEl.style.display = 'block';
+    return;
+  }
+  emptyEl.style.display = 'none';
+
+  const sums = {};
+  for(const c of CATEGORIES) sums[c] = 0;
+  for(const e of budgetable){
+    if(e.amount <= 0) continue;
+    const c = CATEGORIES.includes(e.category) ? e.category : '其他';
+    sums[c] += e.amount;
+  }
+  const entries = CATEGORIES.map(c=>({ category:c, amount: sums[c] })).filter(x=>x.amount>0)
+    .sort((a,b)=> b.amount - a.amount);
+
+  let acc = 0;
+  const stops = entries.map(en=>{
+    const startPct = (acc/total)*100;
+    acc += en.amount;
+    const endPct = (acc/total)*100;
+    return `${CATEGORY_COLORS[en.category]} ${startPct}% ${endPct}%`;
+  });
+  pieEl.style.background = `conic-gradient(${stops.join(',')})`;
+
+  for(const en of entries){
+    const li = document.createElement('li');
+    li.className = 'legend-row';
+    const left = document.createElement('span');
+    left.className = 'legend-label';
+    const dot = document.createElement('span');
+    dot.className = 'legend-dot';
+    dot.style.background = CATEGORY_COLORS[en.category];
+    left.appendChild(dot);
+    left.appendChild(document.createTextNode(`${en.category}（${Math.round(en.amount/total*100)}%）`));
+    const right = document.createElement('span');
+    right.textContent = money(en.amount);
+    li.appendChild(left);
+    li.appendChild(right);
+    legendEl.appendChild(li);
+  }
+}
+
+function renderReviewTrend(cycleStart, cycleEnd, spent){
+  const prevStart = new Date(cycleStart.getFullYear(), cycleStart.getMonth()-1, cycleStart.getDate());
+  const prevEnd = cycleStart;
+  const prevList = state.expenses.filter(e=>{
+    const d = getEffectiveDate(e);
+    return d >= prevStart && d < prevEnd && !e.isAdvance;
+  });
+  const prevSpent = prevList.reduce((s,e)=>s+e.amount,0);
+
+  const totalEl = document.getElementById('reviewTrendTotal');
+  const delta = spent - prevSpent;
+  const pct = prevSpent > 0 ? Math.round(Math.abs(delta)/prevSpent*100) : null;
+  if(prevList.length===0){
+    totalEl.textContent = money(spent) + '（上一期沒有紀錄可比較）';
+    totalEl.style.color = 'var(--text)';
+  } else if(delta === 0){
+    totalEl.textContent = money(spent) + '（跟上一期一樣）';
+    totalEl.style.color = 'var(--text)';
+  } else {
+    const arrow = delta > 0 ? '▲' : '▼';
+    totalEl.textContent = `${money(spent)}（${arrow} ${money(Math.abs(delta))}${pct!=null?'，'+pct+'%':''}）`;
+    totalEl.style.color = delta > 0 ? 'var(--red)' : 'var(--green)';
+  }
+
+  const curBudgetable = state.expenses.filter(e=>{
+    const d = getEffectiveDate(e);
+    return d >= cycleStart && d < cycleEnd && !e.isAdvance;
+  });
+  const catSums = (list)=>{
+    const sums = {};
+    for(const c of CATEGORIES) sums[c] = 0;
+    for(const e of list){
+      const c = CATEGORIES.includes(e.category) ? e.category : '其他';
+      sums[c] += e.amount;
+    }
+    return sums;
+  };
+  const curSums = catSums(curBudgetable);
+  const prevSums = catSums(prevList);
+
+  const trendList = document.getElementById('reviewTrendList');
+  trendList.innerHTML = '';
+  const cats = CATEGORIES.filter(c => curSums[c] > 0 || prevSums[c] > 0);
+  if(cats.length===0) return;
+  for(const c of cats){
+    const cur = curSums[c], prev = prevSums[c];
+    const d = cur - prev;
+    const li = document.createElement('li');
+    li.className = 'trend-row';
+    const left = document.createElement('span');
+    left.className = 'legend-label';
+    const dot = document.createElement('span');
+    dot.className = 'legend-dot';
+    dot.style.background = CATEGORY_COLORS[c];
+    left.appendChild(dot);
+    left.appendChild(document.createTextNode(c));
+    const right = document.createElement('span');
+    if(prev===0 && cur>0){
+      right.textContent = `${money(cur)}（新增）`;
+      right.className = 'trend-delta up';
+    } else if(d===0){
+      right.textContent = `${money(cur)}（持平）`;
+    } else {
+      right.className = 'trend-delta ' + (d>0?'up':'down');
+      right.textContent = `${money(cur)}（${d>0?'▲':'▼'} ${money(Math.abs(d))}）`;
+    }
+    li.appendChild(left);
+    li.appendChild(right);
+    trendList.appendChild(li);
+  }
+}
+
 function renderReview(){
   const startDay = Math.min(Math.max(parseInt(state.cycleStartDay)||1,1),28);
   const cycleStart = new Date(reviewCycleStart.getFullYear(), reviewCycleStart.getMonth(), startDay);
@@ -967,6 +1142,9 @@ function renderReview(){
     const sum = list.filter(e=>(e.method||'現金')===m).reduce((s,e)=>s+e.amount,0);
     document.getElementById(REVIEW_METHOD_IDS[m]).textContent = money(sum);
   }
+
+  renderReviewCategoryPie(budgetable);
+  renderReviewTrend(cycleStart, cycleEnd, spent);
 
   const ul = document.getElementById('reviewList');
   const emptyEl = document.getElementById('reviewEmpty');
