@@ -240,6 +240,10 @@
     <div class="field">
       <label>每月預算金額</label>
       <input type="number" inputmode="decimal" min="0" id="settingBudget" placeholder="例如 20000">
+      <label class="advance-check" style="margin-top:10px;">
+        <input type="checkbox" id="settingAutoBudget">
+        每輪開始時自動用「預估實領薪資」更新這個金額（會依照下面薪資試算的請假紀錄變動，不用每個月手動改）
+      </label>
     </div>
     <div class="field">
       <label>發薪日 / 每月從幾號開始算一輪</label>
@@ -321,7 +325,7 @@
 const STORAGE_KEY = 'dailyBudgetTracker_v1';
 
 function loadState(){
-  const defaults = { monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [] };
+  const defaults = { monthlyBudget: null, cycleStartDay: 1, expenses: [], baseSalary: 30600, mealAllowance: 2400, leaves: [], budgetCycleStart: null, autoBudget: true };
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
     if(raw) return Object.assign(defaults, JSON.parse(raw));
@@ -423,6 +427,25 @@ function computeSalary(cycleStart, cycleEnd){
   const deduction = cycleLeaves.reduce((s,l)=> s + l.days * (LEAVE_DEDUCT_RATIO[l.type]||0) * dailyPay, 0);
   const estimate = totalSalary - deduction;
   return { totalSalary, dailyPay, cycleLeaves, deduction, estimate };
+}
+
+function cycleStartISO(cycleStart){
+  const y = cycleStart.getFullYear(), m = String(cycleStart.getMonth()+1).padStart(2,'0'), d = String(cycleStart.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+
+function checkCycleRollover(cycleStart, cycleEnd){
+  const thisCycle = cycleStartISO(cycleStart);
+  if(state.budgetCycleStart === thisCycle) return;
+  const isFirstRun = state.budgetCycleStart === null;
+  if(!isFirstRun && state.autoBudget !== false){
+    const { totalSalary, estimate } = computeSalary(cycleStart, cycleEnd);
+    if(totalSalary > 0){
+      state.monthlyBudget = Math.round(estimate);
+    }
+  }
+  state.budgetCycleStart = thisCycle;
+  saveState();
 }
 
 function renderSalary(cycleStart, cycleEnd){
@@ -550,8 +573,9 @@ function renderAdvanceBalance(){
 }
 
 function render(){
-  const { cycleStart, cycleEnd, totalDays, daysRemaining } = getCycle();
+  const { cycleStart, cycleEnd, daysRemaining } = getCycle();
   const todayStr = todayISO();
+  checkCycleRollover(cycleStart, cycleEnd);
   renderSalary(cycleStart, cycleEnd);
   renderAdvanceBalance();
 
@@ -601,7 +625,7 @@ function render(){
   document.getElementById('spentTotal').textContent = money(spentTotal);
   document.getElementById('budgetTotal').textContent = money(budget);
   document.getElementById('daysLeft').textContent = daysRemaining + ' 天';
-  document.getElementById('avgPerDay').textContent = money(budget/totalDays) + ' /天';
+  document.getElementById('avgPerDay').textContent = money((budget-spentTotal)/daysRemainingClamped) + ' /天';
 
   const pct = Math.min(100, Math.max(0, (spentTotal/budget)*100));
   const bar = document.getElementById('progressBar');
@@ -793,6 +817,7 @@ document.getElementById('openSettings').onclick = ()=>{
   document.getElementById('settingCycleDay').value = state.cycleStartDay || 1;
   document.getElementById('settingBaseSalary').value = state.baseSalary != null ? state.baseSalary : '';
   document.getElementById('settingMealAllowance').value = state.mealAllowance != null ? state.mealAllowance : '';
+  document.getElementById('settingAutoBudget').checked = state.autoBudget !== false;
   renderSyncUI();
   settingsModal.classList.add('show');
 };
@@ -806,6 +831,7 @@ document.getElementById('saveSettings').onclick = ()=>{
   if(c && c>=1 && c<=28) state.cycleStartDay = c;
   if(!isNaN(base) && base>=0) state.baseSalary = base;
   if(!isNaN(meal) && meal>=0) state.mealAllowance = meal;
+  state.autoBudget = document.getElementById('settingAutoBudget').checked;
   saveState();
   settingsModal.classList.remove('show');
   render();
