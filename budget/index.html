@@ -59,6 +59,7 @@
   .advance-check{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:0.8rem;color:var(--sub);line-height:1.4;cursor:pointer;}
   .advance-check input{margin-top:2px;flex:none;width:16px;height:16px;accent-color:var(--accent);}
   .advance-tag{display:inline-block;font-size:0.68rem;color:var(--accent);border:1px solid var(--accent);border-radius:99px;padding:1px 7px;margin-left:6px;vertical-align:middle;}
+  .side-by-side{display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:14px;align-items:start;}
   .expense-list{list-style:none;margin:0;padding:0;}
   .expense-list li{display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid var(--line);}
   .expense-list li:last-child{border-bottom:none;}
@@ -164,23 +165,27 @@
     </label>
   </div>
 
-  <div class="section-title">本月各帳戶花費</div>
-  <div class="card">
-    <div class="stats">
-      <div class="stat"><div class="label">現金</div><div class="value" id="methodCash">--</div></div>
-      <div class="stat"><div class="label">台新</div><div class="value" id="methodTaishin">--</div></div>
-      <div class="stat"><div class="label">國泰</div><div class="value" id="methodCathay">--</div></div>
-      <div class="stat"><div class="label">聯邦</div><div class="value" id="methodUnion">--</div></div>
+  <div class="side-by-side">
+    <div>
+      <div class="section-title">本月各帳戶花費</div>
+      <div class="card">
+        <div class="stats">
+          <div class="stat"><div class="label">現金</div><div class="value" id="methodCash">--</div></div>
+          <div class="stat"><div class="label">台新</div><div class="value" id="methodTaishin">--</div></div>
+          <div class="stat"><div class="label">國泰</div><div class="value" id="methodCathay">--</div></div>
+          <div class="stat"><div class="label">聯邦</div><div class="value" id="methodUnion">--</div></div>
+        </div>
+      </div>
     </div>
-  </div>
 
-  <div id="advanceCard" style="display:none;">
-    <div class="section-title">代墊/借還款</div>
-    <div class="card">
-      <div class="label" style="color:var(--sub);font-size:0.85rem;margin-bottom:6px;">尚未收回的淨額（不算進你的可用金額，跨週期計算）</div>
-      <div class="value" id="advanceBalance" style="font-size:1.4rem;font-weight:700;"></div>
-      <div class="hint" id="advanceHint" style="margin-top:4px;"></div>
-      <ul class="expense-list" id="advanceList" style="margin-top:10px;"></ul>
+    <div id="advanceCard" style="display:none;">
+      <div class="section-title">代墊/借還款</div>
+      <div class="card">
+        <div class="label" style="color:var(--sub);font-size:0.85rem;margin-bottom:6px;">尚未收回的淨額（不算進你的可用金額，跨週期計算）</div>
+        <div class="value" id="advanceBalance" style="font-size:1.4rem;font-weight:700;"></div>
+        <div class="hint" id="advanceHint" style="margin-top:4px;"></div>
+        <ul class="expense-list" id="advanceList" style="margin-top:10px;"></ul>
+      </div>
     </div>
   </div>
   </div>
@@ -820,6 +825,10 @@ document.getElementById('saveSettings').onclick = ()=>{
   render();
   if(!state.monthlyBudget){
     document.getElementById('openSettings').click();
+  } else if(new URLSearchParams(location.search).get('quick') === '1'){
+    const amountEl = document.getElementById('amountInput');
+    amountEl.scrollIntoView({ block: 'center' });
+    amountEl.focus();
   }
 })();
 
