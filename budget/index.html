@@ -55,6 +55,18 @@
   form.add button:active{opacity:0.85}
   .row2{display:flex;gap:8px;margin-top:8px;}
   .row2 input, .row2 select{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);}
+  .field-label{font-size:0.75rem;color:var(--sub);margin:14px 2px 8px;}
+  .cat-grid{display:flex;flex-wrap:wrap;gap:6px;}
+  .cat-btn{display:flex;align-items:center;gap:5px;padding:0 11px;height:34px;border-radius:999px;border:1.5px solid var(--catColor,var(--line));background:var(--bg);color:var(--catColor,var(--sub));font-size:0.75rem;font-weight:600;font-family:inherit;cursor:pointer;}
+  .cat-btn svg{width:14px;height:14px;flex:none;}
+  .cat-btn.selected{background:var(--catColor,var(--accent));color:#fff;}
+  .tabbar{position:fixed;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;background:var(--card);border-top:1px solid var(--line);display:flex;padding:8px 0 10px;box-shadow:0 -4px 14px rgba(180,140,90,0.08);z-index:40;}
+  .tabbar-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--sub);font-size:0.66rem;font-weight:600;border:none;background:none;cursor:pointer;font-family:inherit;padding:6px 0;}
+  .tabbar-item svg{width:21px;height:21px;}
+  .tabbar-item.active{color:var(--accent);}
+  @media (max-width:899px){
+    [data-tab-hidden="true"]{display:none!important;}
+  }
   .expense-list .info{cursor:pointer;}
   .advance-check{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:0.8rem;color:var(--sub);line-height:1.4;cursor:pointer;}
   .advance-check input[type="checkbox"]{margin-top:2px;flex:none;width:16px;height:16px;accent-color:var(--accent);}
@@ -127,6 +139,7 @@
     .col-salary{grid-column:1 / -1;grid-row:4;}
     .col-header h1{font-size:1.3rem;margin:12px 0 22px;}
     .history-scroll{max-height:50vh;overflow-y:auto;}
+    .tabbar{display:none;}
   }
 </style>
 </head>
@@ -137,13 +150,13 @@
   </div>
 
   <div class="col-today">
-  <div class="card hero">
+  <div class="card hero" data-tab="record">
     <div class="label">今天還可以花</div>
     <div class="amount" id="todayAmount">--</div>
     <div class="note" id="todayNote"></div>
   </div>
 
-  <div class="stats">
+  <div class="stats" data-tab="overview">
     <div class="stat">
       <div class="label">本月已花</div>
       <div class="value" id="spentTotal">--</div>
@@ -162,14 +175,14 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" data-tab="overview">
     <div class="progress-outer"><div class="progress-inner" id="progressBar" style="width:0%"></div></div>
   </div>
   </div>
 
   <div class="col-add">
-  <div class="section-title">記一筆</div>
-  <div class="card">
+  <div class="section-title" data-tab="record">記一筆</div>
+  <div class="card" data-tab="record">
     <form class="add" id="addForm">
       <input type="number" inputmode="decimal" step="1" placeholder="金額" id="amountInput" required>
       <button type="submit">新增</button>
@@ -182,24 +195,17 @@
       <select id="methodInput" style="flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);">
         <option value="現金">現金</option>
       </select>
-      <select id="categoryInput" style="flex:1;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);">
-        <option value="餐飲">餐飲</option>
-        <option value="交通">交通</option>
-        <option value="娛樂">娛樂</option>
-        <option value="購物">購物</option>
-        <option value="居家">居家</option>
-        <option value="醫療">醫療</option>
-        <option value="其他">其他</option>
-      </select>
     </div>
+    <div class="field-label">分類</div>
+    <div class="cat-grid" id="categoryGrid"></div>
     <label class="advance-check">
       <input type="checkbox" id="isAdvanceInput">
       <span>代墊/借還款（先幫忙付或跟人借的錢，不算進你的可用金額；之後對方還你，去下面「代墊/借還款」點一下「已收回」就好）</span>
     </label>
   </div>
 
-  <div class="section-title" id="incomeAllocTitle" style="display:none;">本期收入去哪了</div>
-  <div class="card" id="incomeAllocCard" style="display:none;">
+  <div class="section-title" id="incomeAllocTitle" data-tab="overview" style="display:none;">本期收入去哪了</div>
+  <div class="card" id="incomeAllocCard" data-tab="overview" style="display:none;">
     <div class="income-steps">
       <div class="income-step">
         <div class="income-step-dot" style="background:var(--text);">1</div>
@@ -227,13 +233,13 @@
   </div>
 
   <div class="col-history">
-  <div class="section-title">本月支出紀錄</div>
-  <div class="card history-scroll">
+  <div class="section-title" data-tab="record">本月支出紀錄</div>
+  <div class="card history-scroll" data-tab="record">
     <ul class="expense-list" id="expenseList"></ul>
     <div class="empty" id="emptyMsg" style="display:none;">這個月還沒有任何紀錄</div>
   </div>
 
-  <div class="side-by-side">
+  <div class="side-by-side" data-tab="overview">
     <div>
       <div class="section-title">本月各帳戶花費</div>
       <div class="card">
@@ -254,8 +260,8 @@
   </div>
 
   <div class="col-salary">
-  <div class="section-title">本月薪資試算</div>
-  <div class="card">
+  <div class="section-title" data-tab="overview">本月薪資試算</div>
+  <div class="card" data-tab="overview">
     <div class="stats" style="margin-bottom:10px;">
       <div class="stat">
         <div class="label">應領月薪</div>
@@ -295,13 +301,28 @@
     <div class="hint" style="margin-top:10px;">扣薪比照台灣勞基法：事假、颱風假（依你們公司規定）不給薪；生理假、病假半薪；特休/公假全薪；曠職扣雙倍。生理假/病假一年內的天數上限這裡沒有幫你算，記得自己留意。勞保、健保費是用基本薪資＋全勤＋獎金＋加班費對照政府的投保薪資分級表估算（單身、不含眷屬），級距每年可能調整，實際金額請以薪資單為準。</div>
   </div>
 
-  <div class="section-title">存錢目標</div>
-  <div class="card">
+  <div class="section-title" data-tab="savings">存錢目標</div>
+  <div class="card" data-tab="savings">
     <ul id="goalsSummaryList" style="list-style:none;margin:0;padding:0;"></ul>
     <div class="empty" id="goalsSummaryEmpty" style="display:none;">還沒有存錢目標，例如保費、學貸準備金</div>
     <button type="button" id="openGoalsBtn" class="secondary" style="width:100%;margin-top:12px;border:none;background:var(--line);color:var(--text);border-radius:12px;padding:12px;font-size:0.9rem;cursor:pointer;">管理存錢目標</button>
   </div>
   </div>
+</div>
+
+<div class="tabbar" id="tabBar">
+  <button type="button" class="tabbar-item active" data-tab-target="record">
+    <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3.5l4 4L7 19l-4.5 1 1-4.5L14.5 3.5z"/></svg>
+    <span>記帳</span>
+  </button>
+  <button type="button" class="tabbar-item" data-tab-target="overview">
+    <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18V10M11 18V4M18 18v-6"/></svg>
+    <span>總覽</span>
+  </button>
+  <button type="button" class="tabbar-item" data-tab-target="savings">
+    <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="8"/><circle cx="11" cy="11" r="4.5"/><circle cx="11" cy="11" r="1" fill="currentColor" stroke="none"/></svg>
+    <span>存錢管理</span>
+  </button>
 </div>
 
 <div class="modal-bg" id="settingsModal">
@@ -625,6 +646,43 @@ function methodLabel(m){ return (!m || m==='現金') ? '現金' : (m + '信用�
 
 const CATEGORIES = ['餐飲','交通','娛樂','購物','居家','醫療','其他'];
 const CATEGORY_COLORS = { '餐飲':'#CE7B52', '交通':'#7A9A68', '娛樂':'#C9A227', '購物':'#8E7CC3', '居家':'#5B8CAE', '醫療':'#D96C6C', '其他':'#AC9C89' };
+const CATEGORY_ICONS = {
+  '餐飲': '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v6M10 2v6M14 2v6M10 8v11"/></svg>',
+  '交通': '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l1.5-4.5A2 2 0 016.4 6h7.2a2 2 0 011.9 1.5L17 12"/><rect x="2" y="12" width="16" height="4" rx="1.5"></rect><circle cx="6" cy="17" r="1.3" fill="currentColor" stroke="none"></circle><circle cx="14" cy="17" r="1.3" fill="currentColor" stroke="none"></circle></svg>',
+  '娛樂': '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7.3"></circle><path d="M8.3 6.8l5 3.2-5 3.2V6.8z" fill="currentColor" stroke="none"></path></svg>',
+  '購物': '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h10l-.8 9.2a1.5 1.5 0 01-1.5 1.3H7.3a1.5 1.5 0 01-1.5-1.3L5 7z"></path><path d="M7.5 7V5.5a2.5 2.5 0 015 0V7"></path></svg>',
+  '居家': '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10L10 4l6.5 6"></path><path d="M5.5 8.5V16a1 1 0 001 1h7a1 1 0 001-1V8.5"></path><path d="M8.3 17v-4.5h3.4V17"></path></svg>',
+  '醫療': '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="10" r="7.3"></circle><path d="M10 7v6M7 10h6"></path></svg>',
+  '其他': '<svg viewBox="0 0 20 20" fill="currentColor" stroke="none"><circle cx="5" cy="10" r="1.4"></circle><circle cx="10" cy="10" r="1.4"></circle><circle cx="15" cy="10" r="1.4"></circle></svg>',
+};
+
+let selectedCategory = CATEGORIES[0];
+function renderCategoryPicker(){
+  const grid = document.getElementById('categoryGrid');
+  grid.innerHTML = '';
+  for(const cat of CATEGORIES){
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cat-btn' + (selectedCategory===cat ? ' selected' : '');
+    btn.style.setProperty('--catColor', CATEGORY_COLORS[cat]);
+    btn.innerHTML = CATEGORY_ICONS[cat] + `<span>${cat}</span>`;
+    btn.onclick = ()=>{ selectedCategory = cat; renderCategoryPicker(); };
+    grid.appendChild(btn);
+  }
+}
+
+function setActiveTab(tab){
+  document.querySelectorAll('[data-tab]').forEach(el=>{
+    if(el.dataset.tab === tab) el.removeAttribute('data-tab-hidden');
+    else el.setAttribute('data-tab-hidden', 'true');
+  });
+  document.querySelectorAll('.tabbar-item').forEach(el=>{
+    el.classList.toggle('active', el.dataset.tabTarget === tab);
+  });
+}
+document.querySelectorAll('.tabbar-item').forEach(el=>{
+  el.onclick = ()=> setActiveTab(el.dataset.tabTarget);
+});
 
 function renderMethodStatsGrid(containerId, list){
   const grid = document.getElementById(containerId);
@@ -1186,7 +1244,7 @@ document.getElementById('addForm').addEventListener('submit', function(ev){
   const note = document.getElementById('noteInput').value;
   const date = document.getElementById('dateInput').value || todayISO();
   const method = document.getElementById('methodInput').value;
-  const category = document.getElementById('categoryInput').value;
+  const category = selectedCategory;
   const isAdvance = document.getElementById('isAdvanceInput').checked;
   state.expenses.push({ id: Date.now()+Math.random().toString(36).slice(2), amount, note, date, method, category, isAdvance, ts: Date.now() });
   saveState();
@@ -1720,6 +1778,8 @@ document.getElementById('addGoalBtn').onclick = ()=>{
   document.getElementById('dateInput').value = todayISO();
   document.getElementById('leaveDate').value = todayISO();
   populateMethodSelects();
+  renderCategoryPicker();
+  setActiveTab('record');
   render();
   if(!state.monthlyBudget){
     document.getElementById('openSettings').click();
