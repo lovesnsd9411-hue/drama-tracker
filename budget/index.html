@@ -165,33 +165,6 @@
   <div class="card">
     <div class="progress-outer"><div class="progress-inner" id="progressBar" style="width:0%"></div></div>
   </div>
-
-  <div class="section-title" id="incomeAllocTitle" style="display:none;">本期收入去哪了</div>
-  <div class="card" id="incomeAllocCard" style="display:none;">
-    <div class="income-steps">
-      <div class="income-step">
-        <div class="income-step-dot" style="background:var(--text);">1</div>
-        <div class="income-step-label">收入</div>
-        <div class="income-step-amt" id="incomeAllocTotal">--</div>
-      </div>
-      <div class="income-step">
-        <div class="income-step-dot" style="background:var(--accent);">2</div>
-        <div class="income-step-label">生活預算</div>
-        <div class="income-step-amt" id="incomeAllocBudget">--</div>
-      </div>
-      <div class="income-step">
-        <div class="income-step-dot" style="background:var(--green);">3</div>
-        <div class="income-step-label">存錢目標</div>
-        <div class="income-step-amt" id="incomeAllocGoals">--</div>
-      </div>
-      <div class="income-step">
-        <div class="income-step-dot" id="incomeStep4Dot" style="background:var(--sub);">4</div>
-        <div class="income-step-label" id="incomeStep4Label">待分配</div>
-        <div class="income-step-amt" id="incomeAllocLeft">--</div>
-      </div>
-    </div>
-    <div class="income-tip" id="incomeAllocTip" style="display:none;"></div>
-  </div>
   </div>
 
   <div class="col-add">
@@ -223,6 +196,33 @@
       <input type="checkbox" id="isAdvanceInput">
       <span>代墊/借還款（先幫忙付或跟人借的錢，不算進你的可用金額；之後對方還你，去下面「代墊/借還款」點一下「已收回」就好）</span>
     </label>
+  </div>
+
+  <div class="section-title" id="incomeAllocTitle" style="display:none;">本期收入去哪了</div>
+  <div class="card" id="incomeAllocCard" style="display:none;">
+    <div class="income-steps">
+      <div class="income-step">
+        <div class="income-step-dot" style="background:var(--text);">1</div>
+        <div class="income-step-label">收入</div>
+        <div class="income-step-amt" id="incomeAllocTotal">--</div>
+      </div>
+      <div class="income-step">
+        <div class="income-step-dot" style="background:var(--accent);">2</div>
+        <div class="income-step-label">生活預算</div>
+        <div class="income-step-amt" id="incomeAllocBudget">--</div>
+      </div>
+      <div class="income-step">
+        <div class="income-step-dot" style="background:var(--green);">3</div>
+        <div class="income-step-label">存錢目標</div>
+        <div class="income-step-amt" id="incomeAllocGoals">--</div>
+      </div>
+      <div class="income-step">
+        <div class="income-step-dot" id="incomeStep4Dot" style="background:var(--sub);">4</div>
+        <div class="income-step-label" id="incomeStep4Label">待分配</div>
+        <div class="income-step-amt" id="incomeAllocLeft">--</div>
+      </div>
+    </div>
+    <div class="income-tip" id="incomeAllocTip" style="display:none;"></div>
   </div>
   </div>
 
