@@ -63,6 +63,14 @@
   .legend-row{display:flex;align-items:center;justify-content:space-between;padding:5px 0;font-size:0.85rem;}
   .legend-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;flex:none;}
   .legend-label{display:flex;align-items:center;color:var(--text);}
+  .income-steps{position:relative;display:flex;justify-content:space-between;}
+  .income-steps::before{content:'';position:absolute;top:16px;left:12%;right:12%;height:2px;background:var(--line);z-index:0;}
+  .income-step{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;flex:1;min-width:0;gap:6px;container-type:inline-size;}
+  .income-step-dot{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.85rem;font-weight:700;flex:none;transition:background .3s;}
+  .income-step-label{font-size:0.66rem;color:var(--sub);text-align:center;white-space:nowrap;}
+  .income-step-amt{font-size:clamp(0.6rem,13cqw,0.8rem);font-weight:700;color:var(--text);text-align:center;white-space:nowrap;overflow:hidden;max-width:100%;}
+  .income-tip{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);color:var(--sub);font-size:0.78rem;line-height:1.5;}
+  .income-tip b{color:var(--text);}
   .trend-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;font-size:0.85rem;border-bottom:1px solid var(--line);}
   .trend-row:last-child{border-bottom:none;}
   .trend-delta.up{color:var(--red);}
@@ -156,6 +164,33 @@
 
   <div class="card">
     <div class="progress-outer"><div class="progress-inner" id="progressBar" style="width:0%"></div></div>
+  </div>
+
+  <div class="section-title" id="incomeAllocTitle" style="display:none;">本期收入去哪了</div>
+  <div class="card" id="incomeAllocCard" style="display:none;">
+    <div class="income-steps">
+      <div class="income-step">
+        <div class="income-step-dot" style="background:var(--text);">1</div>
+        <div class="income-step-label">收入</div>
+        <div class="income-step-amt" id="incomeAllocTotal">--</div>
+      </div>
+      <div class="income-step">
+        <div class="income-step-dot" style="background:var(--accent);">2</div>
+        <div class="income-step-label">生活預算</div>
+        <div class="income-step-amt" id="incomeAllocBudget">--</div>
+      </div>
+      <div class="income-step">
+        <div class="income-step-dot" style="background:var(--green);">3</div>
+        <div class="income-step-label">存錢目標</div>
+        <div class="income-step-amt" id="incomeAllocGoals">--</div>
+      </div>
+      <div class="income-step">
+        <div class="income-step-dot" id="incomeStep4Dot" style="background:var(--sub);">4</div>
+        <div class="income-step-label" id="incomeStep4Label">待分配</div>
+        <div class="income-step-amt" id="incomeAllocLeft">--</div>
+      </div>
+    </div>
+    <div class="income-tip" id="incomeAllocTip" style="display:none;"></div>
   </div>
   </div>
 
@@ -927,6 +962,48 @@ function renderAdvanceBalance(){
   }
 }
 
+function renderIncomeAllocation(budget, goalContribution, estimate){
+  const titleEl = document.getElementById('incomeAllocTitle');
+  const cardEl = document.getElementById('incomeAllocCard');
+  if(!estimate || estimate<=0){
+    titleEl.style.display = 'none';
+    cardEl.style.display = 'none';
+    return;
+  }
+  titleEl.style.display = '';
+  cardEl.style.display = '';
+
+  const spendable = Math.max((budget||0) - goalContribution, 0);
+  const unallocated = estimate - (budget||0);
+
+  document.getElementById('incomeAllocTotal').textContent = money(estimate);
+  document.getElementById('incomeAllocBudget').textContent = money(spendable);
+  document.getElementById('incomeAllocGoals').textContent = money(goalContribution);
+  document.getElementById('incomeAllocLeft').textContent = money(unallocated);
+
+  const step4Dot = document.getElementById('incomeStep4Dot');
+  const step4Label = document.getElementById('incomeStep4Label');
+  const leftAmtEl = document.getElementById('incomeAllocLeft');
+  if(unallocated < 0){
+    step4Dot.style.background = 'var(--red)';
+    step4Label.textContent = '已超過收入';
+    leftAmtEl.style.color = 'var(--red)';
+  } else {
+    step4Dot.style.background = 'var(--sub)';
+    step4Label.textContent = '待分配';
+    leftAmtEl.style.color = 'var(--text)';
+  }
+
+  const tipEl = document.getElementById('incomeAllocTip');
+  const suggested = estimate * 0.2;
+  if(goalContribution < suggested - 1){
+    tipEl.style.display = '';
+    tipEl.innerHTML = `抓收入的 20%(<b>${money(suggested)}</b>)存起來是常見的建議，你目前的存錢目標抓了 <b>${money(goalContribution)}</b>，這個月手頭寬裕的話可以考慮再多存一點。`;
+  } else {
+    tipEl.style.display = 'none';
+  }
+}
+
 function render(){
   const { cycleStart, cycleEnd, daysRemaining } = getCycle();
   const todayStr = todayISO();
@@ -948,6 +1025,7 @@ function render(){
     document.getElementById('progressBar').style.width = '0%';
     renderExpenseList([]);
     renderMethodBreakdown([]);
+    renderIncomeAllocation(0, 0, 0);
     return;
   }
 
@@ -964,6 +1042,7 @@ function render(){
   const budget = state.monthlyBudget;
   const goalContribution = totalGoalContribution(cycleStart);
   const spendableBudget = budget - goalContribution;
+  renderIncomeAllocation(budget, goalContribution, computeSalary(cycleStart, cycleEnd).estimate);
   const remainingAtStartOfToday = spendableBudget - spentBeforeToday;
   const daysRemainingClamped = Math.max(daysRemaining, 1);
   const suggestedToday = remainingAtStartOfToday / daysRemainingClamped;
