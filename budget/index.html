@@ -90,6 +90,9 @@
   .modal-bg.show{display:flex;}
   .modal{background:var(--card);border-radius:20px 20px 0 0;padding:24px 20px 32px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;}
   .modal h2{margin:0 0 16px;font-size:1.05rem;}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;}
+  .modal-head h2{margin:0;}
+  .modal-x{border:none;background:var(--line);color:var(--text);border-radius:50%;width:32px;height:32px;font-size:1rem;line-height:1;cursor:pointer;flex:none;display:flex;align-items:center;justify-content:center;}
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:0.85rem;color:var(--sub);margin-bottom:6px;}
   .field input{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);}
@@ -268,7 +271,10 @@
 
 <div class="modal-bg" id="settingsModal">
   <div class="modal">
-    <h2>設定</h2>
+    <div class="modal-head">
+      <h2>設定</h2>
+      <button type="button" class="modal-x" id="closeSettingsX">✕</button>
+    </div>
     <div class="field">
       <label>每月預算金額</label>
       <input type="number" inputmode="decimal" min="0" id="settingBudget" placeholder="例如 20000">
@@ -336,7 +342,10 @@
 
 <div class="modal-bg" id="editExpenseModal">
   <div class="modal">
-    <h2>編輯支出</h2>
+    <div class="modal-head">
+      <h2>編輯支出</h2>
+      <button type="button" class="modal-x" id="closeEditExpenseX">✕</button>
+    </div>
     <div class="field">
       <label>金額</label>
       <input type="number" inputmode="decimal" id="editAmount">
@@ -388,7 +397,10 @@
 
 <div class="modal-bg" id="reviewModal" style="align-items:center;">
   <div class="modal" style="max-height:85vh;overflow-y:auto;border-radius:20px;">
-    <h2>月度檢討</h2>
+    <div class="modal-head">
+      <h2>月度檢討</h2>
+      <button type="button" class="modal-x" id="closeReviewX">✕</button>
+    </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <button type="button" id="reviewPrev" style="border:none;background:var(--line);color:var(--text);border-radius:12px;padding:10px 16px;font-size:1rem;cursor:pointer;">‹</button>
       <div id="reviewLabel" style="font-weight:700;font-size:1.05rem;"></div>
@@ -429,7 +441,10 @@
 
 <div class="modal-bg" id="goalsModal" style="align-items:center;">
   <div class="modal" style="max-height:85vh;overflow-y:auto;border-radius:20px;">
-    <h2>存錢目標</h2>
+    <div class="modal-head">
+      <h2>存錢目標</h2>
+      <button type="button" class="modal-x" id="closeGoalsX">✕</button>
+    </div>
     <ul id="goalsModalList" style="list-style:none;margin:0 0 14px;padding:0;"></ul>
     <div class="empty" id="goalsModalEmpty" style="display:none;">還沒有存錢目標</div>
 
@@ -1064,6 +1079,7 @@ document.getElementById('closeEditExpense').onclick = ()=>{
   editingExpenseId = null;
   editExpenseModal.classList.remove('show');
 };
+document.getElementById('closeEditExpenseX').onclick = ()=> document.getElementById('closeEditExpense').click();
 document.getElementById('saveEditExpense').onclick = ()=>{
   const expense = state.expenses.find(x=>x.id===editingExpenseId);
   if(!expense) return;
@@ -1183,6 +1199,7 @@ document.getElementById('openSettings').onclick = ()=>{
   settingsModal.classList.add('show');
 };
 document.getElementById('closeSettings').onclick = ()=> settingsModal.classList.remove('show');
+document.getElementById('closeSettingsX').onclick = ()=> document.getElementById('closeSettings').click();
 document.getElementById('saveSettings').onclick = ()=>{
   const b = parseFloat(document.getElementById('settingBudget').value);
   const c = parseInt(document.getElementById('settingCycleDay').value);
@@ -1428,6 +1445,7 @@ document.getElementById('reviewNext').onclick = ()=>{
   renderReview();
 };
 document.getElementById('closeReview').onclick = ()=> reviewModal.classList.remove('show');
+document.getElementById('closeReviewX').onclick = ()=> document.getElementById('closeReview').click();
 
 function goalProgressRow(g, cycleStart, withDelete){
   const li = document.createElement('li');
@@ -1571,6 +1589,7 @@ document.getElementById('openGoalsBtn').onclick = ()=>{
   goalsModal.classList.add('show');
 };
 document.getElementById('closeGoals').onclick = ()=> goalsModal.classList.remove('show');
+document.getElementById('closeGoalsX').onclick = ()=> document.getElementById('closeGoals').click();
 document.getElementById('cancelEditGoalBtn').onclick = resetGoalForm;
 document.getElementById('goalDeadline').addEventListener('input', function(){
   document.getElementById('goalMonthlyRow').style.display = this.value ? 'none' : 'block';
