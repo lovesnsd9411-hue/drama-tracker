@@ -451,6 +451,38 @@
   </div>
 </div>
 
+<div class="modal-bg" id="editLeaveModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>編輯請假</h2>
+      <button type="button" class="modal-x" id="closeEditLeaveX">✕</button>
+    </div>
+    <div class="field">
+      <label>假別</label>
+      <select id="editLeaveType">
+        <option value="事假">事假（不給薪）</option>
+        <option value="生理假">生理假（半薪）</option>
+        <option value="病假">病假（半薪）</option>
+        <option value="特休">特休 / 公假（全薪）</option>
+        <option value="颱風假">颱風假（不給薪）</option>
+        <option value="曠職">曠職（扣雙倍）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>天數</label>
+      <input type="number" inputmode="decimal" step="0.5" min="0.5" id="editLeaveDays">
+    </div>
+    <div class="field">
+      <label>日期</label>
+      <input type="date" id="editLeaveDate">
+    </div>
+    <div class="actions">
+      <button class="secondary" id="closeEditLeave">取消</button>
+      <button class="primary" id="saveEditLeave">儲存</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="reviewModal" style="align-items:center;">
   <div class="modal" style="max-height:85vh;overflow-y:auto;border-radius:20px;">
     <div class="modal-head">
@@ -916,6 +948,7 @@ function renderLeaveList(list, dailyPay){
     const li = document.createElement('li');
     const info = document.createElement('div');
     info.className='info';
+    info.onclick = ()=> openEditLeave(l.id);
     const note = document.createElement('div');
     note.className='note';
     note.textContent = `${LEAVE_LABELS[l.type]||l.type} ${l.days} 天`;
@@ -1234,6 +1267,36 @@ document.getElementById('saveEditExpense').onclick = ()=>{
   saveState();
   editingExpenseId = null;
   editExpenseModal.classList.remove('show');
+  render();
+};
+
+let editingLeaveId = null;
+const editLeaveModal = document.getElementById('editLeaveModal');
+function openEditLeave(id){
+  const leave = state.leaves.find(x=>x.id===id);
+  if(!leave) return;
+  editingLeaveId = id;
+  document.getElementById('editLeaveType').value = leave.type;
+  document.getElementById('editLeaveDays').value = leave.days;
+  document.getElementById('editLeaveDate').value = leave.date;
+  editLeaveModal.classList.add('show');
+}
+document.getElementById('closeEditLeave').onclick = ()=>{
+  editingLeaveId = null;
+  editLeaveModal.classList.remove('show');
+};
+document.getElementById('closeEditLeaveX').onclick = ()=> document.getElementById('closeEditLeave').click();
+document.getElementById('saveEditLeave').onclick = ()=>{
+  const leave = state.leaves.find(x=>x.id===editingLeaveId);
+  if(!leave) return;
+  const days = parseFloat(document.getElementById('editLeaveDays').value);
+  if(!days || days<=0) return;
+  leave.type = document.getElementById('editLeaveType').value;
+  leave.days = days;
+  leave.date = document.getElementById('editLeaveDate').value || todayISO();
+  saveState();
+  editingLeaveId = null;
+  editLeaveModal.classList.remove('show');
   render();
 };
 
