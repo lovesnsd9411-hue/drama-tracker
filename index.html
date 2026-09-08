@@ -4927,7 +4927,7 @@ function openDetail(id){
     </div>
     ${d.actors&&d.actors.length?`<div class="meta-row" style="margin-bottom:1rem"><span class="meta-label" style="font-size:12px">主角</span>${d.actors.map(a=>`<span class="ppill" onclick="openActorPageFromWork('${esc(a)}')">${esc(a)} 🔍</span>`).join('')}</div>`:''}
     ${d.cameoActors&&d.cameoActors.length?`<div class="sec-title" style="margin-top:0">客串／特別演出</div><div style="margin-bottom:1rem">${renderCastChipsInline(d.cameoActors,true)}</div>`:''}
-    ${d.note?`<div style="background:#F8F8FB;border-radius:12px;padding:.85rem;font-size:13px;line-height:1.7;margin-bottom:1rem;font-weight:500;color:#444">${esc(d.note)}</div>`:''}
+    ${d.note?`<div style="background:#F8F8FB;border-radius:12px;padding:.85rem;font-size:13px;line-height:1.7;margin-bottom:1rem;font-weight:500;color:#444;white-space:pre-wrap;word-break:break-word">${esc(d.note)}</div>`:''}
     ${watchLogHtml(d,'detail')}
     ${rel}`;
   document.getElementById('det-edit').onclick=()=>{closeModal('detail-modal');openEdit(id)};
