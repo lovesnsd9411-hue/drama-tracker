@@ -347,14 +347,18 @@ input,select,textarea,button{font-family:inherit}
 .btn-primary-sm{background:#1A1A2E;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit}
 .btn-cancel-sm{background:#fff;border:.5px solid #E0E0EE;border-radius:8px;padding:6px 14px;font-size:12.5px;font-weight:700;cursor:pointer;color:#666;font-family:inherit}
 
-/* 電視劇「觀看紀錄」：比音樂劇場次紀錄輕量很多，每筆只有日期＋可選備註，不分狀態
-   （棄劇也能記——本來就有可能撿回來重看又棄一次，或棄了以後過一陣子重新入坑）。 */
+/* 電視劇「觀看紀錄」：比音樂劇場次紀錄輕量很多，每筆日期＋心得備註，不分狀態
+   （棄劇也能記——本來就有可能撿回來重看又棄一次，或棄了以後過一陣子重新入坑）。
+   備註用 textarea、多行完整顯示（不截斷），心得想寫多長都看得到；每筆都能編輯。 */
 .watch-log-list{display:flex;flex-direction:column;gap:6px}
-.watch-log-row{display:flex;align-items:center;gap:10px;background:#F8F8FB;border:1px solid #EFEFF5;border-radius:10px;padding:.55rem .75rem}
-.watch-log-date{font-size:12.5px;font-weight:800;color:#1A1A2E;width:82px;flex-shrink:0}
-.watch-log-note{flex:1;font-size:12px;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.watch-log-del{background:none;border:none;color:#bbb;cursor:pointer;font-size:13px;padding:2px 4px;flex-shrink:0}
+.watch-log-row{display:flex;flex-direction:column;gap:4px;background:#F8F8FB;border:1px solid #EFEFF5;border-radius:10px;padding:.55rem .75rem}
+.watch-log-row-top{display:flex;align-items:center;gap:10px}
+.watch-log-date{font-size:12.5px;font-weight:800;color:#1A1A2E}
+.watch-log-row-actions{display:flex;gap:2px;margin-left:auto;flex-shrink:0}
+.watch-log-edit,.watch-log-del{background:none;border:none;color:#bbb;cursor:pointer;font-size:13px;padding:2px 4px}
+.watch-log-edit:hover{color:#3C3489}
 .watch-log-del:hover{color:#B91C1C}
+.watch-log-note{font-size:12.5px;color:#444;white-space:pre-wrap;line-height:1.6;word-break:break-word}
 .watch-log-count{font-size:11px;font-weight:800;color:#8B86D4;background:#F3F2FC;border-radius:10px;padding:2px 8px;margin-left:4px}
 
 /* 電視劇月曆「年度總覽」：沒有精確日期（watchLog 是空的）、但有「看完年度」的舊劇，
@@ -825,6 +829,7 @@ body.guest-hide-musical #main-cat-musical-btn{display:none}
       <div id="f-settlement-upload-status" style="font-size:11px;color:#aaa;margin-top:4px"></div>
     </div>
 
+    <div class="field" id="drama-only-watchlog" style="display:none"><div id="form-watchlog-section"></div></div>
     <div class="field"><label>筆記 / 心得</label><textarea id="f-note" placeholder="想記錄什麼都可以…"></textarea></div>
     <div class="mfooter">
       <button class="icon-btn" onclick="closeModal('form-modal')">取消</button>
@@ -1077,6 +1082,7 @@ const I18N_EXACT={
   '你的帳號':'아이디','密碼':'비밀번호','再輸入一次':'다시 입력',
   '至少 6 個字元':'최소 6자 이상','英數字、底線、句點或連字號，3~20 個字元':'영문, 숫자, 밑줄, 마침표, 하이픈 3~20자',
   '想記錄什麼都可以…':'자유롭게 기록해보세요…',
+  '這次看的心得，想寫多少都可以…':'이번에 본 감상, 원하는 만큼 적어보세요…',
   '留空＝自動搜尋，或貼上正確網址覆蓋':'비워두면 자동 검색, 정확한 주소를 붙여넣으면 그걸로 대체',
   '角色｜演員，或直接打名字':'배역｜배우, 또는 이름만 입력',
   '請輸入原文劇名（如：어쩌면 해피엔딩）':'원어 제목을 입력하세요（예: 어쩌면 해피엔딩）',
@@ -2465,7 +2471,7 @@ async function setFormCategory(cat){
   const isMusical=cat==='musical';
 
   // drama-only field groups
-  ['drama-only-names','drama-only-row3','drama-only-genre','drama-only-country-platform','drama-only-episode','drama-only-air','drama-only-actors','drama-only-cameo','drama-only-crew'].forEach(id=>{
+  ['drama-only-names','drama-only-row3','drama-only-genre','drama-only-country-platform','drama-only-episode','drama-only-air','drama-only-actors','drama-only-cameo','drama-only-crew','drama-only-watchlog'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display=isMusical?'none':'';
   });
@@ -4714,17 +4720,28 @@ function dismissOverdueTicket(dramaId,showId){
   refreshAfterOverdueAction(dramaId);
 }
 
-// 電視劇「觀看紀錄」：每筆只有日期＋可選備註，跟音樂劇的場次紀錄比起來精簡很多——
-// 電視劇通常是連續好幾天慢慢追完，沒有音樂劇那種「某一天某一場」的單一時間點，這裡
-// 記的是「這次追/刷這部劇」的代表日期，重刷幾次就加幾筆。不分狀態，棄劇也能記
-// （可能撿回來重看又棄一次，或棄了以後過一陣子重新入坑）。
-function watchLogHtml(d){
+// 電視劇「觀看紀錄」：每筆日期＋心得備註，跟音樂劇的場次紀錄比起來精簡很多——電視劇通常是
+// 連續好幾天慢慢追完，沒有音樂劇那種「某一天某一場」的單一時間點，這裡記的是「這次追/刷這
+// 部劇」的代表日期，重刷幾次就加幾筆。不分狀態，棄劇也能記（可能撿回來重看又棄一次，或棄了
+// 以後過一陣子重新入坑）。備註用 textarea、完整多行顯示，想寫多長的心得都看得到、不會被截斷；
+// 每一筆都能點編輯修改，不是加了就改不動。
+// 這組元件同時服務兩個地方：劇目詳細頁（ctx='detail'）跟編輯劇目表單本身（ctx='form'，方便
+// 編輯資料時順手補紀錄，不用先存檔關掉表單再另外開詳細頁）。兩邊的 modal 就算沒有顯示在畫面
+// 上，DOM 還是同時存在，所以面板/輸入框的 id 要依 ctx 加前綴區分，不然兩邊會互相打架。
+let editingWatchLogId=null; // 目前面板是「新增」還是在編輯某一筆（存那一筆的 id），null 代表新增模式
+function watchLogHtml(d,ctx){
+  const pfx='watch-log-'+ctx+'-';
   const log=(d.watchLog||[]).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   const rows=log.map(w=>`
     <div class="watch-log-row">
-      <div class="watch-log-date">${esc(w.date||'')}</div>
-      <div class="watch-log-note">${w.note?esc(w.note):''}</div>
-      <button class="watch-log-del" onclick="deleteWatchLogEntry('${jsStr(d.id)}','${jsStr(w.id)}')" title="刪除"><i class="ti ti-x"></i></button>
+      <div class="watch-log-row-top">
+        <div class="watch-log-date">${esc(w.date||'')}</div>
+        <div class="watch-log-row-actions">
+          <button class="watch-log-edit" onclick="editWatchLogEntry('${jsStr(d.id)}','${jsStr(w.id)}','${ctx}')" title="編輯"><i class="ti ti-pencil"></i></button>
+          <button class="watch-log-del" onclick="deleteWatchLogEntry('${jsStr(d.id)}','${jsStr(w.id)}','${ctx}')" title="刪除"><i class="ti ti-x"></i></button>
+        </div>
+      </div>
+      ${w.note?`<div class="watch-log-note">${esc(w.note)}</div>`:''}
     </div>`).join('');
   // 大多數劇只看一次，平常用不到——收進一個摺疊區塊（沿用「各角色觀看次數」那套摺疊元件），
   // 只看過 0～1 次維持收起、不佔版面；真的有重刷（2 次以上）才預設展開，直接看得到。
@@ -4737,15 +4754,15 @@ function watchLogHtml(d){
       </div>
       <div class="season-acc-body${isOpen?' open':''}">
         <div class="season-acc-body-inner">
-          <button class="icon-btn" onclick="event.stopPropagation();toggleWatchLogAddForm('${jsStr(d.id)}')" style="margin-bottom:.6rem"><i class="ti ti-plus"></i> 新增紀錄</button>
-          <div class="split-panel" id="watch-log-add-panel" style="display:none">
+          <button class="icon-btn" onclick="event.stopPropagation();toggleWatchLogAddForm('${jsStr(d.id)}','${ctx}')" style="margin-bottom:.6rem"><i class="ti ti-plus"></i> 新增紀錄</button>
+          <div class="split-panel" id="${pfx}add-panel" style="display:none">
             <div class="split-row">
-              <input type="date" id="watch-log-date-input" onpaste="handleDatePaste(event)">
-              <input type="text" id="watch-log-note-input" placeholder="備註（可留空）" style="flex:1;min-width:120px;background:#fff;border:.5px solid #E0E0EE;border-radius:8px;padding:6px 8px;font-size:13px;color:#1A1A2E">
+              <input type="date" id="${pfx}date-input" onpaste="handleDatePaste(event)">
             </div>
+            <textarea id="${pfx}note-input" placeholder="這次看的心得，想寫多少都可以…" style="width:100%;min-height:80px;margin-top:8px;background:#fff;border:.5px solid #E0E0EE;border-radius:8px;padding:8px;font-size:13px;color:#1A1A2E;font-family:inherit;resize:vertical"></textarea>
             <div class="split-actions">
-              <button class="btn-primary-sm" onclick="submitWatchLogEntry('${jsStr(d.id)}')">新增</button>
-              <button class="btn-cancel-sm" onclick="toggleWatchLogAddForm('${jsStr(d.id)}')">取消</button>
+              <button class="btn-primary-sm" id="${pfx}submit-btn" onclick="submitWatchLogEntry('${jsStr(d.id)}','${ctx}')">新增</button>
+              <button class="btn-cancel-sm" onclick="toggleWatchLogAddForm('${jsStr(d.id)}','${ctx}')">取消</button>
             </div>
           </div>
           ${log.length?`<div class="watch-log-list">${rows}</div>`:'<div style="font-size:12px;color:#aaa">還沒有任何紀錄</div>'}
@@ -4754,38 +4771,77 @@ function watchLogHtml(d){
     </div>
   `;
 }
-function toggleWatchLogAddForm(dramaId){
-  const panel=document.getElementById('watch-log-add-panel');
+// 編輯劇目表單裡的觀看紀錄區塊，跟表單其他欄位是分開存檔的（新增/刪除/編輯一筆紀錄馬上生效，
+// 不用等按表單的「儲存」）——重新渲染這一小塊就好，不會動到使用者正在填的其他欄位。
+function renderFormWatchLog(dramaId){
+  const d=db.find(x=>x.id===dramaId);
+  const el=document.getElementById('form-watchlog-section');
+  if(d && el) el.innerHTML=watchLogHtml(d,'form');
+}
+function refreshWatchLogUI(dramaId,ctx){
+  if(ctx==='form') renderFormWatchLog(dramaId);
+  else openDetail(dramaId);
+}
+function toggleWatchLogAddForm(dramaId,ctx){
+  const pfx='watch-log-'+ctx+'-';
+  const panel=document.getElementById(pfx+'add-panel');
   if(!panel) return;
   const opening=panel.style.display==='none';
   panel.style.display=opening?'':'none';
+  editingWatchLogId=null;
+  const btn=document.getElementById(pfx+'submit-btn');
+  if(btn) btn.textContent='新增';
   if(opening){
-    const dateInput=document.getElementById('watch-log-date-input');
-    if(dateInput && !dateInput.value) dateInput.value=new Date().toISOString().slice(0,10);
-    const noteInput=document.getElementById('watch-log-note-input');
+    const dateInput=document.getElementById(pfx+'date-input');
+    if(dateInput) dateInput.value=new Date().toISOString().slice(0,10);
+    const noteInput=document.getElementById(pfx+'note-input');
     if(noteInput) noteInput.value='';
   }
 }
-function submitWatchLogEntry(dramaId){
+function editWatchLogEntry(dramaId,entryId,ctx){
+  const d=db.find(x=>x.id===dramaId);
+  if(!d||!d.watchLog) return;
+  const w=d.watchLog.find(x=>x.id===entryId);
+  if(!w) return;
+  const pfx='watch-log-'+ctx+'-';
+  editingWatchLogId=entryId;
+  const panel=document.getElementById(pfx+'add-panel');
+  if(panel) panel.style.display='';
+  const dateInput=document.getElementById(pfx+'date-input');
+  if(dateInput) dateInput.value=w.date||'';
+  const noteInput=document.getElementById(pfx+'note-input');
+  if(noteInput) noteInput.value=w.note||'';
+  const btn=document.getElementById(pfx+'submit-btn');
+  if(btn) btn.textContent='儲存';
+  if(panel) panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+function submitWatchLogEntry(dramaId,ctx){
   if(isReadOnly)return;
   const d=db.find(x=>x.id===dramaId);
   if(!d) return;
-  const date=fieldVal('watch-log-date-input');
+  const pfx='watch-log-'+ctx+'-';
+  const date=fieldVal(pfx+'date-input');
   if(!date){ alert(t('請選擇觀看日期')); return; }
-  const note=fieldVal('watch-log-note-input').trim();
+  const note=fieldVal(pfx+'note-input').trim();
   if(!d.watchLog) d.watchLog=[];
-  d.watchLog.push({id:uid(),date,note});
+  if(editingWatchLogId){
+    const w=d.watchLog.find(x=>x.id===editingWatchLogId);
+    if(w){ w.date=date; w.note=note; }
+  }else{
+    d.watchLog.push({id:uid(),date,note});
+  }
+  editingWatchLogId=null;
   save();
-  openDetail(dramaId);
+  refreshWatchLogUI(dramaId,ctx);
 }
-function deleteWatchLogEntry(dramaId,entryId){
+function deleteWatchLogEntry(dramaId,entryId,ctx){
   if(isReadOnly)return;
   if(!confirm(t('確定要刪除這筆觀看紀錄嗎？')))return;
   const d=db.find(x=>x.id===dramaId);
   if(!d||!d.watchLog) return;
   d.watchLog=d.watchLog.filter(w=>w.id!==entryId);
   save();
-  openDetail(dramaId);
+  refreshWatchLogUI(dramaId,ctx);
 }
 
 function openDetail(id){
@@ -4872,7 +4928,7 @@ function openDetail(id){
     ${d.actors&&d.actors.length?`<div class="meta-row" style="margin-bottom:1rem"><span class="meta-label" style="font-size:12px">主角</span>${d.actors.map(a=>`<span class="ppill" onclick="openActorPageFromWork('${esc(a)}')">${esc(a)} 🔍</span>`).join('')}</div>`:''}
     ${d.cameoActors&&d.cameoActors.length?`<div class="sec-title" style="margin-top:0">客串／特別演出</div><div style="margin-bottom:1rem">${renderCastChipsInline(d.cameoActors,true)}</div>`:''}
     ${d.note?`<div style="background:#F8F8FB;border-radius:12px;padding:.85rem;font-size:13px;line-height:1.7;margin-bottom:1rem;font-weight:500;color:#444">${esc(d.note)}</div>`:''}
-    ${watchLogHtml(d)}
+    ${watchLogHtml(d,'detail')}
     ${rel}`;
   document.getElementById('det-edit').onclick=()=>{closeModal('detail-modal');openEdit(id)};
   const favBtn=document.getElementById('det-fav');
@@ -4925,6 +4981,10 @@ function openAdd(){
     renderSeasonBlocksContainer();
     renderSettlementSeasonTabs();
     setFormCategory('drama');
+    // 觀看紀錄要劇目本身先存在才有意義（新增中、還沒存檔的劇沒有 id 可以掛紀錄），
+    // 就算目前是電視劇分類，新增表單也一律不顯示這個區塊，等第一次存檔完、進入編輯才會出現。
+    const watchlogWrap=document.getElementById('drama-only-watchlog');
+    if(watchlogWrap) watchlogWrap.style.display='none';
 
     // 選單重置
     setGenreCheckboxValues('');
@@ -4988,6 +5048,9 @@ function openEdit(id){
   }
   if(autoQ&&!isFullUrl) setTimeout(()=>searchPosters(),300);
   setFormCategory(d.category||'drama');
+  if((d.category||'drama')==='drama'){
+    renderFormWatchLog(id);
+  }
   if((d.category||'drama')==='musical'){
     // wait for actor list load (setFormCategory awaits it) before populating chips
     setTimeout(()=>{
