@@ -56,6 +56,7 @@
   .row2{display:flex;gap:8px;margin-top:8px;}
   .row2 input, .row2 select{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:1rem;background:var(--bg);color:var(--text);}
   .field-label{font-size:0.75rem;color:var(--sub);margin:14px 2px 8px;}
+  .calc-hint{font-size:0.75rem;color:var(--sub);margin-top:6px;}
   .cat-grid{display:flex;flex-wrap:wrap;gap:6px;}
   .cat-btn{display:flex;align-items:center;gap:5px;padding:0 11px;height:34px;border-radius:999px;border:1.5px solid var(--catColor,var(--line));background:var(--bg);color:var(--catColor,var(--sub));font-size:0.75rem;font-weight:600;font-family:inherit;cursor:pointer;}
   .cat-btn svg{width:14px;height:14px;flex:none;}
@@ -184,9 +185,10 @@
   <div class="section-title" data-tab="record">記一筆</div>
   <div class="card" data-tab="record">
     <form class="add" id="addForm">
-      <input type="number" inputmode="decimal" step="1" placeholder="金額" id="amountInput" required>
+      <input type="text" inputmode="decimal" placeholder="金額，例如 150+40" id="amountInput" required>
       <button type="submit">新增</button>
     </form>
+    <div class="calc-hint" id="amountCalcHint" style="display:none;"></div>
     <div class="row2">
       <input type="text" placeholder="備註（選填）" id="noteInput">
       <input type="date" id="dateInput">
@@ -404,7 +406,8 @@
     </div>
     <div class="field">
       <label>金額</label>
-      <input type="number" inputmode="decimal" id="editAmount">
+      <input type="text" inputmode="decimal" id="editAmount">
+      <div class="hint" id="editAmountCalcHint" style="display:none;"></div>
     </div>
     <div class="field">
       <label>備註</label>
@@ -672,6 +675,39 @@ function money(n){
   const r = Math.round(n);
   return (r<0?'-':'') + '$' + Math.abs(r).toLocaleString();
 }
+
+function parseAmountExpr(str){
+  if(!str) return NaN;
+  const cleaned = str.trim();
+  if(!/^[0-9.+\-\s]+$/.test(cleaned)) return NaN;
+  const tokens = cleaned.match(/[+-]?\s*[0-9]*\.?[0-9]+/g);
+  if(!tokens || !tokens.length) return NaN;
+  let sum = 0;
+  for(const t of tokens){
+    const n = parseFloat(t.replace(/\s+/g,''));
+    if(isNaN(n)) return NaN;
+    sum += n;
+  }
+  return sum;
+}
+
+function wireAmountCalcHint(inputId, hintId){
+  const input = document.getElementById(inputId);
+  const hint = document.getElementById(hintId);
+  input.addEventListener('input', function(){
+    const raw = this.value.trim();
+    const hasOperator = /[+\-]/.test(raw.slice(1));
+    const total = parseAmountExpr(raw);
+    if(hasOperator && !isNaN(total)){
+      hint.textContent = '= ' + money(total);
+      hint.style.display = '';
+    } else {
+      hint.style.display = 'none';
+    }
+  });
+}
+wireAmountCalcHint('amountInput', 'amountCalcHint');
+wireAmountCalcHint('editAmount', 'editAmountCalcHint');
 
 function getMethods(){ return ['現金', ...(state.creditCards||[])]; }
 function methodLabel(m){ return (!m || m==='現金') ? '現金' : (m + '信用卡'); }
@@ -1233,6 +1269,7 @@ function openEditExpense(id){
   if(!expense) return;
   editingExpenseId = id;
   document.getElementById('editAmount').value = expense.amount;
+  document.getElementById('editAmountCalcHint').style.display = 'none';
   document.getElementById('editNote').value = expense.note || '';
   document.getElementById('editDate').value = expense.date;
   document.getElementById('editMethod').value = expense.method || '現金';
@@ -1254,7 +1291,7 @@ document.getElementById('closeEditExpenseX').onclick = ()=> document.getElementB
 document.getElementById('saveEditExpense').onclick = ()=>{
   const expense = state.expenses.find(x=>x.id===editingExpenseId);
   if(!expense) return;
-  const amount = parseFloat(document.getElementById('editAmount').value);
+  const amount = parseAmountExpr(document.getElementById('editAmount').value);
   if(!amount) return;
   expense.amount = amount;
   expense.note = document.getElementById('editNote').value;
@@ -1302,7 +1339,7 @@ document.getElementById('saveEditLeave').onclick = ()=>{
 
 document.getElementById('addForm').addEventListener('submit', function(ev){
   ev.preventDefault();
-  const amount = parseFloat(document.getElementById('amountInput').value);
+  const amount = parseAmountExpr(document.getElementById('amountInput').value);
   if(!amount) return;
   const note = document.getElementById('noteInput').value;
   const date = document.getElementById('dateInput').value || todayISO();
@@ -1312,6 +1349,7 @@ document.getElementById('addForm').addEventListener('submit', function(ev){
   state.expenses.push({ id: Date.now()+Math.random().toString(36).slice(2), amount, note, date, method, category, isAdvance, ts: Date.now() });
   saveState();
   document.getElementById('amountInput').value = '';
+  document.getElementById('amountCalcHint').style.display = 'none';
   document.getElementById('noteInput').value = '';
   document.getElementById('isAdvanceInput').checked = false;
   document.getElementById('amountInput').focus();
